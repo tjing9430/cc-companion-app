@@ -1,0 +1,16 @@
+{
+  "name": "cc-companion-app",
+  "version": "0.1.0",
+  "description": "Self-hostable companion chat app with private chat, group chat, console, memory, and settings.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "check": "node --check server.js && node --check public/app.js && node --check public/sw.js && node --check adapters/openai-compatible.template.js && node --check adapters/local-cli.template.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

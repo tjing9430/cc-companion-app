@@ -1,0 +1,26 @@
+{
+  "name": "CC Companion",
+  "short_name": "CC Companion",
+  "description": "Self-hostable companion chat app with private chat, group chat, console, memory, and settings.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101114",
+  "theme_color": "#6fb1ff",
+  "orientation": "portrait",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

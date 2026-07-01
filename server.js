@@ -1,0 +1,1418 @@
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+loadDotEnv(path.join(__dirname, '.env'));
+
+const PORT = Number(process.env.PORT || 8787);
+const DATA_DIR = path.resolve(__dirname, process.env.DATA_DIR || 'data');
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const STORE_FILE = path.join(DATA_DIR, 'app-data.json');
+const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+const MAX_JSON_BYTES = 16 * 1024 * 1024;
+const AUTH_TOKEN = String(process.env.APP_AUTH_TOKEN || '').trim();
+const AGENT_TIMEOUT_MS = Math.max(1000, Number(process.env.AGENT_TIMEOUT_MS || 120000));
+const MEMORY_RECALL_LIMIT = Math.max(1, Number(process.env.MEMORY_RECALL_LIMIT || 8));
+const FORGE_ADAPTER_URL = String(process.env.FORGE_ADAPTER_URL || '').trim();
+const FORGE_ADAPTER_TOKEN = String(process.env.FORGE_ADAPTER_TOKEN || '').trim();
+const FORGE_ADAPTER_TIMEOUT_MS = Math.max(1000, Number(process.env.FORGE_ADAPTER_TIMEOUT_MS || 120000));
+const QUOTA_ADAPTER_URL = String(process.env.QUOTA_ADAPTER_URL || '').trim();
+const QUOTA_ADAPTER_TOKEN = String(process.env.QUOTA_ADAPTER_TOKEN || '').trim();
+const QUOTA_ADAPTER_TIMEOUT_MS = Math.max(1000, Number(process.env.QUOTA_ADAPTER_TIMEOUT_MS || 30000));
+const sseClients = new Set();
+
+fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+let store = loadStore();
+ensureSeedData();
+
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch((err) => {
+    const status = err && err.statusCode ? err.statusCode : 500;
+    if (status >= 500) console.error(err);
+    sendJson(res, status, {
+      error: err && err.errorCode ? err.errorCode : 'internal_error',
+      message: err && err.message ? err.message : 'internal error',
+    });
+  });
+});
+
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    console.error(`Unable to start CC Companion: port ${PORT} is already in use.`);
+    console.error('Set PORT to another available port in .env (for example PORT=8799) and start again.');
+    process.exitCode = 1;
+    return;
+  }
+  console.error(`Unable to start CC Companion: ${err.message}`);
+  process.exitCode = 1;
+});
+
+server.listen(PORT, () => {
+  addConsoleEvent('system', '服务已启动', `正在监听 http://localhost:${PORT}`);
+  console.log(`CC Companion listening on http://localhost:${PORT}`);
+});
+
+async function handleRequest(req, res) {
+  setCommonHeaders(res);
+  if (req.method === 'OPTIONS') return endNoContent(res);
+
+  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  const route = normalizeRoute(url.pathname);
+
+  if ((route.startsWith('/api/') || route.startsWith('/uploads/')) && !isAuthorized(req, url)) {
+    return sendJson(res, 401, { error: 'unauthorized' });
+  }
+
+  if (req.method === 'GET' && route === '/api/health') {
+    return sendJson(res, 200, {
+      ok: true,
+      name: 'cc-companion-app',
+      storage: STORE_FILE,
+      session: publicSession(),
+      agent: agentStatus(),
+    });
+  }
+
+  if (req.method === 'GET' && (route === '/api/stream' || route === '/api/group/stream' || route === '/api/chat/stream')) {
+    return handleSseStream(req, res, streamScopeForRoute(route));
+  }
+
+  if (req.method === 'GET' && route === '/api/bootstrap') {
+    return sendJson(res, 200, {
+      settings: publicSettings(),
+      chat: latestMessages('chat'),
+      group: latestMessages('group'),
+      console: latestConsoleEvents(),
+      memories: listMemories(url.searchParams.get('q') || ''),
+      session: publicSession(),
+    });
+  }
+
+  if (req.method === 'GET' && route === '/api/settings') {
+    return sendJson(res, 200, publicSettings());
+  }
+
+  if (req.method === 'GET' && route === '/api/quota') {
+    const result = await queryQuota({ recordEvent: false });
+    return sendJson(res, 200, { ok: true, quota: result.quota });
+  }
+
+  if (req.method === 'POST' && route === '/api/settings') {
+    const body = await readJson(req);
+    const previous = store.settings;
+    store.settings = normalizeSettings({ ...store.settings, ...body });
+    applySettingsRename(previous, store.settings);
+    saveStore();
+    addConsoleEvent('settings', '设置已更新', '应用设置已保存。');
+    const settings = publicSettings();
+    broadcastSse('settings', { settings });
+    return sendJson(res, 200, settings);
+  }
+
+  if (req.method === 'GET' && route === '/api/chat/messages') {
+    return sendJson(res, 200, latestMessages('chat', Number(url.searchParams.get('limit') || 80)));
+  }
+
+  if (req.method === 'GET' && route === '/api/group/messages') {
+    return sendJson(res, 200, latestMessages('group', Number(url.searchParams.get('limit') || 80)));
+  }
+
+  if (req.method === 'POST' && route === '/api/chat/send') {
+    return handleSend(res, 'chat', await readJson(req));
+  }
+
+  if (req.method === 'POST' && route === '/api/group/send') {
+    return handleSend(res, 'group', await readJson(req));
+  }
+
+  if (req.method === 'GET' && route === '/api/console/events') {
+    return sendJson(res, 200, latestConsoleEvents(Number(url.searchParams.get('limit') || 120)));
+  }
+
+  if (req.method === 'POST' && route === '/api/console/events') {
+    const body = await readJson(req);
+    const event = addConsoleEvent(body.kind || 'note', body.title || 'note', body.body || body.text || '');
+    return sendJson(res, 201, event);
+  }
+
+  if (req.method === 'POST' && route === '/api/console/commands') {
+    const body = await readJson(req);
+    return sendJson(res, 201, await handleConsoleCommand(body.command || body.text || ''));
+  }
+
+  if (req.method === 'GET' && route === '/api/memory') {
+    return sendJson(res, 200, listMemories({
+      q: url.searchParams.get('q') || '',
+      tag: url.searchParams.get('tag') || '',
+      sort: url.searchParams.get('sort') || '',
+      limit: url.searchParams.get('limit') || '',
+    }));
+  }
+
+  if (req.method === 'POST' && route === '/api/memory') {
+    const body = await readJson(req);
+    const memory = createMemory(body);
+    return sendJson(res, 201, memory);
+  }
+
+  if (req.method === 'GET' && route === '/api/memory/export') {
+    return sendJson(res, 200, { memories: listMemories({ limit: 500 }), exported_at: new Date().toISOString() });
+  }
+
+  if (req.method === 'POST' && route === '/api/memory/import') {
+    const body = await readJson(req);
+    const memories = importMemories(body.memories || body.items || []);
+    return sendJson(res, 201, { ok: true, imported: memories.length, memories });
+  }
+
+  const memoryMatch = route.match(/^\/api\/memory\/(\d+)$/);
+  if (memoryMatch && req.method === 'PATCH') {
+    const memory = updateMemory(Number(memoryMatch[1]), await readJson(req));
+    if (!memory) return sendJson(res, 404, { error: 'memory_not_found' });
+    return sendJson(res, 200, memory);
+  }
+
+  if (memoryMatch && req.method === 'DELETE') {
+    const ok = deleteMemory(Number(memoryMatch[1]));
+    return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'memory_not_found' });
+  }
+
+  if (req.method === 'POST' && route === '/api/uploads') {
+    return sendJson(res, 201, await saveUpload(await readJson(req)));
+  }
+
+  if (req.method === 'GET' && route.startsWith('/uploads/')) {
+    return serveUpload(res, route);
+  }
+
+  if (req.method === 'GET') {
+    return serveStatic(res, route);
+  }
+
+  sendJson(res, 404, { error: 'not_found' });
+}
+
+function handleSseStream(req, res, scope = 'all') {
+  res.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache, no-transform',
+    connection: 'keep-alive',
+    'x-accel-buffering': 'no',
+  });
+  const client = { res, scope };
+  sseClients.add(client);
+  writeSse(client, 'ready', { scope, now: new Date().toISOString() });
+  writeSse(client, 'snapshot', streamSnapshot(scope));
+  const keepAlive = setInterval(() => {
+    writeSse(client, 'ping', { now: new Date().toISOString() });
+  }, 25000);
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    sseClients.delete(client);
+  });
+}
+
+function streamScopeForRoute(route) {
+  if (route === '/api/group/stream') return 'group';
+  if (route === '/api/chat/stream') return 'chat';
+  return 'all';
+}
+
+function streamSnapshot(scope) {
+  if (scope === 'group') return { scope, group: latestMessages('group') };
+  if (scope === 'chat') return { scope, chat: latestMessages('chat') };
+  return {
+    scope,
+    settings: publicSettings(),
+    chat: latestMessages('chat'),
+    group: latestMessages('group'),
+    console: latestConsoleEvents(),
+    memories: listMemories(''),
+    session: publicSession(),
+  };
+}
+
+function broadcastSse(event, payload) {
+  if (!sseClients.size) return;
+  for (const client of Array.from(sseClients)) {
+    if (!shouldSendToClient(client, event, payload)) continue;
+    writeSse(client, event, payload);
+  }
+}
+
+function shouldSendToClient(client, event, payload) {
+  if (!client || client.scope === 'all') return true;
+  if (event === 'message') return payload && payload.scope === client.scope;
+  if (event === 'snapshot') return payload && payload.scope === client.scope;
+  return false;
+}
+
+function writeSse(client, event, payload) {
+  try {
+    client.res.write(`event: ${event}\n`);
+    client.res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  } catch {
+    sseClients.delete(client);
+  }
+}
+
+async function handleSend(res, scope, body) {
+  const settings = store.settings;
+  const sender = cleanString(body.sender, settings.userName);
+  const outgoing = normalizeOutgoingMessages(body);
+  if (!outgoing.length) {
+    return sendJson(res, 400, { error: 'empty_message' });
+  }
+
+  const messages = outgoing.map((item) => addMessage(scope, {
+    sender,
+    role: 'user',
+    content: item.content,
+    attachments: item.attachments,
+    parent_msg_id: body.reply_to_id || body.parent_msg_id || null,
+    msg_type: 'chat',
+  }));
+
+  let reply = null;
+  const combinedContent = messages.map((message) => message.content).filter(Boolean).join('\n');
+  if (scope === 'chat' || shouldReplyInGroup(combinedContent)) {
+    const replySource = { ...messages[messages.length - 1], content: combinedContent };
+    reply = await generateAgentReply(scope, replySource);
+  }
+
+  sendJson(res, 201, { ok: true, messages, message: messages[0], reply });
+}
+
+async function generateAgentReply(scope, userMessage) {
+  const settings = store.settings;
+  const assistantName = settings.assistantName || 'Assistant';
+  addConsoleEvent('received', scope === 'group' ? '群聊消息' : '私聊消息', userMessage.content || '[附件]');
+  addConsoleEvent('thinking', assistantName, '正在生成回复...');
+
+  let content = '';
+  try {
+    content = await callConfiguredAgent(scope, userMessage);
+  } catch (err) {
+    addConsoleEvent('error', 'AI 调用失败', err.message);
+    content = `暂时无法调用已配置的 AI：${err.message}`;
+  }
+
+  const reply = addMessage(scope, {
+    sender: assistantName,
+    role: 'assistant',
+    content,
+    attachments: [],
+    parent_msg_id: userMessage.id,
+    msg_type: 'chat',
+  });
+  addConsoleEvent('reply', assistantName, content);
+  return reply;
+}
+
+const MEMORY_STOPWORDS = new Set([
+  '的', '了', '和', '是', '我', '你', '他', '她', '它', '们', '在', '有', '这', '那', '就', '都', '也', '要', '不', '吗',
+  '呢', '啊', '吧', '与', '之', '对', '把', '被', '让', '给', '很', '哦', '嗯', '个', '会', '能', '说', '想', '到', '去',
+  '来', '过', '着', '呀', '的话',
+  'the', 'a', 'an', 'is', 'are', 'am', 'to', 'of', 'and', 'or', 'in', 'on', 'at', 'it', 'i', 'you', 'me', 'my', 'your',
+  'we', 'this', 'that', 'for', 'with', 'as', 'be', 'so', 'do', 'if', 'was', 'were', 'not', 'but', 'can',
+]);
+
+// Tokenize for lightweight relevance scoring, no NLP dependency: latin words plus CJK single chars
+// and adjacent-character bigrams (bigrams stand in for word segmentation on Chinese text).
+function memoryTokens(text) {
+  const s = String(text || '').toLowerCase();
+  const tokens = [];
+  for (const w of s.match(/[a-z0-9]{2,}/g) || []) {
+    if (!MEMORY_STOPWORDS.has(w)) tokens.push(w);
+  }
+  const cjk = s.match(/[一-鿿]/g) || [];
+  for (let i = 0; i < cjk.length; i += 1) {
+    if (!MEMORY_STOPWORDS.has(cjk[i])) tokens.push(cjk[i]);
+    if (i + 1 < cjk.length) tokens.push(cjk[i] + cjk[i + 1]);
+  }
+  return tokens;
+}
+
+function dedupeMemories(list) {
+  const seen = new Set();
+  const out = [];
+  for (const memory of list) {
+    if (!memory) continue;
+    const id = memory.id;
+    if (id != null) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+    }
+    out.push(memory);
+  }
+  return out;
+}
+
+// Pick the memories most relevant to the current message instead of just the most recent N.
+// Score = token overlap weighted by inverse document frequency (distinctive words matter more than
+// common ones). Pinned memories are always kept; a query with no usable terms (bare greeting) falls
+// back to the most recent memories.
+function selectRelevantMemories(queryText, limit = MEMORY_RECALL_LIMIT) {
+  const memories = Array.isArray(store.memories) ? store.memories : [];
+  if (!memories.length) return [];
+  const cap = Math.max(1, Number(limit) || MEMORY_RECALL_LIMIT);
+  const pinned = memories.filter((m) => m && m.pinned);
+  const queryTerms = new Set(memoryTokens(queryText));
+  if (!queryTerms.size) {
+    return dedupeMemories([...pinned, ...memories.slice(-cap)]).slice(0, cap);
+  }
+  const df = new Map();
+  const tokenSets = memories.map((m) => {
+    const set = new Set(memoryTokens(`${m.title || ''} ${m.content || ''} ${(m.tags || []).join(' ')}`));
+    for (const t of set) df.set(t, (df.get(t) || 0) + 1);
+    return set;
+  });
+  const total = memories.length;
+  const scored = memories.map((memory, order) => {
+    let score = 0;
+    for (const term of queryTerms) {
+      if (tokenSets[order].has(term)) {
+        const idf = Math.log(1 + total / (1 + (df.get(term) || 0)));
+        score += idf * (term.length > 1 ? 1.6 : 1);
+      }
+    }
+    return { memory, score, order };
+  });
+  scored.sort((a, b) => (b.score - a.score) || (b.order - a.order));
+  const relevant = scored.filter((entry) => entry.score > 0).map((entry) => entry.memory);
+  return dedupeMemories([...pinned, ...relevant]).slice(0, cap);
+}
+
+async function callConfiguredAgent(scope, userMessage) {
+  const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  if (!apiKey) return mockReply(scope, userMessage);
+
+  const baseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const model = String(process.env.OPENAI_MODEL || 'gpt-4.1-mini');
+  const memories = selectRelevantMemories(userMessage.content, MEMORY_RECALL_LIMIT)
+    .map((m) => `- ${m.title}: ${m.content}`).join('\n');
+  const system = [
+    `你是 ${store.settings.assistantName || 'AI'}，运行在一个自部署 AI 伴侣聊天 App 里。`,
+    '请用清楚、简短、自然的中文回复。',
+    memories ? `相关记忆：\n${memories}` : '',
+  ].filter(Boolean).join('\n\n');
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: userMessage.content || '[attachment]' },
+        ],
+        temperature: 0.7,
+      }),
+    });
+  } catch (err) {
+    if (err && err.name === 'AbortError') throw new Error(`Agent API timed out after ${AGENT_TIMEOUT_MS} ms`);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = data && data.error && data.error.message ? data.error.message : `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  const text = data && data.choices && data.choices[0] && data.choices[0].message
+    ? data.choices[0].message.content
+    : '';
+  return cleanString(text, mockReply(scope, userMessage));
+}
+
+function mockReply(scope, userMessage) {
+  const memories = selectRelevantMemories(userMessage.content, 3).map((m) => m.title).filter(Boolean);
+  const memoryHint = memories.length ? ` 我也能看到这些记忆：${memories.join('、')}。` : '';
+  const place = scope === 'group' ? '群聊' : '私聊';
+  const quoted = userMessage.content ? `“${truncate(userMessage.content, 160)}”` : '你的附件';
+  return `演示 AI 在${place}里收到了${quoted}。${memoryHint}在 .env 里设置 OPENAI_API_KEY 后，就会切换成真实模型回复。`;
+}
+
+function shouldReplyInGroup(content) {
+  if (String(process.env.AUTO_REPLY_GROUP || '').toLowerCase() === 'true') return true;
+  if (store.settings.autoReplyGroup === true) return true;
+  const text = String(content || '').toLowerCase();
+  const mention = String(store.settings.agentMention || 'assistant').toLowerCase();
+  return text.includes(`@${mention}`) || text.includes('@assistant') || text.includes('@agent') || text.includes('@codex');
+}
+
+function normalizeOutgoingMessages(body) {
+  const source = Array.isArray(body.messages) && body.messages.length
+    ? body.messages
+    : [{ content: body.content, attachments: body.attachments }];
+  return source.map((item) => {
+    const input = item && typeof item === 'object' ? item : { content: item };
+    return {
+      content: cleanString(input.content, ''),
+      attachments: normalizeAttachments(input.attachments),
+    };
+  }).filter((item) => item.content || item.attachments.length);
+}
+
+function addMessage(scope, input) {
+  const key = scope === 'group' ? 'group_messages' : 'chat_messages';
+  const message = {
+    id: nextId('message'),
+    scope,
+    sender: cleanString(input.sender, 'unknown'),
+    role: input.role === 'assistant' ? 'assistant' : 'user',
+    content: cleanString(input.content, ''),
+    attachments: normalizeAttachments(input.attachments),
+    parent_msg_id: input.parent_msg_id == null ? null : Number(input.parent_msg_id),
+    msg_type: input.msg_type || 'chat',
+    session_id: cleanString(input.session_id, store.session && store.session.current_id || ''),
+    created_at: new Date().toISOString(),
+  };
+  store[key].push(message);
+  saveStore();
+  broadcastSse('message', { scope, message: publicMessage(message) });
+  return message;
+}
+
+function latestMessages(scope, limit = 80) {
+  const key = scope === 'group' ? 'group_messages' : 'chat_messages';
+  return store[key].slice(-clampLimit(limit)).map(publicMessage);
+}
+
+function publicMessage(message) {
+  return { ...message, attachments: normalizeAttachments(message.attachments) };
+}
+
+function publicMemory(memory) {
+  const tags = normalizeTags(memory && memory.tags);
+  return {
+    id: Number(memory && memory.id) || 0,
+    title: cleanString(memory && memory.title, 'Untitled memory'),
+    content: cleanString(memory && memory.content, ''),
+    mood: cleanString(memory && memory.mood, defaultMemoryMood(tags)),
+    author: cleanString(memory && memory.author, store.settings.assistantName || 'AI'),
+    tags,
+    created_at: cleanString(memory && memory.created_at, new Date().toISOString()),
+    updated_at: cleanString(memory && memory.updated_at, memory && memory.created_at || new Date().toISOString()),
+  };
+}
+
+function addConsoleEvent(kind, title, body = '') {
+  const event = {
+    id: nextId('console'),
+    kind: cleanString(kind, 'event'),
+    title: cleanString(title, 'event'),
+    body: cleanString(body, ''),
+    created_at: new Date().toISOString(),
+  };
+  store.console_events.push(event);
+  if (store.console_events.length > 500) store.console_events = store.console_events.slice(-500);
+  saveStore();
+  broadcastSse('console', { event });
+  return event;
+}
+
+function latestConsoleEvents(limit = 120) {
+  return store.console_events.slice(-clampLimit(limit));
+}
+
+async function handleConsoleCommand(input) {
+  const command = cleanString(input, '');
+  if (!command) throw new HttpError(400, 'empty_command', 'command is required');
+  if (command.trim().toLowerCase() === '/forge') {
+    const result = await forgeSession();
+    return { ok: true, event: result.event, forge: result, chat: latestMessages('chat'), group: latestMessages('group'), session: publicSession() };
+  }
+  if (command.trim().toLowerCase() === '/quota') {
+    const result = await queryQuota({ recordEvent: true });
+    return { ok: true, event: result.event, quota: result.quota };
+  }
+  if (command.trim().toLowerCase() === '/help') {
+    const event = addConsoleEvent('command', '/help', '可用命令：/forge 清理本地历史并开一个新的会话段；/quota 查询用量（需配置 QUOTA_ADAPTER_URL）；/help 显示本帮助。');
+    return { ok: true, event };
+  }
+  const event = addConsoleEvent('command', command.split(/\s+/, 1)[0] || 'command', command);
+  return { ok: true, event };
+}
+
+async function queryQuota({ recordEvent = true } = {}) {
+  if (!QUOTA_ADAPTER_URL) {
+    const event = recordEvent
+      ? addConsoleEvent('quota', '/quota 未配置', 'QUOTA_ADAPTER_URL is not set. Configure a quota adapter to fetch real remaining usage.')
+      : null;
+    return {
+      event,
+      quota: {
+        configured: false,
+        status: 'not_configured',
+      },
+    };
+  }
+  const payload = {
+    operation: 'quota',
+    requested_at: new Date().toISOString(),
+    settings: publicSettings(),
+    session: publicSession(),
+  };
+  const data = await callJsonAdapter({
+    url: QUOTA_ADAPTER_URL,
+    token: QUOTA_ADAPTER_TOKEN,
+    tokenHeader: 'x-quota-token',
+    timeoutMs: QUOTA_ADAPTER_TIMEOUT_MS,
+    errorPrefix: 'quota_adapter',
+    payload,
+  });
+  const quota = publicQuotaAdapterResult(data);
+  const event = recordEvent ? addConsoleEvent('quota', '/quota 查询结果', formatQuotaEventBody(quota)) : null;
+  return { event, quota };
+}
+
+async function forgeSession() {
+  const previousId = store.session && store.session.current_id ? store.session.current_id : newSessionId('session');
+  const nextIdValue = newSessionId('forge');
+  const now = new Date().toISOString();
+  const chat = buildForgeMessageList('chat', nextIdValue);
+  const group = buildForgeMessageList('group', nextIdValue);
+  const external = await callForgeAdapter({
+    operation: 'forge',
+    previous_local_history_id: previousId,
+    new_local_history_id: nextIdValue,
+    created_at: now,
+    settings: publicSettings(),
+    stats: {
+      kept: chat.kept + group.kept,
+      removed_noise: chat.removed + group.removed,
+    },
+    chat: {
+      kept: chat.kept,
+      removed_noise: chat.removed,
+      messages: chat.rows.map(publicMessage),
+    },
+    group: {
+      kept: group.kept,
+      removed_noise: group.removed,
+      messages: group.rows.map(publicMessage),
+    },
+  });
+  chat.rows.push(createForgeMarker('chat', nextIdValue, now, external));
+  group.rows.push(createForgeMarker('group', nextIdValue, now, external));
+  store.chat_messages = chat.rows;
+  store.group_messages = group.rows;
+  store.session = {
+    current_id: nextIdValue,
+    previous_id: previousId,
+    forged_at: now,
+    forge_count: Number(store.session && store.session.forge_count || 0) + 1,
+    external_forge: external.public,
+  };
+  const body = [
+    `new_local_history=${nextIdValue}`,
+    `previous_local_history=${previousId}`,
+    `kept=${chat.kept + group.kept}`,
+    `removed_noise=${chat.removed + group.removed}`,
+    external.configured
+      ? `external_forge=${external.public.status || 'completed'}`
+      : 'external_forge=not_configured',
+    external.configured
+      ? 'real_session=adapter_handled'
+      : 'real_session=unchanged',
+    external.configured
+      ? 'note=external forge adapter completed before companion local history was committed'
+      : 'note=standalone fallback only; set FORGE_ADAPTER_URL to rotate a real Claude Code / cc-connect session',
+  ].join('\n');
+  const event = addConsoleEvent(
+    'forge',
+    external.configured ? '/forge completed' : '/forge local only (no new Claude session)',
+    body,
+  );
+  broadcastSse('snapshot', streamSnapshot('all'));
+  return {
+    event,
+    session: publicSession(),
+    previous_session_id: previousId,
+    new_session_id: nextIdValue,
+    kept: chat.kept + group.kept,
+    removed_noise: chat.removed + group.removed,
+    external_forge: external.public,
+    scopes: { chat, group },
+  };
+}
+
+function buildForgeMessageList(scope, nextIdValue) {
+  const key = scope === 'group' ? 'group_messages' : 'chat_messages';
+  const source = Array.isArray(store[key]) ? store[key] : [];
+  const cleaned = [];
+  let removed = 0;
+  for (const message of source) {
+    if (isForgeKeepMessage(message)) {
+      cleaned.push({
+        ...message,
+        attachments: normalizeAttachments(message.attachments),
+        session_id: nextIdValue,
+      });
+    } else {
+      removed += 1;
+    }
+  }
+  return { rows: cleaned, kept: cleaned.length, removed };
+}
+
+function createForgeMarker(scope, nextIdValue, now, external) {
+  const externalDone = external && external.configured;
+  return {
+    id: nextId('message'),
+    scope,
+    sender: '系统',
+    role: 'assistant',
+    content: externalDone
+      ? `已 forge：外部 forge adapter 已完成真实会话处理；companion 去掉 tool/thinking 等噪音、保留原文，并开启新的本地历史段 ${nextIdValue}。`
+      : `已本地整理：去掉 tool/thinking 等噪音，保留原文，并开启新的 companion 本地历史段 ${nextIdValue}；未开启新的 Claude Code / cc-connect session。`,
+    attachments: [],
+    parent_msg_id: null,
+    msg_type: 'forge',
+    session_id: nextIdValue,
+    created_at: now,
+  };
+}
+
+async function callForgeAdapter(payload) {
+  if (!FORGE_ADAPTER_URL) {
+    return {
+      configured: false,
+      public: { configured: false, status: 'not_configured' },
+    };
+  }
+  const { data, endpoint } = await callJsonAdapter({
+    url: FORGE_ADAPTER_URL,
+    token: FORGE_ADAPTER_TOKEN,
+    tokenHeader: 'x-forge-token',
+    timeoutMs: FORGE_ADAPTER_TIMEOUT_MS,
+    errorPrefix: 'forge_adapter',
+    payload,
+  });
+  return {
+    configured: true,
+    raw: data,
+    public: {
+      configured: true,
+      status: cleanString(data.status || data.message, 'completed'),
+      adapter: `${endpoint.protocol}//${endpoint.host}`,
+      result: publicForgeAdapterResult(data),
+    },
+  };
+}
+
+async function callJsonAdapter({ url, token, tokenHeader, timeoutMs, errorPrefix, payload }) {
+  let endpoint;
+  try {
+    endpoint = new URL(url);
+  } catch {
+    throw new HttpError(500, `invalid_${errorPrefix}_url`, `${errorPrefix.toUpperCase()} URL is invalid`);
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  let data = {};
+  try {
+    const headers = {
+      accept: 'application/json',
+      'content-type': 'application/json',
+    };
+    if (token) {
+      headers.authorization = `Bearer ${token}`;
+      headers[tokenHeader || `x-${errorPrefix.replace(/_/g, '-')}-token`] = token;
+    }
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    data = await response.json().catch(() => ({}));
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      throw new HttpError(504, `${errorPrefix}_timeout`, `${errorPrefix} timed out after ${timeoutMs} ms`);
+    }
+    throw new HttpError(502, `${errorPrefix}_failed`, `${errorPrefix} request failed: ${err.message}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+  if (!response.ok || data.ok === false) {
+    const message = data.message || data.error || `HTTP ${response.status}`;
+    throw new HttpError(502, `${errorPrefix}_rejected`, `${errorPrefix} rejected request: ${message}`);
+  }
+  return { data, endpoint };
+}
+
+function publicForgeAdapterResult(data) {
+  const source = data && typeof data === 'object' && data.data && typeof data.data === 'object'
+    ? { ...data, ...data.data }
+    : (data && typeof data === 'object' ? data : {});
+  const keys = [
+    'session_key',
+    'previous_session_key',
+    'new_session_key',
+    'agent_session_id',
+    'previous_agent_session_id',
+    'new_agent_session_id',
+    'transcript',
+    'retained_messages',
+    'retained_tokens',
+    'removed_noise',
+  ];
+  const out = {};
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string') out[key] = truncate(value, 240);
+    else if (typeof value === 'number' || typeof value === 'boolean') out[key] = value;
+  }
+  return out;
+}
+
+function publicQuotaAdapterResult(data) {
+  const source = data && typeof data === 'object' && data.data && typeof data.data === 'object'
+    ? { ...data, ...data.data }
+    : (data && typeof data === 'object' ? data : {});
+  const quota = {
+    configured: true,
+    status: cleanString(source.status || source.message, 'ok'),
+    subject: cleanString(source.subject || source.name || source.session_name || source.agent || '', ''),
+    provider: cleanString(source.provider || source.service, ''),
+    model: cleanString(source.model || source.plan, ''),
+    remaining: quotaValue(source.remaining ?? source.remaining_tokens ?? source.remaining_messages ?? source.remaining_percent),
+    limit: quotaValue(source.limit ?? source.total ?? source.limit_tokens ?? source.max),
+    used: quotaValue(source.used ?? source.used_tokens ?? source.used_messages),
+    resets_at: cleanString(source.resets_at || source.reset_at || source.reset_time, ''),
+    window: cleanString(source.window || source.period, ''),
+    context: publicQuotaSection(source.context || source.context_window || {}, {
+      used: source.context_used ?? source.context_tokens ?? source.context_current,
+      limit: source.context_limit ?? source.context_max,
+      percent: source.context_percent ?? source.context_percentage,
+    }),
+    limit_tier: cleanString(source.limit_tier || source.quota_tier || source.tier || source.plan_label || '', ''),
+    five_hour: publicQuotaSection(source.five_hour || source.fiveHour || source.five_hour_quota || source['5h'] || {}, {
+      remaining: source.five_hour_remaining ?? source.five_hour_remaining_percent ?? source.remaining_5h ?? source.remaining_5h_percent,
+      percent: source.five_hour_percent ?? source.five_hour_remaining_percent ?? source.remaining_5h_percent,
+      resets_in: source.five_hour_resets_in ?? source.five_hour_reset_in ?? source.resets_in_5h,
+      resets_at: source.five_hour_resets_at ?? source.five_hour_reset_at ?? source.reset_at_5h,
+    }),
+    weekly: publicQuotaSection(source.weekly || source.seven_day || source.sevenDay || source['7d'] || {}, {
+      remaining: source.weekly_remaining ?? source.weekly_remaining_percent ?? source.seven_day_remaining ?? source.seven_day_remaining_percent,
+      percent: source.weekly_percent ?? source.weekly_remaining_percent ?? source.seven_day_percent ?? source.seven_day_remaining_percent,
+      resets_in: source.weekly_resets_in ?? source.weekly_reset_in ?? source.seven_day_resets_in,
+      resets_at: source.weekly_resets_at ?? source.weekly_reset_at ?? source.seven_day_resets_at,
+    }),
+    raw: {},
+  };
+  for (const key of ['remaining_tokens', 'remaining_messages', 'remaining_percent', 'used_tokens', 'used_messages', 'limit_tokens']) {
+    if (source[key] != null) quota.raw[key] = quotaValue(source[key]);
+  }
+  return quota;
+}
+
+function publicQuotaSection(section, fallback = {}) {
+  const source = section && typeof section === 'object' ? section : {};
+  const out = {
+    used: quotaValue(source.used ?? source.current ?? source.tokens ?? fallback.used),
+    limit: quotaValue(source.limit ?? source.max ?? source.total ?? fallback.limit),
+    remaining: quotaValue(source.remaining ?? source.remaining_percent ?? fallback.remaining),
+    percent: quotaValue(source.percent ?? source.percentage ?? source.used_percent ?? fallback.percent),
+    resets_in: cleanString(source.resets_in || source.reset_in || source.remaining_time || fallback.resets_in, ''),
+    resets_at: cleanString(source.resets_at || source.reset_at || source.reset_time || fallback.resets_at, ''),
+    label: cleanString(source.label || fallback.label, ''),
+  };
+  return Object.fromEntries(Object.entries(out).filter(([, value]) => value !== null && value !== ''));
+}
+
+function quotaValue(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') return truncate(value.trim(), 120);
+  return null;
+}
+
+function formatQuotaEventBody(quota) {
+  const lines = [`status=${quota.status || 'ok'}`];
+  if (quota.provider) lines.push(`provider=${quota.provider}`);
+  if (quota.model) lines.push(`model=${quota.model}`);
+  if (quota.remaining != null) lines.push(`remaining=${quota.remaining}`);
+  if (quota.used != null) lines.push(`used=${quota.used}`);
+  if (quota.limit != null) lines.push(`limit=${quota.limit}`);
+  if (quota.resets_at) lines.push(`resets_at=${quota.resets_at}`);
+  if (quota.window) lines.push(`window=${quota.window}`);
+  for (const key of Object.keys(quota.raw || {})) {
+    if (!lines.some((line) => line.startsWith(`${key}=`))) lines.push(`${key}=${quota.raw[key]}`);
+  }
+  return lines.join('\n');
+}
+
+function isForgeKeepMessage(message) {
+  if (!message || typeof message !== 'object') return false;
+  const role = String(message.role || '').toLowerCase();
+  const type = String(message.msg_type || 'chat').toLowerCase();
+  if (role !== 'user' && role !== 'assistant') return false;
+  if (type && type !== 'chat') return false;
+  if (isNoiseMessage(message)) return false;
+  return Boolean(cleanString(message.content, '') || normalizeAttachments(message.attachments).length);
+}
+
+function isNoiseMessage(message) {
+  const type = String(message && message.msg_type || '').toLowerCase();
+  const role = String(message && message.role || '').toLowerCase();
+  const sender = String(message && message.sender || '').toLowerCase();
+  const content = String(message && message.content || '').trim();
+  const haystack = `${type}\n${role}\n${sender}\n${content.slice(0, 512)}`.toLowerCase();
+  if (/(^|\b)(thinking|thought|tool|tool_use|tool_result|progress|debug|trace|command)(\b|$)/.test(haystack)) return true;
+  if (content.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(content);
+      const kind = String(parsed.kind || parsed.type || '').toLowerCase();
+      if (/(thinking|tool|progress|debug|trace|done)/.test(kind)) return true;
+    } catch {
+      // Keep ordinary JSON-looking text if it is not a known noise object.
+    }
+  }
+  return false;
+}
+
+function createMemory(input) {
+  const now = new Date().toISOString();
+  const memory = {
+    id: nextId('memory'),
+    title: cleanString(input.title, 'Untitled memory'),
+    content: cleanString(input.content, ''),
+    mood: cleanString(input.mood, defaultMemoryMood(input.tags)),
+    author: cleanString(input.author, store.settings.assistantName || 'AI'),
+    tags: normalizeTags(input.tags),
+    created_at: now,
+    updated_at: now,
+  };
+  store.memories.push(memory);
+  saveStore();
+  addConsoleEvent('memory', '记忆已创建', memory.title);
+  const output = publicMemory(memory);
+  broadcastSse('memory', { action: 'created', memory: output });
+  return output;
+}
+
+function updateMemory(id, input) {
+  const memory = store.memories.find((item) => item.id === id);
+  if (!memory) return null;
+  if ('title' in input) memory.title = cleanString(input.title, memory.title);
+  if ('content' in input) memory.content = cleanString(input.content, memory.content);
+  if ('mood' in input) memory.mood = cleanString(input.mood, memory.mood || defaultMemoryMood(memory.tags));
+  if ('author' in input) memory.author = cleanString(input.author, memory.author || store.settings.assistantName || 'AI');
+  if ('tags' in input) memory.tags = normalizeTags(input.tags);
+  memory.updated_at = new Date().toISOString();
+  saveStore();
+  addConsoleEvent('memory', '记忆已更新', memory.title);
+  const output = publicMemory(memory);
+  broadcastSse('memory', { action: 'updated', memory: output });
+  return output;
+}
+
+function deleteMemory(id) {
+  const before = store.memories.length;
+  store.memories = store.memories.filter((item) => item.id !== id);
+  const ok = store.memories.length !== before;
+  if (ok) {
+    saveStore();
+    addConsoleEvent('memory', '记忆已删除', `id ${id}`);
+    broadcastSse('memory', { action: 'deleted', id });
+  }
+  return ok;
+}
+
+function listMemories(options = '') {
+  const opts = typeof options === 'object' && options ? options : { q: options };
+  const q = String(opts.q || '').trim().toLowerCase();
+  const tag = String(opts.tag || '').trim().toLowerCase();
+  const sort = String(opts.sort || 'updated_desc').trim().toLowerCase();
+  const limit = clampLimit(opts.limit || 500);
+  let rows = store.memories.slice();
+  if (q) {
+    rows = rows.filter((m) => `${m.title}\n${m.content}\n${m.mood || ''}\n${m.author || ''}\n${(m.tags || []).join(',')}`.toLowerCase().includes(q));
+  }
+  if (tag) {
+    rows = rows.filter((m) => (m.tags || []).map((item) => String(item).toLowerCase()).includes(tag));
+  }
+  rows.sort((a, b) => {
+    const created = String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    const updated = String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || ''));
+    if (sort === 'created_asc') return -created;
+    if (sort === 'created_desc') return created;
+    if (sort === 'title_asc') return String(a.title || '').localeCompare(String(b.title || ''));
+    return updated;
+  });
+  return rows.slice(0, limit).map(publicMemory);
+}
+
+function importMemories(input) {
+  if (!Array.isArray(input)) throw new HttpError(400, 'invalid_memories', 'memories must be an array');
+  const imported = [];
+  for (const item of input.slice(0, 200)) {
+    if (!item || typeof item !== 'object') continue;
+    const title = cleanString(item.title, '');
+    const content = cleanString(item.content, '');
+    if (!title && !content) continue;
+    imported.push(createMemory({
+      title: title || 'Imported memory',
+      content,
+      mood: item.mood || '',
+      author: item.author || '',
+      tags: item.tags || [],
+    }));
+  }
+  return imported;
+}
+
+async function saveUpload(input) {
+  const name = cleanFileName(input.name || 'upload.bin');
+  const data = String(input.data || '');
+  const match = data.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) throw new HttpError(400, 'invalid_upload', 'upload data must be a data URL');
+  const mime = match[1].toLowerCase();
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length > MAX_JSON_BYTES) throw new HttpError(413, 'payload_too_large', 'upload too large');
+  const ext = extensionForMime(mime);
+  const storedMime = storedMimeForExtension(ext);
+  const fileName = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
+  fs.writeFileSync(path.join(UPLOAD_DIR, fileName), buffer);
+  addConsoleEvent('upload', '文件已上传', name);
+  return {
+    url: `/uploads/${fileName}`,
+    name,
+    type: storedMime,
+    size: buffer.length,
+    original_size: positiveInt(input.original_size),
+    width: positiveInt(input.width),
+    height: positiveInt(input.height),
+    optimized: input.optimized === true,
+  };
+}
+
+function serveUpload(res, route) {
+  const fileName = path.basename(route);
+  const filePath = path.join(UPLOAD_DIR, fileName);
+  if (!fs.existsSync(filePath)) return sendJson(res, 404, { error: 'upload_not_found' });
+  res.writeHead(200, { 'content-type': contentTypeFor(filePath), 'cache-control': 'public, max-age=86400' });
+  fs.createReadStream(filePath).pipe(res);
+}
+
+function serveStatic(res, route) {
+  const requested = route === '/' ? '/index.html' : route;
+  const filePath = path.resolve(PUBLIC_DIR, `.${requested}`);
+  if (!isPathInside(PUBLIC_DIR, filePath)) return sendJson(res, 403, { error: 'forbidden' });
+  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    const fallback = path.join(PUBLIC_DIR, 'index.html');
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    return fs.createReadStream(fallback).pipe(res);
+  }
+  res.writeHead(200, { 'content-type': contentTypeFor(filePath) });
+  fs.createReadStream(filePath).pipe(res);
+}
+
+function loadStore() {
+  if (!fs.existsSync(STORE_FILE)) return defaultStore();
+  try {
+    const parsed = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+    return normalizeStore(parsed);
+  } catch (err) {
+    const backup = `${STORE_FILE}.broken-${Date.now()}`;
+    fs.copyFileSync(STORE_FILE, backup);
+    console.warn(`Store was invalid. Backed up to ${backup}`);
+    return defaultStore();
+  }
+}
+
+function saveStore() {
+  const tmp = `${STORE_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
+  fs.renameSync(tmp, STORE_FILE);
+}
+
+function defaultStore() {
+  return normalizeStore({
+    counters: { message: 1, memory: 1, console: 1 },
+    session: { current_id: newSessionId('session'), forge_count: 0 },
+    settings: {
+      appName: process.env.APP_NAME || 'CC Companion',
+      userName: process.env.USER_NAME || '你',
+      assistantName: process.env.ASSISTANT_NAME || 'AI',
+      groupName: process.env.GROUP_NAME || '小群',
+      agentMention: process.env.AGENT_MENTION || 'assistant',
+      autoReplyGroup: String(process.env.AUTO_REPLY_GROUP || '').toLowerCase() === 'true',
+      theme: 'light',
+    },
+    chat_messages: [],
+    group_messages: [],
+    console_events: [],
+    memories: [],
+  });
+}
+
+function ensureSeedData() {
+  let changed = false;
+  if (!store.chat_messages.length) {
+    store.chat_messages.push({
+      id: nextId('message'),
+      scope: 'chat',
+      sender: store.settings.assistantName,
+      role: 'assistant',
+      content: '欢迎来到私聊。发一句话，就可以测试这个自部署 AI 伴侣 App。',
+      attachments: [],
+      parent_msg_id: null,
+      msg_type: 'chat',
+      created_at: new Date().toISOString(),
+    });
+    changed = true;
+  }
+  if (!store.group_messages.length) {
+    store.group_messages.push({
+      id: nextId('message'),
+      scope: 'group',
+      sender: '系统',
+      role: 'assistant',
+      content: `欢迎来到 ${store.settings.groupName}。在群聊里提到 @${store.settings.agentMention} 就可以唤起 AI。`,
+      attachments: [],
+      parent_msg_id: null,
+      msg_type: 'chat',
+      created_at: new Date().toISOString(),
+    });
+    changed = true;
+  }
+  if (!store.memories.length) {
+    store.memories.push({
+      id: nextId('memory'),
+      title: '示例偏好',
+      content: '回复尽量简短、自然、可执行。',
+      mood: '平静',
+      author: store.settings.assistantName || 'AI',
+      tags: ['example'],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    changed = true;
+  }
+  if (changed) saveStore();
+}
+
+function normalizeStore(input) {
+  const data = input && typeof input === 'object' ? input : {};
+  const settings = normalizeSettings(data.settings || {});
+  const session = normalizeSession(data.session || {});
+  return {
+    counters: {
+      message: Number(data.counters && data.counters.message) || 1,
+      memory: Number(data.counters && data.counters.memory) || 1,
+      console: Number(data.counters && data.counters.console) || 1,
+    },
+    session,
+    settings,
+    chat_messages: Array.isArray(data.chat_messages) ? data.chat_messages.map(publicMessage) : [],
+    group_messages: Array.isArray(data.group_messages) ? data.group_messages.map(publicMessage) : [],
+    console_events: Array.isArray(data.console_events) ? data.console_events : [],
+    memories: Array.isArray(data.memories) ? data.memories.map((item) => {
+      const tags = normalizeTags(item && item.tags);
+      return {
+        ...item,
+        title: cleanString(item && item.title, 'Untitled memory'),
+        content: cleanString(item && item.content, ''),
+        mood: cleanString(item && item.mood, defaultMemoryMood(tags)),
+        author: cleanString(item && item.author, settings.assistantName || 'AI'),
+        tags,
+        created_at: cleanString(item && item.created_at, new Date().toISOString()),
+        updated_at: cleanString(item && item.updated_at, item && item.created_at || new Date().toISOString()),
+      };
+    }) : [],
+  };
+}
+
+function normalizeSession(input) {
+  const data = input && typeof input === 'object' ? input : {};
+  return {
+    current_id: cleanString(data.current_id, newSessionId('session')),
+    previous_id: cleanString(data.previous_id, ''),
+    forged_at: cleanString(data.forged_at, ''),
+    forge_count: Number(data.forge_count) || 0,
+    external_forge: data.external_forge && typeof data.external_forge === 'object' ? data.external_forge : null,
+  };
+}
+
+function normalizeSettings(input) {
+  const defaults = {
+    appName: process.env.APP_NAME || 'CC Companion',
+    userName: process.env.USER_NAME || '你',
+    assistantName: process.env.ASSISTANT_NAME || 'AI',
+    groupName: process.env.GROUP_NAME || '小群',
+    agentMention: process.env.AGENT_MENTION || 'assistant',
+    autoReplyGroup: String(process.env.AUTO_REPLY_GROUP || '').toLowerCase() === 'true',
+    theme: 'light',
+  };
+  const settings = { ...defaults, ...(input || {}) };
+  return {
+    appName: cleanString(settings.appName, defaults.appName),
+    userName: cleanString(settings.userName, defaults.userName),
+    assistantName: cleanString(settings.assistantName, defaults.assistantName),
+    groupName: cleanString(settings.groupName, defaults.groupName),
+    agentMention: cleanString(settings.agentMention, defaults.agentMention).replace(/^@+/, '') || 'assistant',
+    autoReplyGroup: settings.autoReplyGroup === true || String(settings.autoReplyGroup).toLowerCase() === 'true',
+    theme: ['light', 'auto'].includes(settings.theme) ? settings.theme : 'dark',
+  };
+}
+
+function publicSettings() {
+  return {
+    ...store.settings,
+    authEnabled: Boolean(AUTH_TOKEN),
+    agent: agentStatus(),
+  };
+}
+
+function publicSession() {
+  return { ...(store.session || normalizeSession({})) };
+}
+
+function applySettingsRename(previous, next) {
+  if (!previous || !next) return;
+  let changed = false;
+  changed = renameStoredSender(previous.userName, next.userName) || changed;
+  changed = renameStoredSender(previous.assistantName, next.assistantName) || changed;
+  changed = renameStoredMemoryAuthor(previous.assistantName, next.assistantName) || changed;
+  return changed;
+}
+
+function renameStoredSender(from, to) {
+  if (!from || !to || from === to) return false;
+  let changed = false;
+  for (const key of ['chat_messages', 'group_messages']) {
+    for (const message of store[key] || []) {
+      if (message.sender === from) {
+        message.sender = to;
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
+function renameStoredMemoryAuthor(from, to) {
+  if (!from || !to || from === to) return false;
+  let changed = false;
+  for (const memory of store.memories || []) {
+    if (memory.author === from) {
+      memory.author = to;
+      memory.updated_at = new Date().toISOString();
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function agentStatus() {
+  return {
+    provider: process.env.OPENAI_API_KEY ? 'openai-compatible' : 'mock',
+    model: process.env.OPENAI_API_KEY ? (process.env.OPENAI_MODEL || 'gpt-4.1-mini') : 'mock-agent',
+    configured: Boolean(process.env.OPENAI_API_KEY),
+  };
+}
+
+function normalizeAttachments(input) {
+  if (!Array.isArray(input)) return [];
+  return input.map((item) => ({
+    url: cleanString(item && item.url, ''),
+    name: cleanString(item && item.name, 'attachment'),
+    type: cleanString(item && item.type, ''),
+    size: Number(item && item.size) || 0,
+    original_size: positiveInt(item && item.original_size),
+    width: positiveInt(item && item.width),
+    height: positiveInt(item && item.height),
+    optimized: item && item.optimized === true,
+  })).filter((item) => item.url);
+}
+
+function normalizeTags(input) {
+  const source = Array.isArray(input) ? input : String(input || '').split(',');
+  return Array.from(new Set(source.map((tag) => cleanString(tag, '').toLowerCase()).filter(Boolean))).slice(0, 12);
+}
+
+function defaultMemoryMood(tags = []) {
+  return '平静';
+}
+
+function nextId(kind) {
+  const current = Number(store.counters[kind] || 1);
+  store.counters[kind] = current + 1;
+  return current;
+}
+
+function newSessionId(prefix = 'session') {
+  return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
+}
+
+function readJson(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_JSON_BYTES) {
+        reject(new HttpError(413, 'payload_too_large', 'request body too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8').trim();
+      if (!raw) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch {
+        reject(new HttpError(400, 'invalid_json', 'invalid json'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function sendJson(res, status, payload) {
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(payload));
+}
+
+function endNoContent(res) {
+  res.writeHead(204);
+  res.end();
+}
+
+function setCommonHeaders(res) {
+  res.setHeader('access-control-allow-origin', '*');
+  res.setHeader('access-control-allow-methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+  res.setHeader('access-control-allow-headers', 'content-type,authorization,x-app-token');
+  res.setHeader('x-content-type-options', 'nosniff');
+}
+
+function isAuthorized(req, url = null) {
+  if (!AUTH_TOKEN) return true;
+  const query = url && url.searchParams ? String(url.searchParams.get('token') || '').trim() : '';
+  const token = String(req.headers['x-app-token'] || '').trim();
+  const auth = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  return token === AUTH_TOKEN || auth === AUTH_TOKEN || query === AUTH_TOKEN;
+}
+
+function normalizeRoute(route) {
+  const value = String(route || '/').replace(/\/{2,}/g, '/');
+  return value.length > 1 ? value.replace(/\/+$/, '') : value;
+}
+
+function cleanString(value, fallback) {
+  const text = String(value == null ? '' : value).replace(/\r/g, '').trim();
+  return text || fallback;
+}
+
+function truncate(text, max) {
+  const value = String(text || '');
+  return value.length > max ? `${value.slice(0, max - 1)}...` : value;
+}
+
+function clampLimit(limit) {
+  const n = Number(limit) || 80;
+  return Math.min(500, Math.max(1, n));
+}
+
+function positiveInt(value) {
+  const n = Number(value) || 0;
+  return n > 0 ? Math.round(n) : 0;
+}
+
+function cleanFileName(name) {
+  return String(name || 'upload.bin').replace(/[^\w.\- ]+/g, '_').slice(0, 120) || 'upload.bin';
+}
+
+function extensionForMime(mime) {
+  if (mime === 'image/png') return '.png';
+  if (mime === 'image/jpeg') return '.jpg';
+  if (mime === 'image/webp') return '.webp';
+  if (mime === 'image/gif') return '.gif';
+  if (mime === 'text/plain') return '.txt';
+  if (mime === 'application/pdf') return '.pdf';
+  return '.bin';
+}
+
+function storedMimeForExtension(ext) {
+  const types = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.txt': 'text/plain',
+    '.pdf': 'application/pdf',
+  };
+  return types[ext] || 'application/octet-stream';
+}
+
+function contentTypeFor(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const types = {
+    '.html': 'text/html; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.pdf': 'application/pdf',
+    '.txt': 'text/plain; charset=utf-8',
+  };
+  return types[ext] || 'application/octet-stream';
+}
+
+function isPathInside(baseDir, targetPath) {
+  const relative = path.relative(baseDir, targetPath);
+  return relative === '' || (relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+class HttpError extends Error {
+  constructor(statusCode, errorCode, message) {
+    super(message);
+    this.statusCode = statusCode;
+    this.errorCode = errorCode;
+  }
+}
+
+function loadDotEnv(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const index = trimmed.indexOf('=');
+    if (index < 0) continue;
+    const key = trimmed.slice(0, index).trim();
+    let value = trimmed.slice(index + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (key && !(key in process.env)) process.env[key] = value;
+  }
+}

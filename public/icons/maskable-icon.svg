@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CC Companion">
+  <rect width="512" height="512" fill="#6fb1ff"/>
+  <circle cx="256" cy="256" r="210" fill="#101114"/>
+  <path d="M139 173c0-34 27-61 61-61h112c34 0 61 27 61 61v83c0 34-27 61-61 61h-72l-70 65c-11 10-31 3-31-13v-52c-34 0-61-27-61-61v-83z" fill="#f2f4f8"/>
+  <circle cx="198" cy="217" r="18" fill="#101114"/>
+  <circle cx="256" cy="217" r="18" fill="#101114"/>
+  <circle cx="314" cy="217" r="18" fill="#101114"/>
+</svg>
