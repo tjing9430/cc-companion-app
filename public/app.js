@@ -1608,35 +1608,41 @@ async function prepareUpload(file) {
     };
   }
 
-  const decoded = await decodeImage(file);
   try {
-    const scale = Math.min(1, IMAGE_MAX_EDGE / Math.max(decoded.width, decoded.height));
-    const width = Math.max(1, Math.round(decoded.width * scale));
-    const height = Math.max(1, Math.round(decoded.height * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const outputType = file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
-    const context = canvas.getContext('2d', { alpha: outputType === 'image/webp', desynchronized: true });
-    if (!context) throw new Error('Image canvas is unavailable.');
-    if (outputType === 'image/jpeg') {
-      context.fillStyle = '#ffffff';
-      context.fillRect(0, 0, width, height);
+    const decoded = await decodeImage(file);
+    try {
+      const scale = Math.min(1, IMAGE_MAX_EDGE / Math.max(decoded.width, decoded.height));
+      const width = Math.max(1, Math.round(decoded.width * scale));
+      const height = Math.max(1, Math.round(decoded.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const outputType = file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+      const context = canvas.getContext('2d', { alpha: outputType === 'image/webp', desynchronized: true });
+      if (!context) throw new Error('Image canvas is unavailable.');
+      if (outputType === 'image/jpeg') {
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+      }
+      context.drawImage(decoded.source, 0, 0, width, height);
+      const compressed = await canvasToBlob(canvas, outputType, IMAGE_QUALITY);
+      const selected = compressed.size < file.size ? compressed : file;
+      const optimized = selected !== file;
+      return {
+        name: optimized ? replaceImageExtension(file.name, outputType) : file.name,
+        data: await readFileAsDataUrl(selected),
+        original_size: file.size,
+        width: optimized ? width : decoded.width,
+        height: optimized ? height : decoded.height,
+        optimized,
+      };
+    } finally {
+      decoded.release();
     }
-    context.drawImage(decoded.source, 0, 0, width, height);
-    const compressed = await canvasToBlob(canvas, outputType, IMAGE_QUALITY);
-    const selected = compressed.size < file.size ? compressed : file;
-    const optimized = selected !== file;
-    return {
-      name: optimized ? replaceImageExtension(file.name, outputType) : file.name,
-      data: await readFileAsDataUrl(selected),
-      original_size: file.size,
-      width: optimized ? width : decoded.width,
-      height: optimized ? height : decoded.height,
-      optimized,
-    };
-  } finally {
-    decoded.release();
+  } catch (err) {
+    // Some in-app browsers (e.g. vendor browsers) can't decode/resize images via canvas. Fall back
+    // to sending the raw image so uploads and stickers still work.
+    return { name: file.name, data: await readFileAsDataUrl(file), original_size: file.size, optimized: false };
   }
 }
 

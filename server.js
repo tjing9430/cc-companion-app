@@ -1171,10 +1171,10 @@ function serveStatic(res, route) {
   if (!isPathInside(PUBLIC_DIR, filePath)) return sendJson(res, 403, { error: 'forbidden' });
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
     const fallback = path.join(PUBLIC_DIR, 'index.html');
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
     return fs.createReadStream(fallback).pipe(res);
   }
-  res.writeHead(200, { 'content-type': contentTypeFor(filePath) });
+  res.writeHead(200, { 'content-type': contentTypeFor(filePath), 'cache-control': 'no-cache' });
   fs.createReadStream(filePath).pipe(res);
 }
 
