@@ -705,6 +705,7 @@ function renderMessage(message, opts = {}) {
       <div class="msg-col">
         <div class="msg-sender">${esc(message.sender)}</div>
         <div class="bubble">
+          ${message.thinking ? `<div class="thinking">💭 ${esc(message.thinking)}</div>` : ''}
           ${renderQuotedParent(message)}
           ${text ? `<div class="body-text">${esc(text)}</div>` : ''}
           ${attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : ''}

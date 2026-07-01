@@ -305,8 +305,11 @@ async function generateAgentReply(scope, userMessage) {
   addConsoleEvent('thinking', assistantName, '正在生成回复...');
 
   let content = '';
+  let thinking = '';
   try {
-    content = await callConfiguredAgent(scope, userMessage);
+    const result = await callConfiguredAgent(scope, userMessage);
+    content = result.content;
+    thinking = result.thinking || '';
   } catch (err) {
     addConsoleEvent('error', 'AI 调用失败', err.message);
     content = `暂时无法调用已配置的 AI：${err.message}`;
@@ -316,6 +319,7 @@ async function generateAgentReply(scope, userMessage) {
     sender: assistantName,
     role: 'assistant',
     content,
+    thinking,
     attachments: [],
     parent_msg_id: userMessage.id,
     msg_type: 'chat',
@@ -400,7 +404,7 @@ function selectRelevantMemories(queryText, limit = MEMORY_RECALL_LIMIT) {
 
 async function callConfiguredAgent(scope, userMessage) {
   const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
-  if (!apiKey) return mockReply(scope, userMessage);
+  if (!apiKey) return { content: mockReply(scope, userMessage), thinking: '（演示思考）当前是内置 mock agent。配置一个会返回推理内容的模型（例如 deepseek-reasoner）后，这里会显示它真实的思考过程。' };
 
   const baseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
   const model = String(process.env.OPENAI_MODEL || 'gpt-4.1-mini');
@@ -444,10 +448,12 @@ async function callConfiguredAgent(scope, userMessage) {
     const message = data && data.error && data.error.message ? data.error.message : `HTTP ${response.status}`;
     throw new Error(message);
   }
-  const text = data && data.choices && data.choices[0] && data.choices[0].message
-    ? data.choices[0].message.content
-    : '';
-  return cleanString(text, mockReply(scope, userMessage));
+  const replyMessage = data && data.choices && data.choices[0] && data.choices[0].message;
+  const text = replyMessage ? replyMessage.content : '';
+  // Reasoning models that speak the OpenAI shape expose their thinking here (DeepSeek-R1 uses
+  // reasoning_content; some gateways use reasoning). Empty for normal chat models.
+  const thinking = replyMessage ? (replyMessage.reasoning_content || replyMessage.reasoning || '') : '';
+  return { content: cleanString(text, mockReply(scope, userMessage)), thinking: cleanString(thinking, '') };
 }
 
 function mockReply(scope, userMessage) {
@@ -487,6 +493,7 @@ function addMessage(scope, input) {
     sender: cleanString(input.sender, 'unknown'),
     role: input.role === 'assistant' ? 'assistant' : 'user',
     content: cleanString(input.content, ''),
+    thinking: cleanString(input.thinking, ''),
     attachments: normalizeAttachments(input.attachments),
     parent_msg_id: input.parent_msg_id == null ? null : Number(input.parent_msg_id),
     msg_type: input.msg_type || 'chat',

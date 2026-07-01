@@ -365,6 +365,18 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   0%,100%{box-shadow:0 0 0 0 rgba(201,123,90,0)}
   20%{box-shadow:0 0 0 3px rgba(201,123,90,.5)}
 }
+.thinking{
+  margin-bottom:.4rem;
+  padding:.35rem .55rem;
+  border-radius:.4rem;
+  background:rgba(120,120,120,.1);
+  color:var(--muted);
+  font-size:.76rem;
+  font-style:italic;
+  line-height:1.5;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
 .msg-sender{font-weight:600}
 .message-row.me .msg-sender,
 .message-row.me .msg-time{color:rgba(74,44,31,.65)}
