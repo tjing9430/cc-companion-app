@@ -717,6 +717,9 @@ function findMessageById(id) {
 
 function renderQuotedParent(message) {
   if (!message || !message.parent_msg_id) return '';
+  // Every assistant reply is tagged with the message that triggered it; don't render that as a
+  // quote (it would show on every single reply). Only show quotes for explicit user replies.
+  if (message.role === 'assistant') return '';
   const parent = findMessageById(message.parent_msg_id);
   if (!parent) return '';
   const snippet = String(parent.content || '').replace(/\s+/g, ' ').trim().slice(0, 60) || '[附件]';
