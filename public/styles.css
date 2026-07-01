@@ -334,6 +334,37 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   padding:0 .2rem;
 }
 .reply-banner-cancel:hover{color:var(--danger)}
+.fav-btn,.jump-btn{
+  margin-left:.4rem;
+  padding:0 .28rem;
+  font-family:inherit;
+  font-size:.72rem;
+  line-height:1.25;
+  color:var(--faint);
+  background:transparent;
+  border:0;
+  border-radius:.32rem;
+  cursor:pointer;
+  vertical-align:baseline;
+}
+.fav-btn:hover,.jump-btn:hover,.jump-btn:focus-visible{color:var(--accent);outline:none}
+.fav-btn.on{color:#e0a63c}
+.chat-toolbar{display:flex;justify-content:flex-end;padding:.3rem .6rem 0}
+.fav-filter{
+  padding:.2rem .6rem;
+  font-size:.74rem;
+  color:var(--muted);
+  background:var(--panel-soft);
+  border:1px solid var(--line);
+  border-radius:999px;
+  cursor:pointer;
+}
+.fav-filter.on{color:var(--accent-strong);border-color:var(--accent);background:var(--accent-soft)}
+.message-row.flash > .msg-col > .bubble{animation:flashBubble 1.6s ease}
+@keyframes flashBubble{
+  0%,100%{box-shadow:0 0 0 0 rgba(201,123,90,0)}
+  20%{box-shadow:0 0 0 3px rgba(201,123,90,.5)}
+}
 .msg-sender{font-weight:600}
 .message-row.me .msg-sender,
 .message-row.me .msg-time{color:rgba(74,44,31,.65)}

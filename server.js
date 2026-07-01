@@ -132,6 +132,14 @@ async function handleRequest(req, res) {
     return handleSend(res, 'group', await readJson(req));
   }
 
+  const favoriteMatch = route.match(/^\/api\/(chat|group)\/messages\/(\d+)\/favorite$/);
+  if (favoriteMatch && req.method === 'POST') {
+    const body = await readJson(req);
+    const message = setMessageFavorite(favoriteMatch[1], Number(favoriteMatch[2]), body.favorited !== false);
+    if (!message) return sendJson(res, 404, { error: 'message_not_found' });
+    return sendJson(res, 200, message);
+  }
+
   if (req.method === 'GET' && route === '/api/console/events') {
     return sendJson(res, 200, latestConsoleEvents(Number(url.searchParams.get('limit') || 120)));
   }
@@ -494,6 +502,16 @@ function addMessage(scope, input) {
 function latestMessages(scope, limit = 80) {
   const key = scope === 'group' ? 'group_messages' : 'chat_messages';
   return store[key].slice(-clampLimit(limit)).map(publicMessage);
+}
+
+function setMessageFavorite(scope, id, favorited) {
+  const key = scope === 'group' ? 'group_messages' : 'chat_messages';
+  const message = store[key].find((m) => Number(m.id) === Number(id));
+  if (!message) return null;
+  message.favorited = !!favorited;
+  saveStore();
+  broadcastSse('message', { scope, message: publicMessage(message) });
+  return publicMessage(message);
 }
 
 function publicMessage(message) {

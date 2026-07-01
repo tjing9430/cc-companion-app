@@ -29,6 +29,7 @@ const state = {
   pending: { chat: [], group: [] },
   composerParts: { chat: [], group: [] },
   replyTo: { chat: null, group: null },
+  showFavorites: { chat: false, group: false },
   uploading: { chat: '', group: '' },
   memoryQuery: '',
   memoryEditing: null,
@@ -103,6 +104,35 @@ function bindEvents() {
       const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
       if (state.replyTo) state.replyTo[scope] = null;
       render();
+    }
+    if (name === 'toggle-favorite') {
+      const list = action.closest('.message-list');
+      const scope = (list && list.dataset.scrollScope) || (state.tab === 'group' ? 'group' : 'chat');
+      const id = action.dataset.id;
+      const msg = findMessageById(id);
+      const next = !(msg && msg.favorited);
+      if (msg) msg.favorited = next;
+      render();
+      try {
+        await api(`/api/${scope}/messages/${id}/favorite`, { method: 'POST', body: { favorited: next } });
+      } catch (err) {
+        if (msg) msg.favorited = !next;
+        render();
+        handleBackgroundError(err);
+      }
+    }
+    if (name === 'toggle-fav-filter') {
+      const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
+      if (!state.showFavorites) state.showFavorites = { chat: false, group: false };
+      state.showFavorites[scope] = !state.showFavorites[scope];
+      render();
+    }
+    if (name === 'jump-to') {
+      const list = action.closest('.message-list');
+      const scope = (list && list.dataset.scrollScope) || (state.tab === 'group' ? 'group' : 'chat');
+      if (state.showFavorites) state.showFavorites[scope] = false;
+      render();
+      scrollToMessage(action.dataset.id);
     }
     if (name === 'delete-memory') {
       if (!confirm('删除这条记忆？')) return;
@@ -557,8 +587,13 @@ function renderTab() {
 }
 
 function renderChat(scope, rows) {
+  const showFav = !!(state.showFavorites && state.showFavorites[scope]);
+  const favCount = (rows || []).filter((m) => m && m.favorited).length;
   return `
     <div class="chat-view">
+      <div class="chat-toolbar">
+        <button class="fav-filter${showFav ? ' on' : ''}" type="button" data-action="toggle-fav-filter" data-scope="${escAttr(scope)}">${showFav ? '← 返回全部' : `★ 收藏${favCount ? ` (${favCount})` : ''}`}</button>
+      </div>
       <div class="message-list" data-scroll-list data-scroll-scope="${escAttr(scope)}">
         ${renderMessageList(scope, rows)}
       </div>
@@ -567,6 +602,12 @@ function renderChat(scope, rows) {
 }
 
 function renderMessageList(scope, rows) {
+  const showFav = !!(state.showFavorites && state.showFavorites[scope]);
+  if (showFav) {
+    const favs = (rows || []).filter((m) => m && m.favorited);
+    if (!favs.length) return '<div class="empty">还没有收藏的消息。点消息右下角的 ☆ 收藏它。</div>';
+    return favs.map((message) => renderMessage(message, { showJump: true })).join('');
+  }
   const drafts = state.composerParts[scope] || [];
   const files = state.pending[scope] || [];
   if (!rows.length && !drafts.length && !files.length && !state.uploading[scope]) return '<div class="empty">还没有消息。</div>';
@@ -624,6 +665,16 @@ function flashCopied(button, ok) {
   }, 1400);
 }
 
+function scrollToMessage(id) {
+  requestAnimationFrame(() => {
+    const node = document.getElementById('msg-' + id);
+    if (!node) return;
+    node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    node.classList.add('flash');
+    setTimeout(() => node.classList.remove('flash'), 1600);
+  });
+}
+
 function findMessageById(id) {
   const key = String(id);
   return [...(state.chat || []), ...(state.group || [])].find((m) => String(m.id) === key) || null;
@@ -637,7 +688,7 @@ function renderQuotedParent(message) {
   return `<div class="quoted-parent"><span class="quoted-sender">${esc(parent.sender)}</span><span class="quoted-text">${esc(snippet)}</span></div>`;
 }
 
-function renderMessage(message) {
+function renderMessage(message, opts = {}) {
   const isMe = message.role === 'user' || message.sender === state.settings.userName;
   const attachments = message.attachments || [];
   const text = String(message.content || '').replace(/\n{3,}/g, '\n\n').trim();
@@ -649,7 +700,7 @@ function renderMessage(message) {
     isWideMessage(text, attachments) ? 'wide' : '',
   ].filter(Boolean).join(' ');
   return `
-    <article class="${classes}">
+    <article class="${classes}" id="msg-${esc(String(message.id))}">
       <div class="avatar">${esc(initials(message.sender))}</div>
       <div class="msg-col">
         <div class="msg-sender">${esc(message.sender)}</div>
@@ -658,7 +709,7 @@ function renderMessage(message) {
           ${text ? `<div class="body-text">${esc(text)}</div>` : ''}
           ${attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : ''}
         </div>
-        <div class="msg-time">${formatTime(message.created_at)}${text ? ` <button class="copy-btn" type="button" data-action="copy-message" aria-label="复制消息">复制</button>` : ''}${message.pending ? '' : ` <button class="reply-btn" type="button" data-action="reply-to" data-id="${esc(String(message.id))}" aria-label="回复">回复</button>`}</div>
+        <div class="msg-time">${formatTime(message.created_at)}${text ? ` <button class="copy-btn" type="button" data-action="copy-message" aria-label="复制消息">复制</button>` : ''}${message.pending ? '' : ` <button class="reply-btn" type="button" data-action="reply-to" data-id="${esc(String(message.id))}" aria-label="回复">回复</button> <button class="fav-btn${message.favorited ? ' on' : ''}" type="button" data-action="toggle-favorite" data-id="${esc(String(message.id))}" aria-label="${message.favorited ? '取消收藏' : '收藏'}">${message.favorited ? '★' : '☆'}</button>`}${opts.showJump ? ` <button class="jump-btn" type="button" data-action="jump-to" data-id="${esc(String(message.id))}" aria-label="跳到原文">跳转</button>` : ''}</div>
       </div>
     </article>`;
 }
