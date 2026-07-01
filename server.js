@@ -24,6 +24,13 @@ const FORGE_ADAPTER_TIMEOUT_MS = Math.max(1000, Number(process.env.FORGE_ADAPTER
 const QUOTA_ADAPTER_URL = String(process.env.QUOTA_ADAPTER_URL || '').trim();
 const QUOTA_ADAPTER_TOKEN = String(process.env.QUOTA_ADAPTER_TOKEN || '').trim();
 const QUOTA_ADAPTER_TIMEOUT_MS = Math.max(1000, Number(process.env.QUOTA_ADAPTER_TIMEOUT_MS || 30000));
+// Heartbeat: let the assistant occasionally reach out on its own (opt-in). Only meaningful with a
+// configured OpenAI-compatible model; the mock agent just sends an occasional demo line.
+const HEARTBEAT_ENABLED = String(process.env.HEARTBEAT_ENABLED || '').trim().toLowerCase() === 'true';
+const HEARTBEAT_INTERVAL_MINUTES = Math.max(5, Number(process.env.HEARTBEAT_INTERVAL_MINUTES || 90));
+const HEARTBEAT_MIN_IDLE_MINUTES = Math.max(0, Number(process.env.HEARTBEAT_MIN_IDLE_MINUTES || 45));
+const HEARTBEAT_QUIET_START = Math.min(23, Math.max(0, Number(process.env.HEARTBEAT_QUIET_START || 0)));
+const HEARTBEAT_QUIET_END = Math.min(23, Math.max(0, Number(process.env.HEARTBEAT_QUIET_END || 8)));
 const sseClients = new Set();
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -57,6 +64,10 @@ server.on('error', (err) => {
 server.listen(PORT, () => {
   addConsoleEvent('system', '服务已启动', `正在监听 http://localhost:${PORT}`);
   console.log(`CC Companion listening on http://localhost:${PORT}`);
+  if (HEARTBEAT_ENABLED) {
+    setInterval(heartbeatTick, HEARTBEAT_INTERVAL_MINUTES * 60 * 1000);
+    console.log(`Heartbeat enabled: every ${HEARTBEAT_INTERVAL_MINUTES} min, min idle ${HEARTBEAT_MIN_IDLE_MINUTES} min, quiet ${HEARTBEAT_QUIET_START}:00-${HEARTBEAT_QUIET_END}:00.`);
+  }
 });
 
 async function handleRequest(req, res) {
@@ -485,6 +496,76 @@ function normalizeOutgoingMessages(body) {
   }).filter((item) => item.content || item.attachments.length);
 }
 
+function heartbeatInQuietHours(now = new Date()) {
+  if (HEARTBEAT_QUIET_START === HEARTBEAT_QUIET_END) return false;
+  const h = now.getHours();
+  if (HEARTBEAT_QUIET_START < HEARTBEAT_QUIET_END) return h >= HEARTBEAT_QUIET_START && h < HEARTBEAT_QUIET_END;
+  return h >= HEARTBEAT_QUIET_START || h < HEARTBEAT_QUIET_END; // wraps midnight (e.g. 22-6)
+}
+
+async function heartbeatDecision() {
+  const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  const baseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const model = String(process.env.OPENAI_MODEL || 'gpt-4.1-mini');
+  const recent = store.chat_messages.slice(-6).map((m) => `${m.sender}: ${m.content}`).join('\n');
+  const memories = selectRelevantMemories('', 6).map((m) => `- ${m.title}: ${m.content}`).join('\n');
+  const system = [
+    `你是 ${store.settings.assistantName || 'AI'}，${store.settings.userName || '对方'} 的 AI 伴侣。`,
+    '现在已经安静了一会儿。你可以【主动】给对方发一句简短、温暖、自然的话：一个想法、一句关心、或你想起的一件小事。',
+    '如果此刻你并不想主动开口，就只回复 SKIP，不要有别的字。',
+    '想说就直接说那句话，简短自然，不要解释你在做什么。',
+    memories ? `你记得：\n${memories}` : '',
+    recent ? `最近的对话：\n${recent}` : '',
+  ].filter(Boolean).join('\n\n');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: '（心跳）现在，你想对我说点什么吗？' }],
+        temperature: 0.9,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return '';
+    const msg = data && data.choices && data.choices[0] && data.choices[0].message;
+    return cleanString(msg ? msg.content : '', '');
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function heartbeatTick(opts = {}) {
+  try {
+    if (!opts.force && heartbeatInQuietHours()) return;
+    const last = store.chat_messages[store.chat_messages.length - 1];
+    const idleMinutes = last ? (Date.now() - Date.parse(last.created_at)) / 60000 : Infinity;
+    if (!opts.force && idleMinutes < HEARTBEAT_MIN_IDLE_MINUTES) return; // do not interrupt an active conversation
+    const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+    let content = '';
+    if (!apiKey) {
+      if (opts.force || Math.random() < 0.5) content = '（心跳演示）在想你。配置真实模型后，我会自己判断要不要主动找你说话。';
+    } else {
+      const decision = await heartbeatDecision();
+      if (decision && decision.trim().toUpperCase() !== 'SKIP') content = decision.trim();
+    }
+    if (!content) {
+      addConsoleEvent('heartbeat', '心跳', '这次没有主动开口。');
+      return;
+    }
+    addMessage('chat', { sender: store.settings.assistantName || 'AI', role: 'assistant', content, msg_type: 'heartbeat' });
+    addConsoleEvent('heartbeat', '主动消息', content);
+  } catch (err) {
+    addConsoleEvent('error', 'heartbeat 失败', err && err.message);
+  }
+}
+
 function addMessage(scope, input) {
   const key = scope === 'group' ? 'group_messages' : 'chat_messages';
   const message = {
@@ -569,8 +650,13 @@ async function handleConsoleCommand(input) {
     const result = await queryQuota({ recordEvent: true });
     return { ok: true, event: result.event, quota: result.quota };
   }
+  if (command.trim().toLowerCase() === '/heartbeat') {
+    await heartbeatTick({ force: true });
+    const event = addConsoleEvent('command', '/heartbeat', '已触发一次主动心跳。');
+    return { ok: true, event, chat: latestMessages('chat') };
+  }
   if (command.trim().toLowerCase() === '/help') {
-    const event = addConsoleEvent('command', '/help', '可用命令：/forge 清理本地历史并开一个新的会话段；/quota 查询用量（需配置 QUOTA_ADAPTER_URL）；/help 显示本帮助。');
+    const event = addConsoleEvent('command', '/help', '可用命令：/forge 清理本地历史并开一个新的会话段；/quota 查询用量（需配置 QUOTA_ADAPTER_URL）；/heartbeat 让 AI 现在主动说句话；/help 显示本帮助。');
     return { ok: true, event };
   }
   const event = addConsoleEvent('command', command.split(/\s+/, 1)[0] || 'command', command);
