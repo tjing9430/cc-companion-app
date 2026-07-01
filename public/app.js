@@ -30,6 +30,7 @@ const state = {
   composerParts: { chat: [], group: [] },
   replyTo: { chat: null, group: null },
   showFavorites: { chat: false, group: false },
+  stickerOpen: { chat: false, group: false },
   uploading: { chat: '', group: '' },
   memoryQuery: '',
   memoryEditing: null,
@@ -133,6 +134,18 @@ function bindEvents() {
       if (state.showFavorites) state.showFavorites[scope] = false;
       render();
       scrollToMessage(action.dataset.id);
+    }
+    if (name === 'toggle-stickers') {
+      const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
+      if (!state.stickerOpen) state.stickerOpen = { chat: false, group: false };
+      state.stickerOpen[scope] = !state.stickerOpen[scope];
+      render();
+    }
+    if (name === 'send-sticker') {
+      const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
+      const sticker = action.dataset.sticker || '';
+      if (state.stickerOpen) state.stickerOpen[scope] = false;
+      await sendSticker(scope, sticker);
     }
     if (name === 'delete-memory') {
       if (!confirm('删除这条记忆？')) return;
@@ -727,6 +740,39 @@ function renderAttachment(file) {
   return `<a class="attachment-file" href="${escAttr(url)}" target="_blank" rel="noreferrer"><span>File</span><span>${esc(file.name || 'attachment')}</span></a>`;
 }
 
+const STICKERS = [
+  '😊', '🥰', '😂', '🤣', '👍', '🎉', '😭', '🥺', '🤔', '😌', '😴', '🙏', '💪', '🌸', '❤️', '✨',
+  '🔥', '👀', '🙌', '😅', '🤗', '😎', '🥳', '🤯', '(｡･ω･｡)', '(๑•̀ㅂ•́)و', 'ヽ(・∀・)ﾉ', '(´;ω;｀)', '(￣▽￣)', '＞︿＜',
+];
+
+function renderStickerPanel(scope) {
+  if (!(state.stickerOpen && state.stickerOpen[scope])) return '';
+  return `<div class="sticker-panel">${STICKERS
+    .map((s) => `<button class="sticker-item" type="button" data-action="send-sticker" data-scope="${escAttr(scope)}" data-sticker="${escAttr(s)}">${esc(s)}</button>`)
+    .join('')}</div>`;
+}
+
+async function sendSticker(scope, sticker) {
+  const value = String(sticker || '').trim();
+  if (!value) return;
+  const temp = optimisticMessage(scope, value, [], null);
+  state[scope].push(temp);
+  render();
+  try {
+    const result = await api(`/api/${scope}/send`, {
+      method: 'POST',
+      body: { sender: state.settings.userName, messages: [{ content: value }] },
+    });
+    removeMessagesById(scope, [temp.id]);
+    if (Array.isArray(result.messages)) {
+      for (const message of result.messages) upsertMessage(scope, message);
+    }
+  } catch (err) {
+    removeMessagesById(scope, [temp.id]);
+    handleBackgroundError(err);
+  }
+}
+
 function renderReplyBanner(scope) {
   const target = state.replyTo && state.replyTo[scope];
   if (!target) return '';
@@ -747,11 +793,13 @@ function renderComposer(scope) {
   return `
     <form class="composer" data-send-scope="${escAttr(scope)}">
       ${renderReplyBanner(scope)}
+      ${renderStickerPanel(scope)}
       <div class="composer-bar ${hasDrafts ? 'has-parts' : ''}">
         <label class="composer-btn composer-attach" aria-label="添加附件" title="添加附件">
           <input data-file-scope="${escAttr(scope)}" type="file" accept="image/*,.pdf,.txt" multiple ${state.offline ? 'disabled' : ''}>
           ${ICONS.plus}
         </label>
+        <button class="composer-btn sticker-toggle${state.stickerOpen && state.stickerOpen[scope] ? ' on' : ''}" type="button" data-action="toggle-stickers" data-scope="${escAttr(scope)}" aria-label="表情" title="表情">😊</button>
         <textarea name="content" rows="1" placeholder="${escAttr(placeholder)}" ${state.offline ? 'disabled' : ''}>${esc(draft)}</textarea>
         <button class="composer-btn composer-send" type="submit" aria-label="${state.offline ? '离线' : '发送'}" title="${state.offline ? '离线' : '发送'}" ${sendDisabled ? 'disabled' : ''}>
           ${ICONS.send}
