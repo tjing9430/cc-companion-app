@@ -151,6 +151,18 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, message);
   }
 
+  if (req.method === 'GET' && route === '/api/stickers') {
+    return sendJson(res, 200, Array.isArray(store.stickers) ? store.stickers : []);
+  }
+  if (req.method === 'POST' && route === '/api/stickers') {
+    return sendJson(res, 201, addSticker(await readJson(req)));
+  }
+  const stickerMatch = route.match(/^\/api\/stickers\/(\d+)$/);
+  if (stickerMatch && req.method === 'DELETE') {
+    const ok = deleteSticker(Number(stickerMatch[1]));
+    return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'sticker_not_found' });
+  }
+
   if (req.method === 'GET' && route === '/api/console/events') {
     return sendJson(res, 200, latestConsoleEvents(Number(url.searchParams.get('limit') || 120)));
   }
@@ -590,6 +602,33 @@ function addMessage(scope, input) {
 function latestMessages(scope, limit = 80) {
   const key = scope === 'group' ? 'group_messages' : 'chat_messages';
   return store[key].slice(-clampLimit(limit)).map(publicMessage);
+}
+
+function addSticker(input) {
+  if (!Array.isArray(store.stickers)) store.stickers = [];
+  const sticker = {
+    id: nextId('sticker'),
+    url: cleanString(input && input.url, ''),
+    name: cleanString(input && input.name, 'sticker'),
+    type: cleanString(input && input.type, 'image/png'),
+    width: Number(input && input.width) || null,
+    height: Number(input && input.height) || null,
+    created_at: new Date().toISOString(),
+  };
+  store.stickers.push(sticker);
+  saveStore();
+  broadcastSse('stickers', { stickers: store.stickers });
+  return sticker;
+}
+
+function deleteSticker(id) {
+  if (!Array.isArray(store.stickers)) return false;
+  const before = store.stickers.length;
+  store.stickers = store.stickers.filter((s) => Number(s.id) !== Number(id));
+  if (store.stickers.length === before) return false;
+  saveStore();
+  broadcastSse('stickers', { stickers: store.stickers });
+  return true;
 }
 
 function setMessageFavorite(scope, id, favorited) {
@@ -1175,6 +1214,7 @@ function defaultStore() {
     group_messages: [],
     console_events: [],
     memories: [],
+    stickers: [],
   });
 }
 
@@ -1239,6 +1279,7 @@ function normalizeStore(input) {
     chat_messages: Array.isArray(data.chat_messages) ? data.chat_messages.map(publicMessage) : [],
     group_messages: Array.isArray(data.group_messages) ? data.group_messages.map(publicMessage) : [],
     console_events: Array.isArray(data.console_events) ? data.console_events : [],
+    stickers: Array.isArray(data.stickers) ? data.stickers : [],
     memories: Array.isArray(data.memories) ? data.memories.map((item) => {
       const tags = normalizeTags(item && item.tags);
       return {

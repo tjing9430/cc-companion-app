@@ -31,6 +31,7 @@ const state = {
   replyTo: { chat: null, group: null },
   showFavorites: { chat: false, group: false },
   stickerOpen: { chat: false, group: false },
+  stickers: [],
   uploading: { chat: '', group: '' },
   memoryQuery: '',
   memoryEditing: null,
@@ -140,12 +141,23 @@ function bindEvents() {
       if (!state.stickerOpen) state.stickerOpen = { chat: false, group: false };
       state.stickerOpen[scope] = !state.stickerOpen[scope];
       render();
+      if (state.stickerOpen[scope]) loadStickers();
     }
     if (name === 'send-sticker') {
-      const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
-      const sticker = action.dataset.sticker || '';
+      const form = action.closest('form');
+      const scope = (form && form.dataset.sendScope) || (state.tab === 'group' ? 'group' : 'chat');
+      const sticker = (state.stickers || []).find((x) => String(x.id) === String(action.dataset.stickerId));
       if (state.stickerOpen) state.stickerOpen[scope] = false;
-      await sendSticker(scope, sticker);
+      if (sticker) await sendSticker(scope, sticker);
+    }
+    if (name === 'delete-sticker') {
+      if (!confirm('删除这个表情包？')) return;
+      try {
+        await api(`/api/stickers/${action.dataset.stickerId}`, { method: 'DELETE' });
+        await loadStickers();
+      } catch (err) {
+        handleBackgroundError(err);
+      }
     }
     if (name === 'delete-memory') {
       if (!confirm('删除这条记忆？')) return;
@@ -239,6 +251,11 @@ function bindEvents() {
     const input = event.target;
     if (!(input instanceof HTMLInputElement)) return;
     if (input.dataset.fileScope) await uploadFiles(input.dataset.fileScope, Array.from(input.files || []));
+    if (input.dataset.stickerScope) {
+      const file = (input.files || [])[0];
+      input.value = '';
+      if (file) await addStickerFromFile(file);
+    }
   });
 
   document.addEventListener('input', debounce(async (event) => {
@@ -587,8 +604,18 @@ function renderTopbar() {
   return `
     <header class="topbar">
       <div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>
-      <div class="status-pill">${esc(live)}</div>
+      <div class="topbar-actions">
+        ${(state.tab === 'chat' || state.tab === 'group') ? renderFavFilterBtn(state.tab) : ''}
+        <div class="status-pill">${esc(live)}</div>
+      </div>
     </header>`;
+}
+
+function renderFavFilterBtn(scope) {
+  const rows = scope === 'group' ? state.group : state.chat;
+  const showFav = !!(state.showFavorites && state.showFavorites[scope]);
+  const favCount = (rows || []).filter((m) => m && m.favorited).length;
+  return `<button class="fav-filter${showFav ? ' on' : ''}" type="button" data-action="toggle-fav-filter" data-scope="${escAttr(scope)}">${showFav ? '返回全部' : `★ 收藏${favCount ? ` ${favCount}` : ''}`}</button>`;
 }
 
 function renderTab() {
@@ -600,13 +627,8 @@ function renderTab() {
 }
 
 function renderChat(scope, rows) {
-  const showFav = !!(state.showFavorites && state.showFavorites[scope]);
-  const favCount = (rows || []).filter((m) => m && m.favorited).length;
   return `
     <div class="chat-view">
-      <div class="chat-toolbar">
-        <button class="fav-filter${showFav ? ' on' : ''}" type="button" data-action="toggle-fav-filter" data-scope="${escAttr(scope)}">${showFav ? '← 返回全部' : `★ 收藏${favCount ? ` (${favCount})` : ''}`}</button>
-      </div>
       <div class="message-list" data-scroll-list data-scroll-scope="${escAttr(scope)}">
         ${renderMessageList(scope, rows)}
       </div>
@@ -740,28 +762,62 @@ function renderAttachment(file) {
   return `<a class="attachment-file" href="${escAttr(url)}" target="_blank" rel="noreferrer"><span>File</span><span>${esc(file.name || 'attachment')}</span></a>`;
 }
 
-const STICKERS = [
-  '😊', '🥰', '😂', '🤣', '👍', '🎉', '😭', '🥺', '🤔', '😌', '😴', '🙏', '💪', '🌸', '❤️', '✨',
-  '🔥', '👀', '🙌', '😅', '🤗', '😎', '🥳', '🤯', '(｡･ω･｡)', '(๑•̀ㅂ•́)و', 'ヽ(・∀・)ﾉ', '(´;ω;｀)', '(￣▽￣)', '＞︿＜',
-];
-
 function renderStickerPanel(scope) {
   if (!(state.stickerOpen && state.stickerOpen[scope])) return '';
-  return `<div class="sticker-panel">${STICKERS
-    .map((s) => `<button class="sticker-item" type="button" data-action="send-sticker" data-scope="${escAttr(scope)}" data-sticker="${escAttr(s)}">${esc(s)}</button>`)
-    .join('')}</div>`;
+  const stickers = Array.isArray(state.stickers) ? state.stickers : [];
+  const cells = stickers.map((s) => `<div class="sticker-cell">
+      <button class="sticker-item" type="button" data-action="send-sticker" data-sticker-id="${escAttr(String(s.id))}" title="发送">
+        <img src="${escAttr(protectedAssetUrl(s.url))}" alt="${escAttr(s.name || 'sticker')}" loading="lazy" decoding="async">
+      </button>
+      <button class="sticker-del" type="button" data-action="delete-sticker" data-sticker-id="${escAttr(String(s.id))}" aria-label="删除">×</button>
+    </div>`).join('');
+  return `<div class="sticker-panel">
+    ${cells}
+    <label class="sticker-add" title="添加表情包（上传图片）">
+      <input type="file" accept="image/*" data-sticker-scope="${escAttr(scope)}">
+      <span>＋</span>
+    </label>
+    ${stickers.length ? '' : '<div class="sticker-empty">还没有表情包，点 ＋ 上传图片。</div>'}
+  </div>`;
+}
+
+async function loadStickers() {
+  try {
+    state.stickers = (await api('/api/stickers')) || [];
+    render();
+  } catch (err) {
+    // ignore — stickers just won't show
+  }
+}
+
+async function addStickerFromFile(file) {
+  if (!file) return;
+  state.busy = true;
+  try {
+    const upload = await prepareUpload(file);
+    const uploaded = await api('/api/uploads', { method: 'POST', body: upload });
+    await api('/api/stickers', {
+      method: 'POST',
+      body: { url: uploaded.url, name: uploaded.name, type: uploaded.type, width: uploaded.width, height: uploaded.height },
+    });
+    await loadStickers();
+  } catch (err) {
+    handleBackgroundError(err);
+  } finally {
+    state.busy = false;
+  }
 }
 
 async function sendSticker(scope, sticker) {
-  const value = String(sticker || '').trim();
-  if (!value) return;
-  const temp = optimisticMessage(scope, value, [], null);
+  if (!sticker || !sticker.url) return;
+  const attachment = { url: sticker.url, name: sticker.name || 'sticker', type: sticker.type || 'image/png', width: sticker.width, height: sticker.height };
+  const temp = optimisticMessage(scope, '', [attachment], null);
   state[scope].push(temp);
   render();
   try {
     const result = await api(`/api/${scope}/send`, {
       method: 'POST',
-      body: { sender: state.settings.userName, messages: [{ content: value }] },
+      body: { sender: state.settings.userName, messages: [{ content: '', attachments: [attachment] }] },
     });
     removeMessagesById(scope, [temp.id]);
     if (Array.isArray(result.messages)) {
