@@ -1070,7 +1070,6 @@ function renderSettings() {
         <div class="form-row">
           <label>主题</label>
           <select name="theme">
-            <option value="auto" ${s.theme === 'auto' ? 'selected' : ''}>跟随系统</option>
             <option value="dark" ${s.theme === 'dark' ? 'selected' : ''}>暖深色</option>
             <option value="light" ${s.theme === 'light' ? 'selected' : ''}>奶油白</option>
           </select>
@@ -1648,18 +1647,23 @@ async function prepareUpload(file) {
 
 async function decodeImage(file) {
   if (typeof createImageBitmap === 'function') {
-    let bitmap;
     try {
-      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      let bitmap;
+      try {
+        bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      } catch {
+        bitmap = await createImageBitmap(file);
+      }
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        release: () => bitmap.close(),
+      };
     } catch {
-      bitmap = await createImageBitmap(file);
+      // createImageBitmap exists but failed (some vendor in-app browsers). Fall through to the
+      // <img> + canvas path below, which is more widely supported, so compression still happens.
     }
-    return {
-      source: bitmap,
-      width: bitmap.width,
-      height: bitmap.height,
-      release: () => bitmap.close(),
-    };
   }
 
   const url = URL.createObjectURL(file);
@@ -1710,26 +1714,8 @@ function autosizeTextarea(node) {
   node.style.height = next + 'px';
 }
 
-function prefersLightScheme() {
-  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
-}
-
 function applyTheme() {
-  const pref = state.settings && state.settings.theme;
-  let theme = 'dark';
-  if (pref === 'light') theme = 'light';
-  else if (pref === 'auto') theme = prefersLightScheme() ? 'light' : 'dark';
-  document.body.dataset.theme = theme;
-}
-
-// Re-apply when the OS colour scheme changes, but only when the user chose "跟随系统".
-if (window.matchMedia) {
-  const schemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-  const onSchemeChange = () => {
-    if (!state.settings || !state.settings.theme || state.settings.theme === 'auto') applyTheme();
-  };
-  if (schemeQuery.addEventListener) schemeQuery.addEventListener('change', onSchemeChange);
-  else if (schemeQuery.addListener) schemeQuery.addListener(onSchemeChange);
+  document.body.dataset.theme = state.settings && state.settings.theme === 'light' ? 'light' : 'dark';
 }
 
 function initials(name) {

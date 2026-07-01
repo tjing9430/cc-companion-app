@@ -1325,7 +1325,7 @@ function normalizeSettings(input) {
     groupName: cleanString(settings.groupName, defaults.groupName),
     agentMention: cleanString(settings.agentMention, defaults.agentMention).replace(/^@+/, '') || 'assistant',
     autoReplyGroup: settings.autoReplyGroup === true || String(settings.autoReplyGroup).toLowerCase() === 'true',
-    theme: ['light', 'auto'].includes(settings.theme) ? settings.theme : 'dark',
+    theme: settings.theme === 'light' ? 'light' : 'dark',
   };
 }
 
