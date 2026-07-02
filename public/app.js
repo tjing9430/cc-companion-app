@@ -166,6 +166,17 @@ function bindEvents() {
         handleBackgroundError(err);
       }
     }
+    if (name === 'open-lightbox') {
+      event.preventDefault();
+      state.lightbox = { url: action.dataset.url, name: action.dataset.name || '' };
+      render();
+      return;
+    }
+    if (name === 'close-lightbox') {
+      state.lightbox = null;
+      render();
+      return;
+    }
     if (name === 'toggle-pin') {
       try {
         await api(`/api/memory/${action.dataset.id}`, { method: 'PATCH', body: { pinned: !action.dataset.pinned } });
@@ -315,6 +326,13 @@ function bindEvents() {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
       form.requestSubmit();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.lightbox) {
+      state.lightbox = null;
+      render();
     }
   });
 
@@ -566,8 +584,21 @@ function render() {
         ${renderTopbar()}
         <div class="content">${renderTab()}</div>
       </section>
-    </div>`;
+    </div>
+    ${renderLightbox()}`;
   scrollLists();
+}
+
+function renderLightbox() {
+  if (!state.lightbox) return '';
+  return `<div class="lightbox" data-action="close-lightbox" role="dialog" aria-label="查看图片">
+    <img src="${escAttr(state.lightbox.url)}" alt="${escAttr(state.lightbox.name || 'image')}">
+    <div class="lightbox-bar">
+      <span class="lightbox-name">${esc(state.lightbox.name || '')}</span>
+      <a href="${escAttr(state.lightbox.url)}" target="_blank" rel="noreferrer" class="lightbox-open">原图</a>
+      <button type="button" class="lightbox-close" data-action="close-lightbox" aria-label="关闭">×</button>
+    </div>
+  </div>`;
 }
 
 // Incremental update: re-render ONLY the message list for a chat scope, leaving the composer
@@ -776,7 +807,7 @@ function renderAttachment(file) {
     const dimensions = file.width && file.height
       ? ` width="${Number(file.width)}" height="${Number(file.height)}" style="aspect-ratio:${Number(file.width)}/${Number(file.height)}"`
       : '';
-    return `<a class="attachment-link${file.sticker ? ' is-sticker' : ''}" href="${escAttr(url)}" target="_blank" rel="noreferrer"><img class="attachment-image${file.sticker ? ' is-sticker' : ''}" src="${escAttr(url)}" alt="${escAttr(file.name || 'attachment')}" loading="lazy" decoding="async"${dimensions}></a>`;
+    return `<a class="attachment-link${file.sticker ? ' is-sticker' : ''}" href="${escAttr(url)}" data-action="open-lightbox" data-url="${escAttr(url)}" data-name="${escAttr(file.name || '')}" target="_blank" rel="noreferrer"><img class="attachment-image${file.sticker ? ' is-sticker' : ''}" src="${escAttr(url)}" alt="${escAttr(file.name || 'attachment')}" loading="lazy" decoding="async"${dimensions}></a>`;
   }
   return `<a class="attachment-file" href="${escAttr(url)}" target="_blank" rel="noreferrer"><span>File</span><span>${esc(file.name || 'attachment')}</span></a>`;
 }

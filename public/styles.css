@@ -554,6 +554,32 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
 }
 .draft-attachment-item .attachment-image{max-width:min(280px,58vw);max-height:34vh}
 .attachment-image.is-sticker{max-width:120px;max-height:120px;border:none;background:transparent;border-radius:10px}
+.lightbox{
+  position:fixed;inset:0;z-index:80;
+  background:rgba(12,10,8,.88);
+  display:flex;align-items:center;justify-content:center;
+  cursor:zoom-out;
+  animation:lightbox-in .16s ease;
+}
+@keyframes lightbox-in{from{opacity:0}to{opacity:1}}
+.lightbox img{
+  max-width:94vw;max-height:86vh;
+  object-fit:contain;border-radius:6px;
+  box-shadow:0 12px 48px rgba(0,0,0,.5);
+}
+.lightbox-bar{
+  position:fixed;left:0;right:0;bottom:0;
+  display:flex;align-items:center;gap:.75rem;
+  padding:.65rem .9rem calc(.65rem + env(safe-area-inset-bottom));
+  background:linear-gradient(transparent,rgba(0,0,0,.55));
+  color:#f2ede6;font-size:.82rem;
+}
+.lightbox-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85}
+.lightbox-open{color:#f2ede6;text-decoration:underline;flex:none}
+.lightbox-close{
+  flex:none;border:none;background:rgba(255,255,255,.14);color:#fff;
+  width:2rem;height:2rem;border-radius:50%;font-size:1.1rem;line-height:1;cursor:pointer;
+}
 .draft-attachment-item .attachment-image.is-sticker{max-width:96px;max-height:96px}
 .draft-uploading{
   color:rgba(255,248,241,.78);
