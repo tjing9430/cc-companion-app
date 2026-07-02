@@ -380,8 +380,11 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   white-space:pre-wrap;
   word-break:break-word;
 }
-.sticker-toggle{font-size:1.15rem;line-height:1}
+.sticker-toggle svg{transition:transform .22s cubic-bezier(.34,1.56,.64,1),color .18s ease}
+.sticker-toggle:hover svg{transform:scale(1.12)}
+.sticker-toggle:active svg{transform:scale(.9)}
 .sticker-toggle.on{background:var(--accent-soft)}
+.sticker-toggle.on svg{transform:scale(1.1);color:var(--accent)}
 .sticker-panel{
   display:flex;
   flex-wrap:wrap;
@@ -432,9 +435,17 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   color:var(--muted);
   font-size:1.6rem;
   cursor:pointer;
+  background:transparent;
+  padding:0;
+  font-family:inherit;
+  line-height:1;
 }
-.sticker-add input{display:none}
 .sticker-empty{width:100%;color:var(--muted);font-size:.78rem;padding:.3rem}
+.sticker-hint{width:100%;color:var(--muted);font-size:.75rem;padding:.15rem .3rem .35rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.sticker-edit-btn{border:none;background:transparent;color:var(--accent);font-size:.75rem;cursor:pointer;padding:.1rem .35rem;font-family:inherit;flex:none;border-radius:6px}
+.sticker-edit-btn:active{background:var(--accent-soft)}
+.sticker-status{width:100%;font-size:.78rem;padding:.3rem;color:var(--muted)}
+.sticker-status.err{color:#e5484d}
 .msg-sender{font-weight:600}
 .message-row.me .msg-sender,
 .message-row.me .msg-time{color:rgba(74,44,31,.65)}
@@ -542,6 +553,8 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   max-width:100%;
 }
 .draft-attachment-item .attachment-image{max-width:min(280px,58vw);max-height:34vh}
+.attachment-image.is-sticker{max-width:120px;max-height:120px;border:none;background:transparent;border-radius:10px}
+.draft-attachment-item .attachment-image.is-sticker{max-width:96px;max-height:96px}
 .draft-uploading{
   color:rgba(255,248,241,.78);
   font-size:.86rem;

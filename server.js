@@ -1396,6 +1396,7 @@ function normalizeAttachments(input) {
     width: positiveInt(item && item.width),
     height: positiveInt(item && item.height),
     optimized: item && item.optimized === true,
+    sticker: item && item.sticker === true,
   })).filter((item) => item.url);
 }
 

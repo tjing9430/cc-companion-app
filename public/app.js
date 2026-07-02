@@ -54,6 +54,7 @@ const ICONS = {
   settings:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M3.5 10h2M14.5 10h2M5.4 5.4l1.4 1.4M13.2 13.2l1.4 1.4M5.4 14.6l1.4-1.4M13.2 6.8l1.4-1.4"/></svg>',
   plus:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg>',
   send:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10h13M11 4.5l5.5 5.5L11 15.5"/></svg>',
+  sticker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="13" height="13" rx="4"/><circle cx="7.6" cy="8.4" r=".85" fill="currentColor" stroke="none"/><circle cx="12.4" cy="8.4" r=".85" fill="currentColor" stroke="none"/><path d="M7.3 11.8c.7.9 1.7 1.4 2.7 1.4s2-.5 2.7-1.4"/></svg>',
 };
 
 const tabs = [
@@ -143,12 +144,18 @@ function bindEvents() {
       render();
       if (state.stickerOpen[scope]) loadStickers();
     }
-    if (name === 'send-sticker') {
+    if (name === 'send-sticker' && !state.stickerEdit) {
       const form = action.closest('form');
       const scope = (form && form.dataset.sendScope) || (state.tab === 'group' ? 'group' : 'chat');
       const sticker = (state.stickers || []).find((x) => String(x.id) === String(action.dataset.stickerId));
-      if (state.stickerOpen) state.stickerOpen[scope] = false;
-      if (sticker) await sendSticker(scope, sticker);
+      if (sticker) pickSticker(scope, sticker);
+    }
+    if (name === 'toggle-sticker-edit') {
+      state.stickerEdit = !state.stickerEdit;
+      render();
+    }
+    if (name === 'open-sticker-picker') {
+      openStickerPicker(action.dataset.stickerScope || (state.tab === 'group' ? 'group' : 'chat'));
     }
     if (name === 'delete-sticker') {
       if (!confirm('删除这个表情包？')) return;
@@ -252,9 +259,10 @@ function bindEvents() {
     if (!(input instanceof HTMLInputElement)) return;
     if (input.dataset.fileScope) await uploadFiles(input.dataset.fileScope, Array.from(input.files || []));
     if (input.dataset.stickerScope) {
+      const scope = input.dataset.stickerScope;
       const file = (input.files || [])[0];
       input.value = '';
-      if (file) await addStickerFromFile(file);
+      if (file) await addStickerFromFile(scope, file);
     }
   });
 
@@ -760,7 +768,7 @@ function renderAttachment(file) {
     const dimensions = file.width && file.height
       ? ` width="${Number(file.width)}" height="${Number(file.height)}" style="aspect-ratio:${Number(file.width)}/${Number(file.height)}"`
       : '';
-    return `<a href="${escAttr(url)}" target="_blank" rel="noreferrer"><img class="attachment-image" src="${escAttr(url)}" alt="${escAttr(file.name || 'attachment')}" loading="lazy" decoding="async"${dimensions}></a>`;
+    return `<a class="attachment-link${file.sticker ? ' is-sticker' : ''}" href="${escAttr(url)}" target="_blank" rel="noreferrer"><img class="attachment-image${file.sticker ? ' is-sticker' : ''}" src="${escAttr(url)}" alt="${escAttr(file.name || 'attachment')}" loading="lazy" decoding="async"${dimensions}></a>`;
   }
   return `<a class="attachment-file" href="${escAttr(url)}" target="_blank" rel="noreferrer"><span>File</span><span>${esc(file.name || 'attachment')}</span></a>`;
 }
@@ -768,18 +776,18 @@ function renderAttachment(file) {
 function renderStickerPanel(scope) {
   if (!(state.stickerOpen && state.stickerOpen[scope])) return '';
   const stickers = Array.isArray(state.stickers) ? state.stickers : [];
+  const editing = Boolean(state.stickerEdit);
   const cells = stickers.map((s) => `<div class="sticker-cell">
-      <button class="sticker-item" type="button" data-action="send-sticker" data-sticker-id="${escAttr(String(s.id))}" title="发送">
+      <button class="sticker-item" type="button" data-action="send-sticker" data-sticker-id="${escAttr(String(s.id))}" title="${editing ? '' : '放进输入框'}">
         <img src="${escAttr(protectedAssetUrl(s.url))}" alt="${escAttr(s.name || 'sticker')}" loading="lazy" decoding="async">
       </button>
-      <button class="sticker-del" type="button" data-action="delete-sticker" data-sticker-id="${escAttr(String(s.id))}" aria-label="删除">×</button>
+      ${editing ? `<button class="sticker-del" type="button" data-action="delete-sticker" data-sticker-id="${escAttr(String(s.id))}" aria-label="删除">×</button>` : ''}
     </div>`).join('');
   return `<div class="sticker-panel">
+    ${stickers.length ? `<div class="sticker-hint">${editing ? '点 × 删掉不要的表情包' : '点表情放进输入框，再点右边 → 发送'}<button type="button" class="sticker-edit-btn" data-action="toggle-sticker-edit">${editing ? '完成' : '编辑'}</button></div>` : ''}
     ${cells}
-    <label class="sticker-add" title="添加表情包（上传图片）">
-      <input type="file" accept="image/*" data-sticker-scope="${escAttr(scope)}">
-      <span>＋</span>
-    </label>
+    <button type="button" class="sticker-add" data-action="open-sticker-picker" data-sticker-scope="${escAttr(scope)}" title="添加表情包（上传图片）">＋</button>
+    ${state.stickerStatus && state.stickerStatus[scope] ? `<div class="sticker-status${state.stickerStatus[scope].startsWith('上传失败') ? ' err' : ''}">${esc(state.stickerStatus[scope])}</div>` : ''}
     ${stickers.length ? '' : '<div class="sticker-empty">还没有表情包，点 ＋ 上传图片。</div>'}
   </div>`;
 }
@@ -793,9 +801,43 @@ async function loadStickers() {
   }
 }
 
-async function addStickerFromFile(file) {
+function openStickerPicker(scope) {
+  if (!state.stickerStatus) state.stickerStatus = {};
+  // Vendor in-app browsers (Honor/Baidu WebView etc.) often don't fire a bubbling `change` for a
+  // hidden, label-associated <input> caught via document delegation. So we trigger the picker from a
+  // click (clicks work reliably here) using a fresh on-DOM input with a DIRECT change listener.
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.setAttribute('aria-hidden', 'true');
+  input.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0';
+  const cleanup = () => { try { input.remove(); } catch (e) {} };
+  input.addEventListener('change', async () => {
+    const file = (input.files || [])[0];
+    cleanup();
+    if (file) {
+      await addStickerFromFile(scope, file);
+    } else {
+      state.stickerStatus[scope] = '';
+      render();
+    }
+  });
+  // Some webviews fire a `cancel` event when the picker is dismissed with no selection.
+  input.addEventListener('cancel', () => { cleanup(); state.stickerStatus[scope] = ''; render(); });
+  document.body.appendChild(input);
+  input.click();
+  // Immediate feedback so a stuck step is visible: if this text lingers, the picker opened but
+  // `change` never fired; if it never appears, the tap didn't route.
+  state.stickerStatus[scope] = '已打开选择器，选张图…';
+  render();
+}
+
+async function addStickerFromFile(scope, file) {
   if (!file) return;
-  state.busy = true;
+  if (!state.stickerStatus) state.stickerStatus = {};
+  // Show progress right in the sticker panel so a failure is never silent.
+  state.stickerStatus[scope] = '上传中…';
+  render();
   try {
     const upload = await prepareUpload(file);
     const uploaded = await api('/api/uploads', { method: 'POST', body: upload });
@@ -803,33 +845,28 @@ async function addStickerFromFile(file) {
       method: 'POST',
       body: { url: uploaded.url, name: uploaded.name, type: uploaded.type, width: uploaded.width, height: uploaded.height },
     });
+    state.stickerStatus[scope] = '✓ 已添加，点它放进输入框再发送';
     await loadStickers();
   } catch (err) {
-    handleBackgroundError(err);
-  } finally {
-    state.busy = false;
+    state.stickerStatus[scope] = '上传失败：' + (err && err.message ? err.message : '未知错误');
   }
+  render();
 }
 
-async function sendSticker(scope, sticker) {
+function pickSticker(scope, sticker) {
   if (!sticker || !sticker.url) return;
-  const attachment = { url: sticker.url, name: sticker.name || 'sticker', type: sticker.type || 'image/png', width: sticker.width, height: sticker.height };
-  const temp = optimisticMessage(scope, '', [attachment], null);
-  state[scope].push(temp);
-  render();
-  try {
-    const result = await api(`/api/${scope}/send`, {
-      method: 'POST',
-      body: { sender: state.settings.userName, messages: [{ content: '', attachments: [attachment] }] },
-    });
-    removeMessagesById(scope, [temp.id]);
-    if (Array.isArray(result.messages)) {
-      for (const message of result.messages) upsertMessage(scope, message);
-    }
-  } catch (err) {
-    removeMessagesById(scope, [temp.id]);
-    handleBackgroundError(err);
-  }
+  if (!state.pending[scope]) state.pending[scope] = [];
+  // Drop the sticker into the composer draft (just like an uploaded image) so it goes out with the
+  // normal → send button. This makes it unmistakable that a sticker can be sent.
+  state.pending[scope].push({
+    url: sticker.url,
+    name: sticker.name || 'sticker',
+    type: sticker.type || 'image/png',
+    width: sticker.width,
+    height: sticker.height,
+    sticker: true,
+  });
+  updateComposerDrafts(scope);
 }
 
 function renderReplyBanner(scope) {
@@ -852,18 +889,18 @@ function renderComposer(scope) {
   return `
     <form class="composer" data-send-scope="${escAttr(scope)}">
       ${renderReplyBanner(scope)}
-      ${renderStickerPanel(scope)}
       <div class="composer-bar ${hasDrafts ? 'has-parts' : ''}">
         <label class="composer-btn composer-attach" aria-label="添加附件" title="添加附件">
           <input data-file-scope="${escAttr(scope)}" type="file" accept="image/*,.pdf,.txt" multiple ${state.offline ? 'disabled' : ''}>
           ${ICONS.plus}
         </label>
-        <button class="composer-btn sticker-toggle${state.stickerOpen && state.stickerOpen[scope] ? ' on' : ''}" type="button" data-action="toggle-stickers" data-scope="${escAttr(scope)}" aria-label="表情" title="表情">😊</button>
+        <button class="composer-btn sticker-toggle${state.stickerOpen && state.stickerOpen[scope] ? ' on' : ''}" type="button" data-action="toggle-stickers" data-scope="${escAttr(scope)}" aria-label="表情" title="表情">${ICONS.sticker}</button>
         <textarea name="content" rows="1" placeholder="${escAttr(placeholder)}" ${state.offline ? 'disabled' : ''}>${esc(draft)}</textarea>
         <button class="composer-btn composer-send" type="submit" aria-label="${state.offline ? '离线' : '发送'}" title="${state.offline ? '离线' : '发送'}" ${sendDisabled ? 'disabled' : ''}>
           ${ICONS.send}
         </button>
       </div>
+      ${renderStickerPanel(scope)}
     </form>`;
 }
 
@@ -1599,9 +1636,10 @@ function readFileAsDataUrl(file) {
 }
 
 async function prepareUpload(file) {
-  if (file.size > MAX_ATTACHMENT_BYTES) throw new Error('Files must be 10 MB or smaller.');
   const isImage = String(file.type || '').startsWith('image/');
   if (!isImage || file.type === 'image/gif' || file.size <= SMALL_IMAGE_BYTES) {
+    // Non-images / gifs / already-small files are sent as-is, so enforce the size cap here.
+    if (file.size > MAX_ATTACHMENT_BYTES) throw new Error('文件需在 10MB 以内。');
     return {
       name: file.name,
       data: await readFileAsDataUrl(file),
@@ -1609,6 +1647,8 @@ async function prepareUpload(file) {
       optimized: false,
     };
   }
+  // Large images fall through to compression below (a phone photo can be >10MB before compressing),
+  // so we deliberately do NOT reject on raw size here.
 
   try {
     const decoded = await decodeImage(file);
@@ -1643,7 +1683,9 @@ async function prepareUpload(file) {
     }
   } catch (err) {
     // Some in-app browsers (e.g. vendor browsers) can't decode/resize images via canvas. Fall back
-    // to sending the raw image so uploads and stickers still work.
+    // to sending the raw image so uploads and stickers still work — but if it couldn't be compressed
+    // and is still over the cap, surface a clear error instead of a silent failure.
+    if (file.size > MAX_ATTACHMENT_BYTES) throw new Error('图片太大且无法压缩，请换 10MB 以内的图片。');
     return { name: file.name, data: await readFileAsDataUrl(file), original_size: file.size, optimized: false };
   }
 }
