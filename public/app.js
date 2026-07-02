@@ -201,6 +201,15 @@ function bindEvents() {
       render();
       return;
     }
+    if (name === 'toggle-notify') {
+      if (notifyEnabled()) {
+        localStorage.removeItem('cc-notify');
+      } else if (notifySupported()) {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') localStorage.setItem('cc-notify', '1');
+      }
+      render();
+    }
     if (name === 'toggle-pin') {
       try {
         await api(`/api/memory/${action.dataset.id}`, { method: 'PATCH', body: { pinned: !action.dataset.pinned } });
@@ -784,6 +793,31 @@ function renderMessageList(scope, rows) {
   return `${rows.map((message) => renderMessage(message)).join('')}${renderComposerDrafts(scope)}`;
 }
 
+function notifySupported() {
+  return typeof Notification !== 'undefined';
+}
+
+function notifyEnabled() {
+  return notifySupported() && localStorage.getItem('cc-notify') === '1' && Notification.permission === 'granted';
+}
+
+// Fire a system notification for assistant messages (heartbeat ones included)
+// arriving while the page is in the background. Device-local preference.
+function maybeNotify(message) {
+  if (!message || message.role !== 'assistant') return;
+  if (!document.hidden || !notifyEnabled()) return;
+  const body = String(message.content || '').slice(0, 90) || '[图片]';
+  try {
+    const note = new Notification(message.sender || 'AI', { body, tag: `cc-msg-${message.id}` });
+    note.onclick = () => {
+      try { window.focus(); } catch (err) { /* ignore */ }
+      note.close();
+    };
+  } catch (err) {
+    // Some in-app browsers expose Notification but throw on construction.
+  }
+}
+
 async function copyText(text) {
   const value = String(text == null ? '' : text);
   if (!value) return false;
@@ -1251,6 +1285,11 @@ function renderSettings() {
         <div class="event-title"><span>AI 接入</span><span>${esc(s.agent.model)}</span></div>
         <div class="event-body">${s.agent.configured ? '服务器已配置 OpenAI-compatible API。' : '当前使用内置演示回复。在 .env 里设置 OPENAI_API_KEY 后会接入真实模型。'}</div>
       </div>
+      ${notifySupported() ? `<div class="event">
+        <div class="event-title"><span>后台通知</span><span>${Notification.permission === 'denied' ? '被浏览器拒绝' : (notifyEnabled() ? '已开启' : '未开启')}</span></div>
+        <div class="event-body">页面在后台时，AI 的新消息（包括它主动发来的）会弹系统通知。只对本设备生效。${Notification.permission === 'denied' ? '需要先在浏览器的网站设置里允许通知。' : ''}</div>
+        ${Notification.permission === 'denied' ? '' : `<button class="ghost" type="button" data-action="toggle-notify">${notifyEnabled() ? '关闭通知' : '开启通知'}</button>`}
+      </div>` : ''}
       <div class="composer-actions">
         <button class="primary" type="submit">保存设置</button>
         ${s.authEnabled ? '<button class="ghost" type="button" data-action="clear-token">重置口令</button>' : ''}
@@ -1499,6 +1538,7 @@ function connectStream() {
     state.offline = false;
     cacheBootstrap();
     renderMessages(data.scope);
+    maybeNotify(data.message);
   });
   eventStream.addEventListener('console', (event) => {
     const data = parseStreamData(event);
