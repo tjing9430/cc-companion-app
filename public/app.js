@@ -166,6 +166,14 @@ function bindEvents() {
         handleBackgroundError(err);
       }
     }
+    if (name === 'toggle-pin') {
+      try {
+        await api(`/api/memory/${action.dataset.id}`, { method: 'PATCH', body: { pinned: !action.dataset.pinned } });
+        await loadMemories();
+      } catch (err) {
+        handleBackgroundError(err);
+      }
+    }
     if (name === 'delete-memory') {
       if (!confirm('删除这条记忆？')) return;
       await api(`/api/memory/${action.dataset.id}`, { method: 'DELETE' });
@@ -1075,7 +1083,7 @@ function renderMemoryItem(memory) {
     <article class="memory-item ${open ? 'open' : ''}">
       <button class="memory-summary" type="button" data-action="toggle-memory" data-id="${memory.id}" aria-expanded="${open ? 'true' : 'false'}">
         <div class="memory-summary-main">
-          <div class="memory-title">${esc(memory.title)}</div>
+          <div class="memory-title">${memory.pinned ? '<span class="memory-pin" title="已置顶：永远带给 agent">📌</span>' : ''}${esc(memory.title)}</div>
           <div class="memory-meta">
             <span class="memory-mood-mark" aria-hidden="true"></span>
             <span>${esc(author)}</span>
@@ -1092,6 +1100,7 @@ function renderMemoryItem(memory) {
         ${(memory.tags || []).length ? `<div class="memory-tags">${(memory.tags || []).map((tag) => `<span>${esc(tag)}</span>`).join('')}</div>` : ''}
         <div class="memory-rule"></div>
         <div class="memory-actions">
+          <button class="ghost" data-action="toggle-pin" data-id="${memory.id}" data-pinned="${memory.pinned ? '1' : ''}" type="button">${memory.pinned ? '取消置顶' : '📌 置顶'}</button>
           <button class="ghost" data-action="edit-memory" data-id="${memory.id}" type="button">编辑</button>
           <button class="danger" data-action="delete-memory" data-id="${memory.id}" type="button">删除</button>
         </div>

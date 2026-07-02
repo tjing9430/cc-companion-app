@@ -745,6 +745,7 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
 .memory-actions button{padding:.32rem .55rem;font-size:.74rem}
 .memory-title{font-weight:700;letter-spacing:0;font-size:1.02rem}
 .memory-summary-main{min-width:0;flex:1}
+.memory-pin{font-size:.8rem;margin-right:.28rem}
 .memory-preview{
   color:var(--muted);
   font-size:.8rem;

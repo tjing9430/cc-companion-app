@@ -654,6 +654,7 @@ function publicMemory(memory) {
     mood: cleanString(memory && memory.mood, defaultMemoryMood(tags)),
     author: cleanString(memory && memory.author, store.settings.assistantName || 'AI'),
     tags,
+    pinned: Boolean(memory && memory.pinned),
     created_at: cleanString(memory && memory.created_at, new Date().toISOString()),
     updated_at: cleanString(memory && memory.updated_at, memory && memory.created_at || new Date().toISOString()),
   };
@@ -1050,6 +1051,7 @@ function createMemory(input) {
     mood: cleanString(input.mood, defaultMemoryMood(input.tags)),
     author: cleanString(input.author, store.settings.assistantName || 'AI'),
     tags: normalizeTags(input.tags),
+    pinned: input.pinned === true,
     created_at: now,
     updated_at: now,
   };
@@ -1069,6 +1071,7 @@ function updateMemory(id, input) {
   if ('mood' in input) memory.mood = cleanString(input.mood, memory.mood || defaultMemoryMood(memory.tags));
   if ('author' in input) memory.author = cleanString(input.author, memory.author || store.settings.assistantName || 'AI');
   if ('tags' in input) memory.tags = normalizeTags(input.tags);
+  if ('pinned' in input) memory.pinned = input.pinned === true;
   memory.updated_at = new Date().toISOString();
   saveStore();
   addConsoleEvent('memory', '记忆已更新', memory.title);
@@ -1103,6 +1106,8 @@ function listMemories(options = '') {
     rows = rows.filter((m) => (m.tags || []).map((item) => String(item).toLowerCase()).includes(tag));
   }
   rows.sort((a, b) => {
+    const pin = (b.pinned === true) - (a.pinned === true);
+    if (pin) return pin;
     const created = String(b.created_at || '').localeCompare(String(a.created_at || ''));
     const updated = String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || ''));
     if (sort === 'created_asc') return -created;
@@ -1127,6 +1132,7 @@ function importMemories(input) {
       mood: item.mood || '',
       author: item.author || '',
       tags: item.tags || [],
+      pinned: item.pinned === true,
     }));
   }
   return imported;
