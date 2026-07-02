@@ -30,6 +30,9 @@ const state = {
   composerParts: { chat: [], group: [] },
   replyTo: { chat: null, group: null },
   showFavorites: { chat: false, group: false },
+  chatSearchOpen: { chat: false, group: false },
+  chatSearch: { chat: '', group: '' },
+  searchPool: { chat: null, group: null },
   stickerOpen: { chat: false, group: false },
   stickers: [],
   uploading: { chat: '', group: '' },
@@ -128,12 +131,33 @@ function bindEvents() {
       const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
       if (!state.showFavorites) state.showFavorites = { chat: false, group: false };
       state.showFavorites[scope] = !state.showFavorites[scope];
+      if (state.showFavorites[scope]) state.chatSearchOpen[scope] = false;
       render();
+    }
+    if (name === 'toggle-chat-search') {
+      const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
+      state.chatSearchOpen[scope] = !state.chatSearchOpen[scope];
+      if (state.chatSearchOpen[scope]) {
+        state.showFavorites[scope] = false;
+        loadSearchPool(scope);
+      } else {
+        state.chatSearch[scope] = '';
+      }
+      render();
+      if (state.chatSearchOpen[scope]) {
+        const input = document.querySelector(`.chat-search-row input[data-scope="${CSS.escape(scope)}"]`);
+        if (input) input.focus();
+      }
     }
     if (name === 'jump-to') {
       const list = action.closest('.message-list');
       const scope = (list && list.dataset.scrollScope) || (state.tab === 'group' ? 'group' : 'chat');
       if (state.showFavorites) state.showFavorites[scope] = false;
+      if (state.chatSearchOpen && state.chatSearchOpen[scope]) {
+        ensureMessageLoaded(scope, action.dataset.id);
+        state.chatSearchOpen[scope] = false;
+        state.chatSearch[scope] = '';
+      }
       render();
       scrollToMessage(action.dataset.id);
     }
@@ -291,6 +315,11 @@ function bindEvents() {
     if (input.dataset.memorySearch) {
       state.memoryQuery = input.value;
       await loadMemories();
+    }
+    if (input.dataset.chatSearch) {
+      const scope = input.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
+      state.chatSearch[scope] = input.value;
+      refreshSearchList(scope);
     }
   }, 250));
 
@@ -652,10 +681,47 @@ function renderTopbar() {
     <header class="topbar">
       <div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>
       <div class="topbar-actions">
+        ${(state.tab === 'chat' || state.tab === 'group') ? renderChatSearchBtn(state.tab) : ''}
         ${(state.tab === 'chat' || state.tab === 'group') ? renderFavFilterBtn(state.tab) : ''}
         <div class="status-pill">${esc(live)}</div>
       </div>
     </header>`;
+}
+
+async function loadSearchPool(scope) {
+  try {
+    const rows = await api(`/api/${scope}/messages?limit=500`);
+    state.searchPool[scope] = Array.isArray(rows) ? rows : [];
+    refreshSearchList(scope);
+  } catch (err) {
+    // Search then falls back to the messages already loaded.
+  }
+}
+
+function refreshSearchList(scope) {
+  if (!(state.chatSearchOpen && state.chatSearchOpen[scope])) return;
+  const list = document.querySelector(`.message-list[data-scroll-scope="${CSS.escape(scope)}"]`);
+  if (!list) return;
+  list.innerHTML = renderMessageList(scope, scope === 'group' ? state.group : state.chat);
+  const hits = searchMessages(scope, scope === 'group' ? state.group : state.chat);
+  const count = document.querySelector(`[data-search-count="${CSS.escape(scope)}"]`);
+  if (count) count.textContent = hits ? `${hits.length} 条` : '';
+}
+
+function ensureMessageLoaded(scope, id) {
+  const rows = scope === 'group' ? state.group : state.chat;
+  if (rows.some((m) => String(m.id) === String(id))) return;
+  const pool = state.searchPool[scope] || [];
+  if (!pool.length) return;
+  const byId = new Map();
+  for (const m of [...pool, ...rows]) byId.set(String(m.id), m);
+  const merged = [...byId.values()].sort((a, b) => (Number(a.id) || Infinity) - (Number(b.id) || Infinity));
+  if (scope === 'group') state.group = merged; else state.chat = merged;
+}
+
+function renderChatSearchBtn(scope) {
+  const open = !!(state.chatSearchOpen && state.chatSearchOpen[scope]);
+  return `<button class="fav-filter${open ? ' on' : ''}" type="button" data-action="toggle-chat-search" data-scope="${escAttr(scope)}" aria-label="搜索聊天">🔍</button>`;
 }
 
 function renderFavFilterBtn(scope) {
@@ -674,8 +740,14 @@ function renderTab() {
 }
 
 function renderChat(scope, rows) {
+  const searchOpen = !!(state.chatSearchOpen && state.chatSearchOpen[scope]);
   return `
     <div class="chat-view">
+      ${searchOpen ? `<div class="chat-search-row">
+        <input data-chat-search="1" data-scope="${escAttr(scope)}" placeholder="搜索聊天内容（只匹配正文）" value="${escAttr(state.chatSearch[scope] || '')}">
+        <span class="chat-search-count" data-search-count="${escAttr(scope)}"></span>
+        <button class="ghost" type="button" data-action="toggle-chat-search" data-scope="${escAttr(scope)}">关闭</button>
+      </div>` : ''}
       <div class="message-list" data-scroll-list data-scroll-scope="${escAttr(scope)}">
         ${renderMessageList(scope, rows)}
       </div>
@@ -683,7 +755,23 @@ function renderChat(scope, rows) {
     </div>`;
 }
 
+function searchMessages(scope, rows) {
+  const q = String(state.chatSearch[scope] || '').trim().toLowerCase();
+  if (!q) return null;
+  const pool = state.searchPool[scope] || rows || [];
+  // Match message body text only — thinking, tool output and attachment
+  // names never produce hits.
+  return pool.filter((m) => m && String(m.content || '').toLowerCase().includes(q));
+}
+
 function renderMessageList(scope, rows) {
+  const searchOpen = !!(state.chatSearchOpen && state.chatSearchOpen[scope]);
+  if (searchOpen) {
+    const hits = searchMessages(scope, rows);
+    if (!hits) return '<div class="empty">输入关键词搜索聊天记录。</div>';
+    if (!hits.length) return '<div class="empty">没有匹配的消息。</div>';
+    return hits.map((message) => renderMessage(message, { showJump: true })).join('');
+  }
   const showFav = !!(state.showFavorites && state.showFavorites[scope]);
   if (showFav) {
     const favs = (rows || []).filter((m) => m && m.favorited);

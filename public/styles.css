@@ -444,6 +444,19 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
 .sticker-hint{width:100%;color:var(--muted);font-size:.75rem;padding:.15rem .3rem .35rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem}
 .sticker-edit-btn{border:none;background:transparent;color:var(--accent);font-size:.75rem;cursor:pointer;padding:.1rem .35rem;font-family:inherit;flex:none;border-radius:6px}
 .sticker-edit-btn:active{background:var(--accent-soft)}
+.chat-search-row{
+  display:flex;align-items:center;gap:.5rem;
+  padding:.5rem .75rem;
+  border-bottom:1px solid var(--line-soft);
+  background:var(--panel);
+}
+.chat-search-row input{
+  flex:1;min-width:0;
+  border:1px solid var(--line);border-radius:8px;
+  padding:.45rem .6rem;font-size:.88rem;
+  background:var(--bg-soft);color:var(--text);
+}
+.chat-search-count{flex:none;color:var(--muted);font-size:.78rem}
 .sticker-status{width:100%;font-size:.78rem;padding:.3rem;color:var(--muted)}
 .sticker-status.err{color:#e5484d}
 .msg-sender{font-weight:600}
