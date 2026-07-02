@@ -33,6 +33,11 @@ const state = {
   chatSearchOpen: { chat: false, group: false },
   chatSearch: { chat: '', group: '' },
   searchPool: { chat: null, group: null },
+  memoryTab: 'diary',
+  documents: [],
+  docContent: {},
+  docOpen: {},
+  docWriterOpen: false,
   stickerOpen: { chat: false, group: false },
   stickers: [],
   uploading: { chat: '', group: '' },
@@ -210,6 +215,56 @@ function bindEvents() {
       }
       render();
     }
+    if (name === 'memory-tab') {
+      state.memoryTab = action.dataset.tab === 'docs' ? 'docs' : 'diary';
+      render();
+      if (state.memoryTab === 'docs') loadDocuments();
+    }
+    if (name === 'toggle-doc-writer') {
+      state.docWriterOpen = !state.docWriterOpen;
+      render();
+    }
+    if (name === 'open-doc-picker') {
+      // Same click-driven picker as stickers: vendor in-app browsers don't
+      // reliably fire a bubbling `change` for hidden, label-associated inputs.
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.txt,.md,.markdown,.log,.json,.csv,text/*';
+      input.setAttribute('aria-hidden', 'true');
+      input.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0';
+      const cleanup = () => { try { input.remove(); } catch (err) {} };
+      input.addEventListener('change', async () => {
+        const file = (input.files || [])[0];
+        cleanup();
+        if (file) await addDocumentFromFile(file);
+      });
+      input.addEventListener('cancel', cleanup);
+      document.body.appendChild(input);
+      input.click();
+    }
+    if (name === 'toggle-doc') {
+      const id = Number(action.dataset.id);
+      state.docOpen[id] = !state.docOpen[id];
+      render();
+      if (state.docOpen[id] && state.docContent[id] == null) {
+        try {
+          const doc = await api(`/api/documents/${id}`);
+          state.docContent[id] = String(doc.content || '');
+        } catch (err) {
+          state.docContent[id] = '（加载失败）';
+        }
+        render();
+      }
+    }
+    if (name === 'delete-document') {
+      if (!confirm('删除这份资料？')) return;
+      try {
+        await api(`/api/documents/${action.dataset.id}`, { method: 'DELETE' });
+        await loadDocuments();
+      } catch (err) {
+        handleBackgroundError(err);
+      }
+    }
     if (name === 'toggle-pin') {
       try {
         await api(`/api/memory/${action.dataset.id}`, { method: 'PATCH', body: { pinned: !action.dataset.pinned } });
@@ -302,6 +357,7 @@ function bindEvents() {
     if (form.dataset.sendScope) await submitMessage(form.dataset.sendScope, form);
     if (form.dataset.consoleCommand) await submitConsoleCommand(form);
     if (form.dataset.memoryForm) await submitMemory(form);
+    if (form.dataset.docForm) await submitDocument(form);
     if (form.dataset.settingsForm) await submitSettings(form);
     if (form.dataset.authForm) await submitAuth(form);
   });
@@ -1166,6 +1222,12 @@ function renderConsoleEvent(event) {
 }
 
 function renderMemory() {
+  const seg = `
+    <div class="memory-seg">
+      <button type="button" class="${state.memoryTab === 'diary' ? 'on' : ''}" data-action="memory-tab" data-tab="diary">日记</button>
+      <button type="button" class="${state.memoryTab === 'docs' ? 'on' : ''}" data-action="memory-tab" data-tab="docs">资料库</button>
+    </div>`;
+  if (state.memoryTab === 'docs') return renderDocs(seg);
   const editing = state.memoryEditing;
   const writerOpen = Boolean(editing || state.memoryWriterOpen);
   const editTags = editing && Array.isArray(editing.tags) ? editing.tags.join(', ') : '';
@@ -1180,6 +1242,7 @@ function renderMemory() {
         </div>
         <div class="memory-count">${state.memories.length} 条</div>
       </div>
+      ${seg}
       ${writerOpen ? renderMemoryWriter(editing, editMood, editAuthor, editTags) : renderMemoryWriterCard()}
       <div class="search-row memory-search">
         <input data-memory-search="1" placeholder="搜索记忆" value="${escAttr(state.memoryQuery)}">
@@ -1189,6 +1252,140 @@ function renderMemory() {
         ${state.memories.length ? state.memories.map(renderMemoryItem).join('') : `<div class="empty">${state.memoryQuery ? '没有匹配的记忆。' : '还没有记忆。'}</div>`}
       </div>
     </div>`;
+}
+
+function renderDocs(seg) {
+  const docs = Array.isArray(state.documents) ? state.documents : [];
+  return `
+    <div class="memory-view">
+      <div class="memory-headline">
+        <div>
+          <div class="section-kicker">记忆</div>
+          <h2>资料库</h2>
+        </div>
+        <div class="memory-count">${docs.length} 份</div>
+      </div>
+      ${seg}
+      <div class="doc-toolbar">
+        <button class="memory-writer-card doc-add" type="button" data-action="open-doc-picker">
+          <span class="memory-writer-icon" aria-hidden="true">↑</span>
+          <span>
+            <span class="memory-writer-title">上传文件</span>
+            <span class="memory-writer-subtitle">txt / md 等文本</span>
+          </span>
+        </button>
+        <button class="memory-writer-card doc-add" type="button" data-action="toggle-doc-writer">
+          <span class="memory-writer-icon" aria-hidden="true">+</span>
+          <span>
+            <span class="memory-writer-title">写一份</span>
+            <span class="memory-writer-subtitle">直接打字</span>
+          </span>
+        </button>
+      </div>
+      ${state.docStatus ? `<div class="sticker-status${String(state.docStatus).startsWith('失败') ? ' err' : ''}">${esc(state.docStatus)}</div>` : ''}
+      ${state.docWriterOpen ? `
+      <section class="panel memory-editor">
+        <div class="memory-editor-head">
+          <div class="memory-editor-title">写资料</div>
+          <button class="ghost" type="button" data-action="toggle-doc-writer">收起</button>
+        </div>
+        <form class="stack" data-doc-form="1">
+          <div class="form-row"><label>名字</label><input name="name" maxlength="120" placeholder="比如：我的设定集"></div>
+          <div class="form-row"><label>内容</label><textarea name="content" rows="8" placeholder="粘贴或输入任意背景资料，AI 聊天时会参考其中相关的段落。"></textarea></div>
+          <div class="composer-actions"><button class="primary" type="submit">保存资料</button></div>
+        </form>
+      </section>` : ''}
+      <div class="memory-list">
+        ${docs.length ? docs.map(renderDocItem).join('') : '<div class="empty">还没有资料。上传文本文件或直接写一份，AI 聊天时会参考相关段落。</div>'}
+      </div>
+    </div>`;
+}
+
+function renderDocItem(doc) {
+  const id = Number(doc.id);
+  const open = state.docOpen[id] === true;
+  const full = state.docContent[id];
+  return `
+    <article class="memory-item ${open ? 'open' : ''}">
+      <button class="memory-summary" type="button" data-action="toggle-doc" data-id="${doc.id}" aria-expanded="${open ? 'true' : 'false'}">
+        <div class="memory-summary-main">
+          <div class="memory-title">${esc(doc.name)}</div>
+          <div class="memory-meta">
+            <span>${doc.source === 'upload' ? '上传' : '手写'}</span>
+            <span>·</span>
+            <span>${formatDocSize(doc.size)}</span>
+            <span>·</span>
+            <time>${esc(formatDateTime(doc.updated_at || doc.created_at))}</time>
+          </div>
+          ${!open && doc.preview ? `<div class="memory-preview">${esc(doc.preview)}</div>` : ''}
+        </div>
+        <span class="memory-chevron" aria-hidden="true">▾</span>
+      </button>
+      ${open ? `
+        <div class="memory-content">${esc(full == null ? '加载中…' : full)}</div>
+        <div class="memory-rule"></div>
+        <div class="memory-actions">
+          <button class="danger" data-action="delete-document" data-id="${doc.id}" type="button">删除</button>
+        </div>
+      ` : ''}
+    </article>`;
+}
+
+function formatDocSize(size) {
+  const n = Number(size) || 0;
+  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} 字`;
+}
+
+async function submitDocument(form) {
+  const name = String(form.elements.name.value || '').trim();
+  const content = String(form.elements.content.value || '').trim();
+  if (!content) return;
+  try {
+    await api('/api/documents', { method: 'POST', body: { name: name || '未命名资料', content, source: 'typed' } });
+    state.docWriterOpen = false;
+    state.docStatus = '';
+    await loadDocuments();
+  } catch (err) {
+    state.docStatus = '失败：' + (err && err.message ? err.message : '未知错误');
+    render();
+  }
+}
+
+async function loadDocuments() {
+  try {
+    const rows = await api('/api/documents');
+    state.documents = Array.isArray(rows) ? rows : [];
+    render();
+  } catch (err) {
+    handleBackgroundError(err);
+  }
+}
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('读取文件失败'));
+    reader.readAsText(file);
+  });
+}
+
+async function addDocumentFromFile(file) {
+  if (!file) return;
+  state.docStatus = '上传中…';
+  render();
+  try {
+    if (file.size > 500 * 1024) throw new Error('文本文件需在 500KB 以内。');
+    const content = await readFileAsText(file);
+    await api('/api/documents', { method: 'POST', body: { name: file.name, content, source: 'upload' } });
+    state.docStatus = '';
+    await loadDocuments();
+  } catch (err) {
+    state.docStatus = '失败：' + (err && err.message ? err.message : '未知错误');
+    render();
+  }
 }
 
 function renderMemoryWriterCard() {

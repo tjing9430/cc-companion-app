@@ -785,6 +785,15 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
 .memory-title{font-weight:700;letter-spacing:0;font-size:1.02rem}
 .memory-summary-main{min-width:0;flex:1}
 .memory-pin{font-size:.8rem;margin-right:.28rem}
+.memory-seg{display:flex;gap:.35rem;margin:.1rem 0 .2rem}
+.memory-seg button{
+  border:1px solid var(--line);border-radius:var(--radius-pill);
+  background:var(--panel);color:var(--muted);
+  padding:.32rem .85rem;font-size:.82rem;cursor:pointer;font-family:inherit;
+}
+.memory-seg button.on{background:var(--accent-soft);color:var(--text);border-color:var(--accent)}
+.doc-toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
+.doc-add{cursor:pointer}
 .memory-preview{
   color:var(--muted);
   font-size:.8rem;

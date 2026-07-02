@@ -22,6 +22,11 @@ const MEMORY_RECALL_LIMIT = Math.max(1, Number(process.env.MEMORY_RECALL_LIMIT |
 // (In Claude Code / cc-connect mode the CC session keeps its own context — these do not apply.)
 const CHAT_CONTEXT_MAX = Math.max(0, Number(process.env.CHAT_CONTEXT_MAX_MESSAGES || 40));
 const CHAT_CONTEXT_KEEP = Math.max(4, Number(process.env.CHAT_CONTEXT_KEEP_MESSAGES || 24));
+// Auto memory extraction (OpenAI mode): run after every N fresh user messages. 0 disables.
+const MEMORY_EXTRACT_EVERY = Math.max(0, Number(process.env.MEMORY_EXTRACT_EVERY || 8));
+// Reference-document chunks injected per turn.
+const DOC_RECALL_LIMIT = Math.max(0, Number(process.env.DOC_RECALL_LIMIT || 3));
+const DOC_MAX_CHARS = 200 * 1024;
 const FORGE_ADAPTER_URL = String(process.env.FORGE_ADAPTER_URL || '').trim();
 const FORGE_ADAPTER_TOKEN = String(process.env.FORGE_ADAPTER_TOKEN || '').trim();
 const FORGE_ADAPTER_TIMEOUT_MS = Math.max(1000, Number(process.env.FORGE_ADAPTER_TIMEOUT_MS || 120000));
@@ -207,6 +212,32 @@ async function handleRequest(req, res) {
     return sendJson(res, 201, { ok: true, imported: memories.length, memories });
   }
 
+  if (req.method === 'GET' && route === '/api/documents') {
+    return sendJson(res, 200, store.documents.map((doc) => publicDocument(doc)));
+  }
+
+  if (req.method === 'POST' && route === '/api/documents') {
+    return sendJson(res, 201, createDocument(await readJson(req)));
+  }
+
+  const documentMatch = route.match(/^\/api\/documents\/(\d+)$/);
+  if (documentMatch && req.method === 'GET') {
+    const doc = store.documents.find((item) => item.id === Number(documentMatch[1]));
+    if (!doc) return sendJson(res, 404, { error: 'document_not_found' });
+    return sendJson(res, 200, publicDocument(doc, { full: true }));
+  }
+
+  if (documentMatch && req.method === 'PATCH') {
+    const doc = updateDocument(Number(documentMatch[1]), await readJson(req));
+    if (!doc) return sendJson(res, 404, { error: 'document_not_found' });
+    return sendJson(res, 200, doc);
+  }
+
+  if (documentMatch && req.method === 'DELETE') {
+    const ok = deleteDocument(Number(documentMatch[1]));
+    return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'document_not_found' });
+  }
+
   const memoryMatch = route.match(/^\/api\/memory\/(\d+)$/);
   if (memoryMatch && req.method === 'PATCH') {
     const memory = updateMemory(Number(memoryMatch[1]), await readJson(req));
@@ -352,6 +383,7 @@ async function generateAgentReply(scope, userMessage) {
     msg_type: 'chat',
   });
   addConsoleEvent('reply', assistantName, content);
+  maybeExtractMemories(scope).catch(() => {});
   return reply;
 }
 
@@ -409,6 +441,120 @@ const EMBEDDING_TAG = EMBEDDING_MODEL ? `${EMBEDDING_MODEL}:${EMBEDDING_DIMENSIO
 async function recallMemories(queryText, limit = MEMORY_RECALL_LIMIT) {
   const semantic = await semanticRecall(queryText, limit);
   return semantic || selectRelevantMemories(queryText, limit);
+}
+
+// Older memories fade in recall (never to zero); pinned ones don't age.
+function memoryRecencyFactor(memory) {
+  if (memory && memory.pinned) return 1;
+  const stamp = Date.parse((memory && (memory.updated_at || memory.created_at)) || '') || Date.now();
+  const ageDays = Math.max(0, (Date.now() - stamp) / 86400000);
+  return 0.65 + 0.35 * Math.exp(-ageDays / 180);
+}
+
+// Recall works a lot better with a little topic continuity: follow-ups like
+// "那后来呢" carry no content words, so blend the last couple of user
+// messages into the recall query.
+function recallQueryFor(scope, userMessage) {
+  const key = scope === 'group' ? 'group_messages' : 'chat_messages';
+  const upper = Number(userMessage.turn_first_id || userMessage.id) || Infinity;
+  const recent = store[key]
+    .filter((m) => m.role === 'user' && m.id < upper && cleanString(m.content, ''))
+    .slice(-2)
+    .map((m) => m.content);
+  return [...recent, userMessage.content || ''].join('\n').slice(-1500);
+}
+
+// Containment-style similarity for dedupe: how much of the smaller token set
+// is inside the other.
+function memorySimilarity(textA, textB) {
+  const setA = new Set(memoryTokens(textA));
+  const setB = new Set(memoryTokens(textB));
+  if (!setA.size || !setB.size) return 0;
+  let overlap = 0;
+  for (const token of setA) if (setB.has(token)) overlap += 1;
+  return overlap / Math.min(setA.size, setB.size);
+}
+
+function findSimilarMemory(text) {
+  let best = 0;
+  let hit = null;
+  for (const memory of store.memories) {
+    const score = memorySimilarity(text, `${memory.title || ''} ${memory.content || ''}`);
+    if (score > best) {
+      best = score;
+      hit = memory;
+    }
+  }
+  return best >= 0.6 ? hit : null;
+}
+
+function parseExtractedMemories(raw) {
+  const match = String(raw || '').match(/\[[\s\S]*\]/);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[0]);
+    return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === 'object') : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+// After enough fresh conversation, ask the model to pull out stable facts
+// worth remembering, dedupe them against the existing library, and save them
+// as AI-authored memories. Fire-and-forget; never blocks the reply.
+async function maybeExtractMemories(scope) {
+  if (!MEMORY_EXTRACT_EVERY) return;
+  const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  if (!apiKey) return;
+  const key = scope === 'group' ? 'group_messages' : 'chat_messages';
+  const cursorKey = scope === 'group' ? 'group' : 'chat';
+  if (!store.memory_extract_cursor) store.memory_extract_cursor = { chat: 0, group: 0 };
+  const cursor = Number(store.memory_extract_cursor[cursorKey]) || 0;
+  const fresh = store[key].filter((m) => m.id > cursor && cleanString(m.content, ''));
+  if (fresh.filter((m) => m.role === 'user').length < MEMORY_EXTRACT_EVERY) return;
+  // Advance the cursor before calling out so a failing span is never retried in a loop.
+  store.memory_extract_cursor[cursorKey] = fresh[fresh.length - 1].id;
+  saveStore();
+  const segment = fresh.slice(-40).map((m) => `${m.sender}: ${m.content}`).join('\n').slice(0, 6000);
+  const baseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const model = String(process.env.OPENAI_MODEL || 'gpt-4.1-mini');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: '从下面的聊天记录中提取值得长期记住的稳定信息（用户的偏好、事实、关系、重要事件）。输出 JSON 数组：[{"title":"...","content":"...","tags":["..."]}]。不要记临时状态、闲聊或一次性话题；没有值得记的就输出 []。只输出 JSON，不要解释。' },
+          { role: 'user', content: segment },
+        ],
+        temperature: 0.2,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return;
+    const raw = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    let saved = 0;
+    for (const item of parseExtractedMemories(raw).slice(0, 5)) {
+      const title = cleanString(item.title, '');
+      const content = cleanString(item.content, '');
+      if (!title && !content) continue;
+      if (findSimilarMemory(`${title} ${content}`)) continue;
+      createMemory({
+        title: title || truncate(content, 40),
+        content,
+        tags: [...(Array.isArray(item.tags) ? item.tags : []), 'auto'],
+        author: store.settings.assistantName || 'AI',
+      });
+      saved += 1;
+    }
+    if (saved) addConsoleEvent('memory', '自动记忆', `从最近对话提取了 ${saved} 条`);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function embedTexts(texts) {
@@ -484,7 +630,7 @@ async function semanticRecall(queryText, limit = MEMORY_RECALL_LIMIT) {
     const queryVec = new Float32Array(vectors[0]);
     const cap = Math.max(1, Number(limit) || MEMORY_RECALL_LIMIT);
     const scored = embedded
-      .map((memory) => ({ memory, score: cosineSim(queryVec, b64ToVec(memory.embedding_b64)) }))
+      .map((memory) => ({ memory, score: cosineSim(queryVec, b64ToVec(memory.embedding_b64)) * memoryRecencyFactor(memory) }))
       .sort((a, b) => b.score - a.score)
       .map((item) => item.memory);
     const pinned = store.memories.filter((m) => m && m.pinned);
@@ -518,7 +664,7 @@ function selectRelevantMemories(queryText, limit = MEMORY_RECALL_LIMIT) {
         score += idf * (term.length > 1 ? 1.6 : 1);
       }
     }
-    return { memory, score, order };
+    return { memory, score: score * memoryRecencyFactor(memory), order };
   });
   scored.sort((a, b) => (b.score - a.score) || (b.order - a.order));
   const relevant = scored.filter((entry) => entry.score > 0).map((entry) => entry.memory);
@@ -564,8 +710,11 @@ async function callConfiguredAgent(scope, userMessage) {
     '请用清楚、简短、自然的中文回复。',
   ].join('\n\n');
   const history = contextHistory(scope, userMessage.turn_first_id || userMessage.id);
-  const memories = (await recallMemories(userMessage.content, MEMORY_RECALL_LIMIT))
+  const recallQuery = recallQueryFor(scope, userMessage);
+  const memories = (await recallMemories(recallQuery, MEMORY_RECALL_LIMIT))
     .map((m) => `- ${m.title}: ${m.content}`).join('\n');
+  const docChunks = await recallDocumentChunks(recallQuery, DOC_RECALL_LIMIT);
+  const docsBlock = docChunks.map((chunk) => `【${chunk.name}】${chunk.text}`).join('\n---\n');
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
@@ -583,6 +732,7 @@ async function callConfiguredAgent(scope, userMessage) {
         messages: [
           { role: 'system', content: system },
           ...history,
+          ...(docsBlock ? [{ role: 'system', content: `参考资料（供参考）：\n${docsBlock}` }] : []),
           ...(memories ? [{ role: 'system', content: `相关记忆（供参考）：\n${memories}` }] : []),
           {
             role: 'user',
@@ -1271,6 +1421,155 @@ function importMemories(input) {
   return imported;
 }
 
+// ---- Reference documents ("project memory"): typed or uploaded text files
+// the agent can consult. Stored chunked; the best-matching chunks are injected
+// per turn alongside memory recall. ----
+
+function chunkDocumentText(content) {
+  const text = String(content || '').replace(/\r/g, '');
+  const chunks = [];
+  let current = '';
+  const push = () => {
+    if (current.trim()) chunks.push(current.trim());
+    current = '';
+  };
+  for (const para of text.split(/\n{2,}/)) {
+    if (current && (current.length + para.length) > 900) push();
+    current = current ? `${current}\n\n${para}` : para;
+    while (current.length > 1800) {
+      chunks.push(current.slice(0, 900).trim());
+      current = current.slice(900);
+    }
+  }
+  push();
+  return chunks.slice(0, 400).map((text) => ({ text }));
+}
+
+function publicDocument(doc, options = {}) {
+  const output = {
+    id: Number(doc && doc.id) || 0,
+    name: cleanString(doc && doc.name, 'untitled'),
+    source: doc && doc.source === 'upload' ? 'upload' : 'typed',
+    size: Number(doc && doc.size) || 0,
+    chunk_count: Array.isArray(doc && doc.chunks) ? doc.chunks.length : 0,
+    preview: truncate(cleanString(doc && doc.content, ''), 200),
+    created_at: cleanString(doc && doc.created_at, ''),
+    updated_at: cleanString(doc && doc.updated_at, ''),
+  };
+  if (options.full) output.content = cleanString(doc && doc.content, '');
+  return output;
+}
+
+function createDocument(input) {
+  const content = String(input.content || '').slice(0, DOC_MAX_CHARS);
+  if (!cleanString(content, '')) throw new HttpError(400, 'empty_document', 'document content is empty');
+  const now = new Date().toISOString();
+  const doc = {
+    id: nextId('document'),
+    name: cleanString(input.name, '未命名资料'),
+    source: input.source === 'upload' ? 'upload' : 'typed',
+    content,
+    size: content.length,
+    chunks: chunkDocumentText(content),
+    created_at: now,
+    updated_at: now,
+  };
+  store.documents.push(doc);
+  saveStore();
+  addConsoleEvent('memory', '资料已添加', doc.name);
+  return publicDocument(doc);
+}
+
+function updateDocument(id, input) {
+  const doc = store.documents.find((item) => item.id === id);
+  if (!doc) return null;
+  if ('name' in input) doc.name = cleanString(input.name, doc.name);
+  if ('content' in input) {
+    doc.content = String(input.content || '').slice(0, DOC_MAX_CHARS);
+    doc.size = doc.content.length;
+    doc.chunks = chunkDocumentText(doc.content);
+  }
+  doc.updated_at = new Date().toISOString();
+  saveStore();
+  addConsoleEvent('memory', '资料已更新', doc.name);
+  return publicDocument(doc);
+}
+
+function deleteDocument(id) {
+  const before = store.documents.length;
+  store.documents = store.documents.filter((item) => item.id !== id);
+  const ok = store.documents.length !== before;
+  if (ok) {
+    saveStore();
+    addConsoleEvent('memory', '资料已删除', `id ${id}`);
+  }
+  return ok;
+}
+
+async function ensureDocumentEmbeddings() {
+  const missing = [];
+  for (const doc of store.documents) {
+    for (const chunk of doc.chunks || []) {
+      if (chunk.embedding_tag !== EMBEDDING_TAG && cleanString(chunk.text, '')) missing.push(chunk);
+      if (missing.length >= 64) break;
+    }
+    if (missing.length >= 64) break;
+  }
+  if (!missing.length) return;
+  const vectors = await embedTexts(missing.map((chunk) => chunk.text.slice(0, 2000)));
+  if (!vectors || vectors.length !== missing.length) return;
+  missing.forEach((chunk, index) => {
+    chunk.embedding_b64 = vecToB64(vectors[index]);
+    chunk.embedding_tag = EMBEDDING_TAG;
+  });
+  saveStore();
+}
+
+async function recallDocumentChunks(queryText, limit = DOC_RECALL_LIMIT) {
+  if (!limit || !store.documents.length) return [];
+  const query = cleanString(queryText, '');
+  if (!query) return [];
+  const entries = [];
+  for (const doc of store.documents) {
+    for (const chunk of doc.chunks || []) entries.push({ name: doc.name, chunk });
+  }
+  if (!entries.length) return [];
+  // Semantic scoring when embeddings are on and backfilled; lexical otherwise.
+  if (EMBEDDING_MODEL) {
+    try {
+      await ensureDocumentEmbeddings();
+      const embedded = entries.filter((entry) => entry.chunk.embedding_tag === EMBEDDING_TAG && entry.chunk.embedding_b64);
+      if (embedded.length === entries.length) {
+        const vectors = await embedTexts([query.slice(0, 2000)]);
+        if (vectors && vectors[0]) {
+          const queryVec = new Float32Array(vectors[0]);
+          return embedded
+            .map((entry) => ({ entry, score: cosineSim(queryVec, b64ToVec(entry.chunk.embedding_b64)) }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, limit)
+            .filter((item) => item.score > 0.1)
+            .map((item) => ({ name: item.entry.name, text: truncate(item.entry.chunk.text, 700) }));
+        }
+      }
+    } catch (err) {
+      // fall through to lexical
+    }
+  }
+  const queryTerms = new Set(memoryTokens(query));
+  if (!queryTerms.size) return [];
+  const scored = entries.map((entry) => {
+    const tokens = new Set(memoryTokens(entry.chunk.text));
+    let score = 0;
+    for (const term of queryTerms) if (tokens.has(term)) score += term.length > 1 ? 1.6 : 1;
+    return { entry, score };
+  });
+  return scored
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((item) => ({ name: item.entry.name, text: truncate(item.entry.chunk.text, 700) }));
+}
+
 async function saveUpload(input) {
   const name = cleanFileName(input.name || 'upload.bin');
   const data = String(input.data || '');
@@ -1407,18 +1706,25 @@ function normalizeStore(input) {
   const data = input && typeof input === 'object' ? input : {};
   const settings = normalizeSettings(data.settings || {});
   const session = normalizeSession(data.session || {});
+  const counters = { message: 1, memory: 1, console: 1 };
+  // Preserve every persisted counter (sticker, document, ...), not just the
+  // three defaults — dropping one would restart its ids and collide.
+  for (const [kind, value] of Object.entries(data.counters || {})) {
+    if (Number(value) > 0) counters[kind] = Number(value);
+  }
   return {
-    counters: {
-      message: Number(data.counters && data.counters.message) || 1,
-      memory: Number(data.counters && data.counters.memory) || 1,
-      console: Number(data.counters && data.counters.console) || 1,
-    },
+    counters,
     session,
     settings,
     context_anchor: {
       chat: Number(data.context_anchor && data.context_anchor.chat) || 0,
       group: Number(data.context_anchor && data.context_anchor.group) || 0,
     },
+    memory_extract_cursor: {
+      chat: Number(data.memory_extract_cursor && data.memory_extract_cursor.chat) || 0,
+      group: Number(data.memory_extract_cursor && data.memory_extract_cursor.group) || 0,
+    },
+    documents: Array.isArray(data.documents) ? data.documents : [],
     chat_messages: Array.isArray(data.chat_messages) ? data.chat_messages.map(publicMessage) : [],
     group_messages: Array.isArray(data.group_messages) ? data.group_messages.map(publicMessage) : [],
     console_events: Array.isArray(data.console_events) ? data.console_events : [],
