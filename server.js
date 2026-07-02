@@ -18,6 +18,10 @@ const MAX_JSON_BYTES = 16 * 1024 * 1024;
 const AUTH_TOKEN = String(process.env.APP_AUTH_TOKEN || '').trim();
 const AGENT_TIMEOUT_MS = Math.max(1000, Number(process.env.AGENT_TIMEOUT_MS || 120000));
 const MEMORY_RECALL_LIMIT = Math.max(1, Number(process.env.MEMORY_RECALL_LIMIT || 8));
+// Conversation context for the OpenAI-compatible agent. 0 disables history.
+// (In Claude Code / cc-connect mode the CC session keeps its own context — these do not apply.)
+const CHAT_CONTEXT_MAX = Math.max(0, Number(process.env.CHAT_CONTEXT_MAX_MESSAGES || 40));
+const CHAT_CONTEXT_KEEP = Math.max(4, Number(process.env.CHAT_CONTEXT_KEEP_MESSAGES || 24));
 const FORGE_ADAPTER_URL = String(process.env.FORGE_ADAPTER_URL || '').trim();
 const FORGE_ADAPTER_TOKEN = String(process.env.FORGE_ADAPTER_TOKEN || '').trim();
 const FORGE_ADAPTER_TIMEOUT_MS = Math.max(1000, Number(process.env.FORGE_ADAPTER_TIMEOUT_MS || 120000));
@@ -314,7 +318,7 @@ async function handleSend(res, scope, body) {
   let reply = null;
   const combinedContent = messages.map((message) => message.content).filter(Boolean).join('\n');
   if (scope === 'chat' || shouldReplyInGroup(combinedContent)) {
-    const replySource = { ...messages[messages.length - 1], content: combinedContent };
+    const replySource = { ...messages[messages.length - 1], content: combinedContent, turn_first_id: messages[0].id };
     reply = await generateAgentReply(scope, replySource);
   }
 
@@ -394,6 +398,102 @@ function dedupeMemories(list) {
 // Score = token overlap weighted by inverse document frequency (distinctive words matter more than
 // common ones). Pinned memories are always kept; a query with no usable terms (bare greeting) falls
 // back to the most recent memories.
+// Semantic recall (opt-in): set EMBEDDING_MODEL (an OpenAI-compatible
+// /embeddings model, e.g. text-embedding-3-small) to score memories by
+// meaning instead of token overlap. Falls back to lexical recall whenever
+// embeddings are unavailable or any call fails.
+const EMBEDDING_MODEL = String(process.env.EMBEDDING_MODEL || '').trim();
+const EMBEDDING_DIMENSIONS = Math.max(0, Number(process.env.EMBEDDING_DIMENSIONS || 0));
+const EMBEDDING_TAG = EMBEDDING_MODEL ? `${EMBEDDING_MODEL}:${EMBEDDING_DIMENSIONS || 'native'}` : '';
+
+async function recallMemories(queryText, limit = MEMORY_RECALL_LIMIT) {
+  const semantic = await semanticRecall(queryText, limit);
+  return semantic || selectRelevantMemories(queryText, limit);
+}
+
+async function embedTexts(texts) {
+  const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  if (!apiKey || !EMBEDDING_MODEL || !texts.length) return null;
+  const baseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const body = { model: EMBEDDING_MODEL, input: texts };
+    if (EMBEDDING_DIMENSIONS) body.dimensions = EMBEDDING_DIMENSIONS;
+    const response = await fetch(`${baseUrl}/embeddings`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+      body: JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !Array.isArray(data.data)) return null;
+    return data.data.map((item) => item.embedding);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function vecToB64(vec) {
+  return Buffer.from(new Float32Array(vec).buffer).toString('base64');
+}
+
+function b64ToVec(b64) {
+  const buf = Buffer.from(String(b64 || ''), 'base64');
+  return new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length));
+}
+
+function cosineSim(a, b) {
+  const n = Math.min(a.length, b.length);
+  if (!n) return 0;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < n; i += 1) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1);
+}
+
+async function ensureMemoryEmbeddings() {
+  const missing = store.memories
+    .filter((m) => cleanString(`${m.title || ''}${m.content || ''}`, '') && m.embedding_tag !== EMBEDDING_TAG)
+    .slice(0, 64);
+  if (!missing.length) return;
+  const vectors = await embedTexts(missing.map((m) => `${m.title || ''}\n${m.content || ''}`.slice(0, 2000)));
+  if (!vectors || vectors.length !== missing.length) return;
+  missing.forEach((memory, index) => {
+    memory.embedding_b64 = vecToB64(vectors[index]);
+    memory.embedding_tag = EMBEDDING_TAG;
+  });
+  saveStore();
+}
+
+async function semanticRecall(queryText, limit = MEMORY_RECALL_LIMIT) {
+  if (!EMBEDDING_MODEL) return null;
+  const query = cleanString(queryText, '');
+  if (!query || !store.memories.length) return null;
+  try {
+    await ensureMemoryEmbeddings();
+    const embedded = store.memories.filter((m) => m.embedding_tag === EMBEDDING_TAG && m.embedding_b64);
+    if (!embedded.length) return null;
+    const vectors = await embedTexts([query.slice(0, 2000)]);
+    if (!vectors || !vectors[0]) return null;
+    const queryVec = new Float32Array(vectors[0]);
+    const cap = Math.max(1, Number(limit) || MEMORY_RECALL_LIMIT);
+    const scored = embedded
+      .map((memory) => ({ memory, score: cosineSim(queryVec, b64ToVec(memory.embedding_b64)) }))
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.memory);
+    const pinned = store.memories.filter((m) => m && m.pinned);
+    return dedupeMemories([...pinned, ...scored]).slice(0, cap);
+  } catch (err) {
+    return null;
+  }
+}
+
 function selectRelevantMemories(queryText, limit = MEMORY_RECALL_LIMIT) {
   const memories = Array.isArray(store.memories) ? store.memories : [];
   if (!memories.length) return [];
@@ -425,19 +525,47 @@ function selectRelevantMemories(queryText, limit = MEMORY_RECALL_LIMIT) {
   return dedupeMemories([...pinned, ...relevant]).slice(0, cap);
 }
 
+// Conversation history for the model, structured to stay prompt-cache friendly:
+// everything before the changing tail must be byte-stable across turns, so the
+// window is trimmed with a persisted anchor that only advances in batches
+// (never a per-turn sliding window), and per-turn recall is kept OUT of this
+// stable prefix.
+function contextHistory(scope, beforeId) {
+  if (!CHAT_CONTEXT_MAX) return [];
+  const key = scope === 'group' ? 'group_messages' : 'chat_messages';
+  const anchorKey = scope === 'group' ? 'group' : 'chat';
+  if (!store.context_anchor) store.context_anchor = { chat: 0, group: 0 };
+  const anchor = Number(store.context_anchor[anchorKey]) || 0;
+  const upper = Number(beforeId) || Infinity;
+  const eligible = store[key].filter((m) => m.id > anchor && m.id < upper && cleanString(m.content, ''));
+  const toTurn = (m) => ({
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: scope === 'group' && m.role !== 'assistant' ? `${m.sender}: ${m.content}` : m.content,
+  });
+  if (eligible.length > CHAT_CONTEXT_MAX) {
+    const kept = eligible.slice(-CHAT_CONTEXT_KEEP);
+    store.context_anchor[anchorKey] = eligible[eligible.length - CHAT_CONTEXT_KEEP - 1].id;
+    saveStore();
+    return kept.map(toTurn);
+  }
+  return eligible.map(toTurn);
+}
+
 async function callConfiguredAgent(scope, userMessage) {
   const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
   if (!apiKey) return { content: mockReply(scope, userMessage), thinking: '（演示思考）当前是内置 mock agent。配置一个会返回推理内容的模型（例如 deepseek-reasoner）后，这里会显示它真实的思考过程。' };
 
   const baseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
   const model = String(process.env.OPENAI_MODEL || 'gpt-4.1-mini');
-  const memories = selectRelevantMemories(userMessage.content, MEMORY_RECALL_LIMIT)
-    .map((m) => `- ${m.title}: ${m.content}`).join('\n');
+  // Static system block only — per-turn recall lives in a separate message at
+  // the tail so the cached prefix (system + old history) stays byte-identical.
   const system = [
     `你是 ${store.settings.assistantName || 'AI'}，运行在一个自部署 AI 伴侣聊天 App 里。`,
     '请用清楚、简短、自然的中文回复。',
-    memories ? `相关记忆：\n${memories}` : '',
-  ].filter(Boolean).join('\n\n');
+  ].join('\n\n');
+  const history = contextHistory(scope, userMessage.turn_first_id || userMessage.id);
+  const memories = (await recallMemories(userMessage.content, MEMORY_RECALL_LIMIT))
+    .map((m) => `- ${m.title}: ${m.content}`).join('\n');
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
@@ -454,7 +582,12 @@ async function callConfiguredAgent(scope, userMessage) {
         model,
         messages: [
           { role: 'system', content: system },
-          { role: 'user', content: userMessage.content || '[attachment]' },
+          ...history,
+          ...(memories ? [{ role: 'system', content: `相关记忆（供参考）：\n${memories}` }] : []),
+          {
+            role: 'user',
+            content: (scope === 'group' ? `${userMessage.sender}: ` : '') + (userMessage.content || '[attachment]'),
+          },
         ],
         temperature: 0.7,
       }),
@@ -1282,6 +1415,10 @@ function normalizeStore(input) {
     },
     session,
     settings,
+    context_anchor: {
+      chat: Number(data.context_anchor && data.context_anchor.chat) || 0,
+      group: Number(data.context_anchor && data.context_anchor.group) || 0,
+    },
     chat_messages: Array.isArray(data.chat_messages) ? data.chat_messages.map(publicMessage) : [],
     group_messages: Array.isArray(data.group_messages) ? data.group_messages.map(publicMessage) : [],
     console_events: Array.isArray(data.console_events) ? data.console_events : [],
