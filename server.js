@@ -2,6 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -77,7 +78,47 @@ server.listen(PORT, () => {
     setInterval(heartbeatTick, HEARTBEAT_INTERVAL_MINUTES * 60 * 1000);
     console.log(`Heartbeat enabled: every ${HEARTBEAT_INTERVAL_MINUTES} min, min idle ${HEARTBEAT_MIN_IDLE_MINUTES} min, quiet ${HEARTBEAT_QUIET_START}:00-${HEARTBEAT_QUIET_END}:00.`);
   }
+  startQuickTunnel();
 });
+
+// TUNNEL=quick: expose the app on a public HTTPS URL via a Cloudflare quick
+// tunnel, so the phone can reach it from anywhere while the computer is on —
+// no same-WiFi requirement, no account needed. Requires the free `cloudflared`
+// binary on PATH.
+function startQuickTunnel() {
+  if (String(process.env.TUNNEL || '').trim().toLowerCase() !== 'quick') return;
+  let announced = false;
+  const child = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${PORT}`, '--no-autoupdate'], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const sniff = (chunk) => {
+    if (announced) return;
+    const match = String(chunk).match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+    if (!match) return;
+    announced = true;
+    console.log(`[tunnel] 手机随时随地可访问：${match[0]}`);
+    addConsoleEvent('system', '外网地址', `${match[0]} —— 电脑开着就能从任何网络访问（重启会换新地址）`);
+    if (!AUTH_TOKEN) {
+      console.warn('[tunnel] 警告：未设置 APP_AUTH_TOKEN，任何拿到链接的人都能使用你的 AI！强烈建议在 .env 里设置口令。');
+      addConsoleEvent('error', '安全提醒', '公网隧道已开但没有设置 APP_AUTH_TOKEN，强烈建议在 .env 里加上口令再分享链接');
+    }
+  };
+  child.stdout.on('data', sniff);
+  child.stderr.on('data', sniff);
+  child.on('error', () => {
+    console.warn('[tunnel] 未找到 cloudflared。安装（免费）：https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/');
+    addConsoleEvent('error', '隧道未启动', 'TUNNEL=quick 需要 cloudflared，安装后重启服务即可');
+  });
+  child.on('exit', (code) => {
+    if (announced) addConsoleEvent('system', '隧道已断开', `cloudflared 退出（code ${code == null ? '?' : code}），重启服务可重新打开`);
+  });
+  // cloudflared is not killed automatically with its parent — clean it up on
+  // exit/Ctrl+C so a dead server doesn't leave a live tunnel behind.
+  const stopTunnel = () => { try { child.kill(); } catch (err) { /* ignore */ } };
+  process.on('exit', stopTunnel);
+  process.on('SIGINT', () => { stopTunnel(); process.exit(0); });
+  process.on('SIGTERM', () => { stopTunnel(); process.exit(0); });
+}
 
 async function handleRequest(req, res) {
   setCommonHeaders(res);

@@ -203,6 +203,14 @@ Pending attachment previews are shown in the chat timeline as local-only draft b
 
 See `docs/IMAGES.md` for the current thresholds and extension points.
 
+## Access From Your Phone
+
+Three options, from simplest to most permanent:
+
+1. **Same WiFi** — open `http://<computer-ip>:8787` on the phone and add it to the home screen (PWA).
+2. **Anywhere, zero config** — install the free [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) binary, set `TUNNEL=quick` in `.env`, and restart. The server opens a public HTTPS URL (printed in the terminal and in the app's console tab) that works from any network while the computer is on. The URL changes on every restart. **Set `APP_AUTH_TOKEN` first** — anyone with the URL can otherwise use your AI.
+3. **Stable setup** — a named Cloudflare tunnel, Tailscale, or any reverse proxy with HTTPS in front of port 8787.
+
 ## PWA
 
 The app includes `public/manifest.json` and `public/sw.js`. The service worker caches the static app shell for offline access and the frontend keeps the latest successful bootstrap payload in local storage for read-only offline viewing.
