@@ -504,7 +504,10 @@ function parseExtractedMemories(raw) {
 // as AI-authored memories. Fire-and-forget; never blocks the reply.
 async function maybeExtractMemories(scope) {
   if (!MEMORY_EXTRACT_EVERY) return;
-  const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  // Extraction can run on its own (small/cheap) model via EXTRACT_*; each
+  // falls back to the main OPENAI_* config. With EXTRACT_* set this also
+  // works in Claude Code mode, where no main API key is configured.
+  const apiKey = String(process.env.EXTRACT_API_KEY || process.env.OPENAI_API_KEY || '').trim();
   if (!apiKey) return;
   const key = scope === 'group' ? 'group_messages' : 'chat_messages';
   const cursorKey = scope === 'group' ? 'group' : 'chat';
@@ -516,8 +519,8 @@ async function maybeExtractMemories(scope) {
   store.memory_extract_cursor[cursorKey] = fresh[fresh.length - 1].id;
   saveStore();
   const segment = fresh.slice(-40).map((m) => `${m.sender}: ${m.content}`).join('\n').slice(0, 6000);
-  const baseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
-  const model = String(process.env.OPENAI_MODEL || 'gpt-4.1-mini');
+  const baseUrl = String(process.env.EXTRACT_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const model = String(process.env.EXTRACT_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
   try {
