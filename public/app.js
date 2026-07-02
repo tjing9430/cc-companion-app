@@ -1070,10 +1070,11 @@ function renderMemoryItem(memory) {
   const mood = memoryMood(memory);
   const author = memoryAuthor(memory);
   const time = formatDateTime(memory.updated_at || memory.created_at);
+  const preview = String(memory.content || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   return `
     <article class="memory-item ${open ? 'open' : ''}">
       <button class="memory-summary" type="button" data-action="toggle-memory" data-id="${memory.id}" aria-expanded="${open ? 'true' : 'false'}">
-        <div>
+        <div class="memory-summary-main">
           <div class="memory-title">${esc(memory.title)}</div>
           <div class="memory-meta">
             <span class="memory-mood-mark" aria-hidden="true"></span>
@@ -1081,17 +1082,19 @@ function renderMemoryItem(memory) {
             <span>·</span>
             <time>${esc(time)}</time>
           </div>
+          ${!open && preview ? `<div class="memory-preview">${esc(preview)}</div>` : ''}
         </div>
         <span class="memory-mood">${esc(mood)}</span>
+        <span class="memory-chevron" aria-hidden="true">▾</span>
       </button>
-      <div class="memory-rule"></div>
-      <div class="memory-actions">
-        <button class="ghost" data-action="edit-memory" data-id="${memory.id}" type="button">编辑</button>
-        <button class="danger" data-action="delete-memory" data-id="${memory.id}" type="button">删除</button>
-      </div>
       ${open ? `
         <div class="memory-content">${esc(memory.content)}</div>
         ${(memory.tags || []).length ? `<div class="memory-tags">${(memory.tags || []).map((tag) => `<span>${esc(tag)}</span>`).join('')}</div>` : ''}
+        <div class="memory-rule"></div>
+        <div class="memory-actions">
+          <button class="ghost" data-action="edit-memory" data-id="${memory.id}" type="button">编辑</button>
+          <button class="danger" data-action="delete-memory" data-id="${memory.id}" type="button">删除</button>
+        </div>
       ` : ''}
     </article>`;
 }

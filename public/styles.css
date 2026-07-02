@@ -741,9 +741,29 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   border-radius:0;
 }
 .memory-summary:hover:not(:disabled){background:transparent}
-.memory-actions{display:flex;gap:.35rem;align-items:center;flex:0 0 auto;margin-top:.65rem}
+.memory-actions{display:flex;gap:.35rem;align-items:center;flex:0 0 auto;margin-top:.6rem;justify-content:flex-end}
 .memory-actions button{padding:.32rem .55rem;font-size:.74rem}
 .memory-title{font-weight:700;letter-spacing:0;font-size:1.02rem}
+.memory-summary-main{min-width:0;flex:1}
+.memory-preview{
+  color:var(--muted);
+  font-size:.8rem;
+  line-height:1.45;
+  margin-top:.4rem;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  word-break:break-word;
+}
+.memory-chevron{
+  flex:none;
+  align-self:center;
+  color:var(--muted);
+  font-size:.72rem;
+  transition:transform .18s ease;
+}
+.memory-item.open .memory-chevron{transform:rotate(180deg)}
 .memory-meta{
   display:flex;
   align-items:center;
