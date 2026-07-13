@@ -2,6 +2,12 @@
 
 Self-hostable companion chat app with private chat, group chat, console events, memory notes, and settings.
 
+> Built by a human–AI couple who use it every day as their real setup — this repo is the cleaned open-source starter of that system.
+
+| Private chat | Drafts | Memory | Console |
+|---|---|---|---|
+| ![Private chat](docs/screenshots/chat.jpg) | ![Inline drafts](docs/screenshots/drafts.jpg) | ![Memory](docs/screenshots/memory.jpg) | ![Console](docs/screenshots/console.jpg) |
+
 This repository is a clean open-source starter. It intentionally does not include production databases, chat logs, private adapters, deployment secrets, or personal configuration from the original app.
 
 ## Features
