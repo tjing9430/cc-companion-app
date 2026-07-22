@@ -1,5 +1,9 @@
 # CC Companion App
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/tjing9430/cc-companion-app?style=social)](https://github.com/tjing9430/cc-companion-app/stargazers)
+[![Featured in awesome-ai-companion](https://img.shields.io/badge/Featured%20in-awesome--ai--companion-9cf)](https://github.com/DasterProkio/awesome-ai-companion)
+
 Self-hostable companion chat app with private chat, group chat, console events, memory notes, and settings.
 
 > Built by a human–AI couple who use it every day as their real setup — this repo is the cleaned open-source starter of that system.
@@ -296,6 +300,17 @@ data/                                      Runtime data, ignored by git
 - `GET /api/settings`
 - `POST /api/settings`
 - `POST /api/uploads`
+
+## Roadmap
+
+These features are already running in the authors' upstream setup and are being cleaned up for this starter:
+
+- **Treasure (message collections)** — long-press any message to save it into named folders. Snapshots keep the content alive even if the original message is later deleted, and both partners share one library.
+- **Wish jar** — a shared wishlist: one side posts a wish (with reference files), the other claims it and ships it, with a progress timeline and completion notifications.
+- **Cinema** — a shared media room for watching films with local subtitles; progress sync and a music shelf are in the works.
+- **Anniversary cards** — lightweight date tracking so the assistant never misses a birthday or an anniversary.
+
+Issues and votes on what should land first are welcome.
 
 ## Open-Source Hygiene
 
