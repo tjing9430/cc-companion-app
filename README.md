@@ -27,6 +27,7 @@ This repository is a clean open-source starter. It intentionally does not includ
 - Image/file uploads under `data/uploads`, with browser-side photo compression for mobile uploads.
 - Built-in mock agent for instant local testing.
 - Optional OpenAI-compatible chat completions adapter.
+- Optional built-in Claude Code bridge — use your Claude subscription and MCP tools with no API key (`npm run bridge`).
 - Optional `APP_AUTH_TOKEN` guard for exposed deployments.
 
 ## Quick Start
@@ -68,31 +69,44 @@ OPENAI_MODEL=gpt-4.1-mini
 
 Any provider that supports the OpenAI chat completions shape can be used by changing `OPENAI_BASE_URL` and `OPENAI_MODEL`.
 
-### Mode 2: Claude Code + cc-connect (Recommended for Claude users)
+### Mode 2: Claude Code (built-in bridge, no API key)
 
-Use [cc-connect](https://github.com/chenhg5/cc-connect) to bridge a local Claude Code CLI session to this app. In this mode:
+Use your locally-installed **Claude Code CLI** as the backend and keep your Claude
+subscription — no API key required. A small bridge (shipped in this repo under
+[`bridge/`](bridge/)) presents an OpenAI-compatible endpoint that the app talks to, and
+runs `claude -p` (print mode, streaming JSON) under the hood. You clone one repo — no
+separate tool to install.
 
-- **Claude Code CLI** runs as the AI backend with full MCP tool access, extended thinking, and all Claude Code features.
-- **cc-connect** streams CLI output to the app's API in real time.
-- **This app** acts as the frontend display layer — `server.js` does not call any AI API.
+In this mode you get:
 
-This is how the original authors use this app. It avoids the trade-off between MCP tools and thinking blocks.
+- **Your Claude subscription** — the bridge runs the real CLI, so there is no separate API bill.
+- **MCP tools** — the CLI loads your existing MCP servers; tool calls stream to the Console tab.
+- **Session continuity** — one long-lived Claude Code session is resumed across turns.
 
-> **Note (2026-07-28):** this mode currently requires the authors' private patched build of cc-connect, which is **not yet published to npm** — the `cc-connect` package on npm is the upstream messaging-platform bridge and does not support this app. Until the adapter is released, use Mode 1 above. Details in [docs/CC-CONNECT.md](docs/CC-CONNECT.md).
+Known limitation (v1): the subscription CLI's headless print mode does **not** expose raw
+chain-of-thought — extended thinking still runs, but only encrypted signatures come back,
+so thinking blocks are not shown in this mode. The Console tab shows live tool activity
+instead. Restoring full thinking is on the [roadmap](#roadmap) (interactive-mode + transcript reading).
 
 ```bash
-# 1. Start the companion app
+# 1. Start the companion app (leave OPENAI_API_KEY empty for now)
 cp .env.example .env
 npm start
 
-# 2. Install cc-connect
-npm install -g cc-connect
+# 2. In .env, point the provider at the bridge:
+#      OPENAI_API_KEY=bridge                     # any non-empty value; the bridge ignores it
+#      OPENAI_BASE_URL=http://127.0.0.1:8788/v1
+#      OPENAI_MODEL=claude-code
 
-# 3. Start Claude Code with cc-connect bridge
-cc-connect start --url http://localhost:8787
+# 3. In a second terminal, start the bridge:
+npm run bridge
 ```
 
-See [docs/CC-CONNECT.md](docs/CC-CONNECT.md) for detailed setup and architecture.
+Requires the Claude Code CLI (`npm install -g @anthropic-ai/claude-code`) and a Claude
+subscription. The bridge binds to `127.0.0.1` only — it is an unauthenticated proxy to
+your subscription, so do not expose it to a network without your own auth + TLS.
+
+See [docs/CC-CONNECT.md](docs/CC-CONNECT.md) for detailed setup, session management, and architecture.
 
 ## Group Mentions
 
@@ -272,11 +286,12 @@ public/sw.js                               Static app-shell service worker
 public/icons/                              PWA icons
 adapters/openai-compatible.template.js    Provider HTTP template
 adapters/local-cli.template.js            Local process template
+bridge/index.js                            Built-in Claude Code bridge (npm run bridge)
 docs/PWA.md                                PWA cache behavior
 docs/SSE.md                                Realtime event stream behavior
 docs/IMAGES.md                             Mobile image behavior
 docs/ADAPTERS.md                           Adapter integration notes
-docs/CC-CONNECT.md                         Claude Code + cc-connect setup guide
+docs/CC-CONNECT.md                         Claude Code bridge setup guide
 docs/SECURITY.md                           Deployment safety notes
 data/                                      Runtime data, ignored by git
 ```
@@ -307,6 +322,7 @@ data/                                      Runtime data, ignored by git
 
 These features are already running in the authors' upstream setup and are being cleaned up for this starter:
 
+- **Full thinking for the Claude Code bridge** — the current bridge uses headless `claude -p`, which does not expose raw chain-of-thought on a subscription (only encrypted signatures). A planned v1.1 drives the CLI in interactive mode and reads the structured session transcript (`~/.claude/projects/*/<session>.jsonl`), where interactive-mode thinking is plaintext — restoring thinking blocks without an API key.
 - **Treasure (message collections)** — long-press any message to save it into named folders. Snapshots keep the content alive even if the original message is later deleted, and both partners share one library.
 - **Wish jar** — a shared wishlist: one side posts a wish (with reference files), the other claims it and ships it, with a progress timeline and completion notifications.
 - **Cinema** — a shared media room for watching films with local subtitles; progress sync and a music shelf are in the works.

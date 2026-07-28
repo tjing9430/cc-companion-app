@@ -47,13 +47,25 @@ adapters/local-cli.template.js
 
 The template uses stdin/stdout and starts the process with `shell: false`. Keep local CLI session files, logs, and permission state out of the public repository.
 
-## cc-connect Bridge (Recommended for Claude Code)
+## Built-in Claude Code Bridge (Recommended for Claude Code)
 
-Instead of managing the CLI process directly, use [cc-connect](https://github.com/chenhg5/cc-connect) to bridge Claude Code CLI to this app. cc-connect handles session management, message routing, and streaming — and preserves access to MCP tools and extended thinking.
+Instead of wiring the CLI in as a request/response local adapter, use the built-in bridge
+shipped in [`bridge/`](../bridge/). It presents an OpenAI-compatible endpoint that the app
+talks to as a provider, and runs `claude -p --output-format stream-json` under the hood —
+so you keep your Claude subscription (no API key) and your MCP tools, with tool activity
+streamed to the Console.
 
 ```bash
-npm install -g cc-connect
-cc-connect start --url http://localhost:8787
+# .env: point the provider at the bridge
+OPENAI_API_KEY=bridge
+OPENAI_BASE_URL=http://127.0.0.1:8788/v1
+OPENAI_MODEL=claude-code
+
+# then, in a second terminal
+npm run bridge
 ```
 
-See [CC-CONNECT.md](CC-CONNECT.md) for the full setup guide.
+The bridge binds to `127.0.0.1` only and needs no code changes to `server.js`. Note that
+headless `-p` does not expose raw thinking on a subscription (v1 limitation).
+
+See [CC-CONNECT.md](CC-CONNECT.md) for the full setup guide, session management, and security notes.

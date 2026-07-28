@@ -125,7 +125,7 @@
 
 > App 现在用的是演示 AI。你想接哪种真实回复？
 > 1. **OpenAI 兼容 API**（有 API key 就选这个，最简单）
-> 2. **Claude Code + cc-connect**（你本机装了 Claude Code、想用它当后端，功能最强）
+> 2. **Claude Code（内置 bridge）**（你本机装了 Claude Code、想用订阅当后端，不用 API key）
 > 3. **先就用 mock**（只想体验界面，跳过这一段）
 
 一次只带一条路。用户选了再往下。
@@ -144,31 +144,36 @@
 
 verify 放到 Phase D 一起测。
 
-### C-2 · Claude Code + cc-connect（推荐给 Claude 用户）
+### C-2 · Claude Code（内置 bridge，推荐给 Claude 用户）
 
 先跟用户讲清楚这条路的本质：
 
-> 这种模式下，**这个 App 只是显示层**，`server.js` 不调用任何 AI API。回复由你本机的 **Claude Code CLI** 生成（带完整 MCP 工具、extended thinking），cc-connect 把它的输出实时桥接到 App 显示。所以 App 里「设置」那些 OpenAI 配置在这条路下用不上，别填。
+> 这种模式用你本机的 **Claude Code CLI** 当后端——走你的 Claude 订阅、**不用 API key**、自带 MCP 工具。仓库里自带一个小 bridge（`bridge/` 目录），它假装成一个 OpenAI 兼容服务、底层跑 `claude -p`。App 照常把消息发给它，回复回到私聊、工具调用实时进 Console。
+> 已知限制：订阅态 headless `claude -p` 不吐原始思考（只有加密签名）——所以这条路暂时看不到 thinking 卡片，Console 显示实时工具活动代替。补回 thinking 是 roadmap 的 v1.1。
+> 前提：你本机已装好并能跑 Claude Code CLI（`npm install -g @anthropic-ai/claude-code`、已登录订阅、终端里敲 `claude` 能用）。
 
-> 第一步，装 cc-connect：
+> 第一步，打开项目里的 `.env`，把 provider 指到 bridge（填这三行）：
 >
 > ```bash
-> npm install -g cc-connect
+> OPENAI_API_KEY=bridge                     # 随便填个非空值，bridge 不看它
+> OPENAI_BASE_URL=http://127.0.0.1:8788/v1
+> OPENAI_MODEL=claude-code
 > ```
 >
-> 跑完把输出贴给我。（前提：你本机已经装好并能跑 Claude Code CLI。）
+> 存好后回到跑 `npm start` 的终端 `Ctrl+C` 停掉、再 `npm start` 重启（改 `.env` 必须重启才生效）。重启后告诉我。
 
-装好后：
+重启后：
 
-> 确保 CC Companion 还在 `npm start`（8787 端口挂着）。**另开一个终端**跑：
+> 确保 App 还在 `npm start`（8787 挂着）。**另开一个终端**，在项目根目录跑：
 >
 > ```bash
-> cc-connect start --url http://localhost:8787
+> npm run bridge
 > ```
 >
-> 把输出贴给我。它会把本机 Claude Code 会话桥到 App。
+> 看到 `[bridge] info: listening on http://127.0.0.1:8788` 就成了，把输出贴给我。
+> 安全提示：bridge 是你订阅的无鉴权代理，默认只绑 `127.0.0.1`——别改成 `0.0.0.0` 或对公网开放。
 
-详细架构和参数见项目里的 `docs/CC-CONNECT.md`，卡住就翻那份。
+详细架构、会话管理和安全说明见项目里的 `docs/CC-CONNECT.md`，卡住就翻那份。
 
 ### C-3 · 就用 mock
 
@@ -185,12 +190,12 @@ verify 放到 Phase D 一起测。
 期望：
 - **mock**：回一句「演示 AI 在私聊里收到了…」。
 - **OpenAI**：回一句真实模型生成的话。
-- **Claude Code**：回一句来自你本机 Claude Code 的话（可能带工具/思考）。
+- **Claude Code（bridge）**：回一句来自你本机 Claude Code 的话；Console 里能看到工具调用（订阅态暂时没有 thinking 卡片）。
 
 排查：
 - 一直没回、控台「thinking」不动 → 看跑 `npm start` 的终端有没有报错贴给我。
 - OpenAI 报 key/额度错误 → 检查 `.env` 的 key、`OPENAI_BASE_URL` 拼写，改完**重启** `npm start`。
-- Claude Code 那条没桥过来 → 回 C-2 确认 `cc-connect start` 那个终端还活着、URL 对得上。
+- Claude Code 那条没回 → 确认 `npm run bridge` 那个终端还活着、`.env` 里 `OPENAI_BASE_URL` 指的是 `http://127.0.0.1:8788/v1`、且改完 `.env` 重启过 `npm start`。
 
 ---
 
@@ -243,10 +248,11 @@ verify 放到 Phase D 一起测。
 
 - `.env` 是启动时读的，**改完必须 `Ctrl+C` 停掉再 `npm start`**。
 
-### Claude Code + cc-connect：消息不过来
+### Claude Code（bridge）：消息不过来
 
-- 确认 `npm start`（8787）和 `cc-connect start --url http://localhost:8787` 两个终端都活着。
-- 确认 `--url` 里的端口和 App 实际端口一致。
+- 确认 `npm start`（8787）和 `npm run bridge`（8788）两个终端都活着。
+- 确认 `.env` 里 `OPENAI_BASE_URL=http://127.0.0.1:8788/v1`、`OPENAI_API_KEY` 非空、且改完 `.env` 重启过 `npm start`。
+- 确认本机 `claude` 能跑（已装 Claude Code CLI 并登录订阅）。
 - 详见 `docs/CC-CONNECT.md`。
 
 ---
