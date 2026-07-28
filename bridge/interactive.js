@@ -28,6 +28,17 @@ function projectDirFor(cwd) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Join two text pieces, inserting a blank line when neither side brings its own
+// whitespace — separates distinct text blocks (e.g. pre-tool "let me check…" and the
+// post-tool conclusion) so precise outputs don't collide as "PART-APART-B". Used both
+// inside a fold and when appending across read batches (a turn's text blocks usually
+// arrive in different batches, separated by tool execution).
+export function appendText(acc, piece) {
+  if (!piece) return acc;
+  if (acc && !/\s$/.test(acc) && !/^\s/.test(piece)) return acc + '\n\n' + piece;
+  return acc + piece;
+}
+
 // Fold a batch of transcript entries into deltas. Collects ALL assistant text blocks
 // (not only the final end_turn one) so pre-tool transition text ("let me check…") is kept;
 // done = an assistant end_turn entry that carries text. Pure — unit-testable.
@@ -38,12 +49,8 @@ export function foldTurnEntries(entries) {
     if (!j || j.type !== 'assistant' || !j.message || !Array.isArray(j.message.content)) continue;
     for (const b of j.message.content) {
       if (b.type === 'thinking' && b.thinking) thinking += b.thinking;
-      else if (b.type === 'text' && b.text) {
-        // separate distinct text blocks (e.g. pre-tool "let me check…" and the post-tool
-        // conclusion) so precise outputs don't collide as "PART-APART-B".
-        if (text && !/\s$/.test(text) && !/^\s/.test(b.text)) text += '\n\n';
-        text += b.text;
-      } else if (b.type === 'tool_use' && b.name) tools.push(b.name);
+      else if (b.type === 'text' && b.text) text = appendText(text, b.text);
+      else if (b.type === 'tool_use' && b.name) tools.push(b.name);
     }
     if (j.message.stop_reason === 'end_turn' && j.message.content.some((b) => b.type === 'text')) done = true;
   }
@@ -172,7 +179,7 @@ export function createInteractiveRunner(opts) {
       const fold = foldTurnEntries(entries);
       if (fold.thinking) { thinking += fold.thinking; postConsole('thinking', assistantName, fold.thinking); }
       for (const name of fold.tools) postConsole('tool', assistantName, `→ ${name}`);
-      finalText += fold.text;              // ALL assistant text (keeps pre-tool transition text)
+      finalText = appendText(finalText, fold.text); // ALL assistant text (keeps pre-tool transition text)
       if (fold.done) done = true;
     };
     consume(batch); // the entries that confirmed the injection
@@ -188,7 +195,7 @@ export function createInteractiveRunner(opts) {
       if (!done) await sleep(400);
     }
     await sleep(500); // catch trailing text blocks after end_turn
-    finalText += foldTurnEntries(readNewEntries()).text;
+    finalText = appendText(finalText, foldTurnEntries(readNewEntries()).text);
 
     const content = finalText.trim();
     if (!content) throw new Error('interactive turn produced no reply text');
