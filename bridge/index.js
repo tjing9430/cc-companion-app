@@ -83,6 +83,7 @@ function saveSessionId(id) {
 // The active Claude Code session id. To start a fresh conversation, stop the
 // bridge and delete DATA_DIR/bridge-session.json (or set BRIDGE_SESSION_MODE=fresh).
 let sessionId = loadSessionId();
+let lastMcpAnnounced = ''; // -p re-inits each turn; only announce MCP list when it changes
 
 // ----------------------------------------------------------------- tiny logger
 function log(level, msg) {
@@ -101,6 +102,7 @@ async function postConsole(kind, title, body) {
         ...(APP_AUTH_TOKEN ? { 'x-app-token': APP_AUTH_TOKEN } : {}),
       },
       body: JSON.stringify({ kind, title, body: String(body || '').slice(0, 4000) }),
+      signal: AbortSignal.timeout(5000), // don't hang if the app is unresponsive
     });
   } catch (err) {
     // Non-fatal: the reply itself still returns via the HTTP response.
@@ -125,6 +127,7 @@ function runClaudeTurn(prompt, resume) {
     let streamedText = ''; // fallback: accumulated text_delta
     let thinking = '';    // accumulated thinking_delta
     let newSessionId = '';
+    let resultError = '';  // claude-side error -> reject (502) rather than a fake reply
     let stderr = '';
     let buf = '';
     let settled = false;
@@ -163,7 +166,7 @@ function runClaudeTurn(prompt, resume) {
       if (j.type === 'system' && j.subtype === 'init') {
         if (j.session_id) newSessionId = j.session_id;
         const mcp = Array.isArray(j.mcp_servers) ? j.mcp_servers.map((m) => m.name).filter(Boolean).join(', ') : '';
-        if (mcp) postConsole('info', ASSISTANT_NAME, `MCP servers: ${mcp}`);
+        if (mcp && mcp !== lastMcpAnnounced) { lastMcpAnnounced = mcp; postConsole('info', ASSISTANT_NAME, `MCP servers: ${mcp}`); }
         return;
       }
       if (j.type === 'stream_event' && j.event) {
@@ -190,8 +193,8 @@ function runClaudeTurn(prompt, resume) {
       if (j.type === 'result') {
         if (j.session_id) newSessionId = j.session_id;
         if (typeof j.result === 'string') finalText = j.result;
-        if (!finalText && (j.is_error || (j.subtype && j.subtype !== 'success'))) {
-          finalText = `(claude error: ${j.subtype || 'unknown'})`;
+        if (j.is_error || (j.subtype && j.subtype !== 'success')) {
+          resultError = String(j.subtype || 'error');
         }
         return;
       }
@@ -223,6 +226,7 @@ function runClaudeTurn(prompt, resume) {
       if (buf.trim()) handleLine(buf); // trailing partial line
       flushThinkingNow();
       const content = (finalText || streamedText || '').trim();
+      if (resultError && !content) return reject(new Error(`claude: ${resultError}`)); // surface claude errors as 502, not a fake reply
       if (code !== 0 && !content) {
         return reject(new Error(stderr.trim() || `claude exited with code ${code}`));
       }
@@ -245,13 +249,14 @@ function enqueue(fn) {
 
 // Run a turn, transparently recovering from a stale/expired resume session.
 async function runTurn(prompt) {
-  const resume = SESSION_MODE === 'fresh' ? '' : sessionId;
   try {
-    const out = await enqueue(() => runClaudeTurn(prompt, resume));
+    // read sessionId inside the queued thunk (at queue-head time), not before
+    // enqueue — otherwise two concurrent turns capture a stale id and --resume forks context.
+    const out = await enqueue(() => runClaudeTurn(prompt, SESSION_MODE === 'fresh' ? '' : sessionId));
     if (out.sessionId) { sessionId = out.sessionId; saveSessionId(out.sessionId); }
     return out;
   } catch (err) {
-    if (resume) {
+    if (SESSION_MODE !== 'fresh' && sessionId) {
       // The saved session may be gone (deleted transcript, CLI upgrade). Start fresh once.
       log('warn', `resume failed (${err.message}); starting a fresh session`);
       sessionId = '';
@@ -293,7 +298,7 @@ function readJson(req) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  const url = new URL(req.url || '/', 'http://localhost'); // fixed base — a malformed Host header must not throw (would crash the process)
   const route = (url.pathname || '/').replace(/\/+$/, '') || '/';
 
   if (req.method === 'GET' && (route === '/health' || route === '/v1/health')) {

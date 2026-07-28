@@ -148,6 +148,14 @@ No. The app stores each assistant message when it is complete (same as Mode 1), 
 chat bubble appears at once. Live progress (tool calls) streams to the Console tab during
 generation.
 
+**Does the app's system prompt / persona / history window apply?**
+No. The bridge sends only your **latest user message** to Claude Code — the app-side
+system prompt, memory notes, and chat-history window are ignored; the conversation context
+is held by the Claude Code session itself (resumed each turn). If you set an assistant
+persona in the app's Settings, it does **not** take effect in this mode — configure Claude
+Code directly instead (`CLAUDE.md`, output styles, etc.). To avoid sending an unused
+history window on every turn, you can set `CHAT_CONTEXT_MAX_MESSAGES=0` in `.env`.
+
 **What about `/forge` and `/quota`?**
 Those still use the optional external adapters described in the main README; the bridge
 does not implement session rotation or quota reporting in v1.

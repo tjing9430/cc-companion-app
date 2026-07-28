@@ -88,6 +88,10 @@ chain-of-thought — extended thinking still runs, but only encrypted signatures
 so thinking blocks are not shown in this mode. The Console tab shows live tool activity
 instead. Restoring full thinking is on the [roadmap](#roadmap) (interactive-mode + transcript reading).
 
+The bridge sends only your **latest message** to Claude Code — the app's system prompt and
+history window are ignored, since Claude Code holds the conversation context itself. Set an
+assistant persona through Claude Code's own config (`CLAUDE.md`), not the app's Settings.
+
 ```bash
 # 1. Start the companion app (leave OPENAI_API_KEY empty for now)
 cp .env.example .env
