@@ -28,6 +28,24 @@ function projectDirFor(cwd) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Fold a batch of transcript entries into deltas. Collects ALL assistant text blocks
+// (not only the final end_turn one) so pre-tool transition text ("let me check…") is kept;
+// done = an assistant end_turn entry that carries text. Pure — unit-testable.
+export function foldTurnEntries(entries) {
+  let thinking = '', text = '', done = false;
+  const tools = [];
+  for (const j of entries || []) {
+    if (!j || j.type !== 'assistant' || !j.message || !Array.isArray(j.message.content)) continue;
+    for (const b of j.message.content) {
+      if (b.type === 'thinking' && b.thinking) thinking += b.thinking;
+      else if (b.type === 'text' && b.text) text += b.text;
+      else if (b.type === 'tool_use' && b.name) tools.push(b.name);
+    }
+    if (j.message.stop_reason === 'end_turn' && j.message.content.some((b) => b.type === 'text')) done = true;
+  }
+  return { thinking, text, tools, done };
+}
+
 export function createInteractiveRunner(opts) {
   const {
     claudeBin = 'claude',
@@ -36,7 +54,10 @@ export function createInteractiveRunner(opts) {
     mcpConfig = '',
     permissionMode = '',      // BRIDGE_PERMISSION_MODE → --permission-mode (empty = leave the user's config alone)
     sessionFile,              // persist the session uuid for --resume across restarts
-    startupMs = 6000,         // TUI boot delay before the first injection
+    startupMs = 10000,        // TUI boot delay before the first injection (MCP-heavy setups boot slowly)
+    injectConfirmFirstMs = 12000, // confirm-injection window on the first (cold) turn
+    injectConfirmMs = 6000,   // confirm-injection window on later (warm) turns
+    injectAttempts = 3,       // re-paste this many times if the injection isn't confirmed
     idleHangMs = 20000,       // no jsonl growth this long mid-turn → suspected permission prompt
     turnTimeoutMs = 300000,   // give up waiting for end_turn (the process stays alive)
     settleMs = 900,           // pause after the paste before sending Enter
@@ -48,7 +69,6 @@ export function createInteractiveRunner(opts) {
   let uuid = loadUuid();
   let child = null;      // the `script` process wrapping claude
   let alive = false;
-  let booted = false;    // TUI startup delay elapsed this spawn
   let readOffset = 0;    // bytes consumed from the current jsonl
   let lineBuf = '';      // partial trailing line carried between reads
 
@@ -73,8 +93,8 @@ export function createInteractiveRunner(opts) {
     child.stdout.on('data', () => {}); // dumb pipe — never parsed (red line)
     child.stderr.on('data', () => {});
     child.stdin.on('error', () => {});
-    child.on('exit', (code) => { alive = false; booted = false; log('warn', `interactive session exited (code ${code}); will --resume on next turn`); });
-    alive = true; booted = false;
+    child.on('exit', (code) => { alive = false; log('warn', `interactive session exited (code ${code}); will --resume on next turn`); });
+    alive = true;
     saveUuid(uuid);
     log('info', `interactive session ${resuming ? 'resumed' : 'started'} ${uuid.slice(0, 8)}…`);
   }
@@ -83,7 +103,6 @@ export function createInteractiveRunner(opts) {
     if (alive && child) return;
     spawnSession();
     await sleep(startupMs);
-    booted = true;
   }
 
   // Incremental read: only the bytes appended since last call, split into complete
@@ -108,56 +127,64 @@ export function createInteractiveRunner(opts) {
     return parts.filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   }
 
-  // Inject one turn (type message + Enter) and read its reply + thinking from the jsonl.
+  // Inject one turn (bracketed-paste the message + Enter) and read its reply + thinking
+  // from the jsonl, confirming the injection actually landed (cold-start pastes can be lost).
   async function runTurn(prompt) {
     await ensureAlive();
-    if (!booted) { await sleep(startupMs); booted = true; }
     readNewEntries(); // drain any trailing entries from the previous turn so we start clean
 
-    // Inject via BRACKETED PASTE: wrap the text in paste markers so newlines are literal
-    // (not mid-message submits) and the whole message goes in one fast write; then Enter.
-    // Strip ESC (0x1b) from user text so it cannot break out of the paste bracket / inject
-    // control sequences. \r is dropped (paste uses \n for line breaks).
+    // BRACKETED PASTE: wrap the text so newlines are literal (not mid-message submits) and the
+    // whole message goes in one fast write; strip ESC so user text can't break out of the
+    // bracket / inject control sequences; \r dropped (paste uses \n for line breaks).
     const msg = String(prompt).replace(/\x1b/g, '').replace(/\r/g, '').trim();
     if (!msg) throw new Error('empty prompt');
-    child.stdin.write('\x1b[200~' + msg + '\x1b[201~');
-    await sleep(settleMs);
-    child.stdin.write('\r');
-    const startedAt = Date.now();
 
-    let thinking = '';
-    let finalText = '';
-    let lastGrowth = Date.now();
-    let hangWarned = false;
-    let done = false;
+    // Inject with confirmation + retry: on a cold start the TUI may not be input-ready and the
+    // first paste gets swallowed → no transcript activity. Detect that and re-paste (Ctrl+U
+    // first to clear any half-typed residual) instead of waiting out the whole turn timeout.
+    let batch = null;
+    for (let attempt = 1; attempt <= injectAttempts && !batch; attempt++) {
+      if (!alive) throw new Error('interactive session died before injection');
+      child.stdin.write('\x15'); // Ctrl+U: clear the input line (drop residual from a swallowed paste)
+      await sleep(150);
+      child.stdin.write('\x1b[200~' + msg + '\x1b[201~');
+      await sleep(settleMs);
+      child.stdin.write('\r');
+      const until = Date.now() + (attempt === 1 ? injectConfirmFirstMs : injectConfirmMs);
+      while (Date.now() < until) {
+        if (!alive) throw new Error('interactive session died during injection');
+        const fresh = readNewEntries();
+        if (fresh.length) { batch = fresh; break; }
+        await sleep(400);
+      }
+      if (!batch && attempt < injectAttempts) log('warn', `injection not confirmed (attempt ${attempt}/${injectAttempts}); clearing + re-pasting`);
+    }
+    if (!batch) throw new Error('injection failed: no transcript activity after retries (is the CLI stuck at a prompt?)');
+
+    const startedAt = Date.now();
+    let thinking = '', finalText = '', lastGrowth = Date.now(), hangWarned = false, done = false;
+    const consume = (entries) => {
+      if (entries.length) lastGrowth = Date.now();
+      const fold = foldTurnEntries(entries);
+      if (fold.thinking) { thinking += fold.thinking; postConsole('thinking', assistantName, fold.thinking); }
+      for (const name of fold.tools) postConsole('tool', assistantName, `→ ${name}`);
+      finalText += fold.text;              // ALL assistant text (keeps pre-tool transition text)
+      if (fold.done) done = true;
+    };
+    consume(batch); // the entries that confirmed the injection
 
     while (!done) {
       if (!alive) throw new Error('interactive session died mid-turn');
       if (Date.now() - startedAt > turnTimeoutMs) throw new Error(`interactive turn timed out after ${turnTimeoutMs} ms`);
-      const fresh = readNewEntries();
-      if (fresh.length) lastGrowth = Date.now();
-      for (const j of fresh) {
-        if (j.type !== 'assistant' || !j.message || !Array.isArray(j.message.content)) continue;
-        const endTurn = j.message.stop_reason === 'end_turn';
-        for (const b of j.message.content) {
-          if (b.type === 'thinking' && b.thinking) { thinking += b.thinking; postConsole('thinking', assistantName, b.thinking); }
-          else if (b.type === 'tool_use' && b.name) { postConsole('tool', assistantName, `→ ${b.name}`); }
-          else if (b.type === 'text' && b.text && endTurn) { finalText += b.text; }
-        }
-        if (endTurn && j.message.content.some((b) => b.type === 'text')) done = true;
-      }
+      consume(readNewEntries());
       if (!done && !hangWarned && Date.now() - lastGrowth > idleHangMs) {
         hangWarned = true;
         postConsole('info', assistantName, '（长时间无进展:可能在等工具权限确认——请到运行 bridge 的终端处理,或用 BRIDGE_PERMISSION_MODE 预设权限）');
       }
       if (!done) await sleep(400);
     }
-    await sleep(500); // catch trailing end_turn text blocks
-    for (const j of readNewEntries()) {
-      if (j.type === 'assistant' && j.message && j.message.stop_reason === 'end_turn' && Array.isArray(j.message.content)) {
-        for (const b of j.message.content) if (b.type === 'text' && b.text) finalText += b.text;
-      }
-    }
+    await sleep(500); // catch trailing text blocks after end_turn
+    finalText += foldTurnEntries(readNewEntries()).text;
 
     const content = finalText.trim();
     if (!content) throw new Error('interactive turn produced no reply text');
