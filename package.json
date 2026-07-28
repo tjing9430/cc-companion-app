@@ -8,7 +8,7 @@
     "dev": "node server.js",
     "start": "node server.js",
     "bridge": "node bridge/index.js",
-    "check": "node --check server.js && node --check public/app.js && node --check public/sw.js && node --check adapters/openai-compatible.template.js && node --check adapters/local-cli.template.js && node --check bridge/index.js"
+    "check": "node --check server.js && node --check public/app.js && node --check public/sw.js && node --check adapters/openai-compatible.template.js && node --check adapters/local-cli.template.js && node --check bridge/index.js && node --check bridge/interactive.js"
   },
   "engines": {
     "node": ">=18"

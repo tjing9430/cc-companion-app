@@ -22,6 +22,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createInteractiveRunner } from './interactive.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..');
@@ -60,6 +61,11 @@ const SESSION_MODE = (process.env.BRIDGE_SESSION_MODE || 'resume').toLowerCase()
 const SESSION_FILE = path.join(DATA_DIR, 'bridge-session.json');
 const RUN_TIMEOUT_MS = Math.max(10000, Number(process.env.BRIDGE_TIMEOUT_MS || 300000));
 const THINKING_FLUSH_MS = 700; // batch thinking deltas before posting to the console
+// v1.1: 'interactive' drives a real interactive CLI in a pty and reads the transcript
+// jsonl (exposes extended thinking); 'print' is the v1 headless `claude -p` (no thinking).
+const BRIDGE_MODE = (process.env.BRIDGE_MODE || 'interactive').toLowerCase();
+const BRIDGE_PERMISSION_MODE = String(process.env.BRIDGE_PERMISSION_MODE || '').trim();
+const INTERACTIVE_SESSION_FILE = path.join(DATA_DIR, 'bridge-session-interactive.json');
 
 // ---------------------------------------------------- session state (--resume)
 function loadSessionId() {
@@ -247,8 +253,22 @@ function enqueue(fn) {
   return run;
 }
 
-// Run a turn, transparently recovering from a stale/expired resume session.
-async function runTurn(prompt) {
+// v1.1 interactive runner (restores thinking) — a singleton long-lived session.
+const interactiveRunner = BRIDGE_MODE === 'interactive' ? createInteractiveRunner({
+  claudeBin: CLAUDE_BIN, cwd: process.cwd(), model: CLAUDE_MODEL, mcpConfig: CLAUDE_MCP_CONFIG,
+  permissionMode: BRIDGE_PERMISSION_MODE, sessionFile: INTERACTIVE_SESSION_FILE,
+  turnTimeoutMs: RUN_TIMEOUT_MS, log, postConsole, assistantName: ASSISTANT_NAME,
+}) : null;
+
+// Dispatch a turn to the configured runner (interactive by default; print as fallback).
+function runTurn(prompt) {
+  if (interactiveRunner) return enqueue(() => interactiveRunner.runTurn(prompt));
+  return runPrintTurn(prompt);
+}
+
+// v1 print-mode runner (headless `claude -p`; thinking redacted) — kept as a fallback.
+// Recovers transparently from a stale/expired resume session.
+async function runPrintTurn(prompt) {
   try {
     // read sessionId inside the queued thunk (at queue-head time), not before
     // enqueue — otherwise two concurrent turns capture a stale id and --resume forks context.
@@ -337,7 +357,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  log('info', `listening on http://${HOST}:${PORT}  (session: ${sessionId ? sessionId.slice(0, 8) + '…' : 'new'}, mode: ${SESSION_MODE})`);
+  log('info', `listening on http://${HOST}:${PORT}  (mode: ${BRIDGE_MODE}${BRIDGE_MODE === 'print' ? '/' + SESSION_MODE : ''})`);
   log('info', `app=${APP_URL}  claude="${CLAUDE_BIN}"${CLAUDE_MODEL ? ` model=${CLAUDE_MODEL}` : ''}`);
   if (HOST !== '127.0.0.1' && HOST !== 'localhost') {
     log('warn', 'bound to a non-local address — this exposes your Claude subscription. Put auth + TLS in front of it!');

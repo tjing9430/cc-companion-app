@@ -81,12 +81,17 @@ In this mode you get:
 
 - **Your Claude subscription** — the bridge runs the real CLI, so there is no separate API bill.
 - **MCP tools** — the CLI loads your existing MCP servers; tool calls stream to the Console tab.
+- **Extended thinking** — the default interactive mode reads the session transcript, so thinking blocks appear in chat + Console.
 - **Session continuity** — one long-lived Claude Code session is resumed across turns.
 
-Known limitation (v1): the subscription CLI's headless print mode does **not** expose raw
-chain-of-thought — extended thinking still runs, but only encrypted signatures come back,
-so thinking blocks are not shown in this mode. The Console tab shows live tool activity
-instead. Restoring full thinking is on the [roadmap](#roadmap) (interactive-mode + transcript reading).
+Two modes, set with `BRIDGE_MODE`:
+
+- **`interactive`** (default): drives a real interactive CLI in a pseudo-tty and reads the transcript jsonl, so **extended thinking is shown**. Requires **Linux or WSL** (uses util-linux `script`).
+- **`print`**: headless `claude -p` — faster and cross-platform, but no thinking blocks (only encrypted signatures reach headless mode).
+
+Interactive-mode note: tool permissions must be pre-approved (run `claude` once to set your
+allowlist, or set `BRIDGE_PERMISSION_MODE`). Otherwise a turn hangs waiting for confirmation
+at the terminal — the Console flags this so you know to check.
 
 The bridge sends only your **latest message** to Claude Code — the app's system prompt and
 history window are ignored, since Claude Code holds the conversation context itself. Set an
@@ -326,7 +331,7 @@ data/                                      Runtime data, ignored by git
 
 These features are already running in the authors' upstream setup and are being cleaned up for this starter:
 
-- **Full thinking for the Claude Code bridge** — the current bridge uses headless `claude -p`, which does not expose raw chain-of-thought on a subscription (only encrypted signatures). A planned v1.1 drives the CLI in interactive mode and reads the structured session transcript (`~/.claude/projects/*/<session>.jsonl`), where interactive-mode thinking is plaintext — restoring thinking blocks without an API key.
+- **Cross-platform interactive mode (v1.2)** — the interactive mode that restores extended thinking currently uses util-linux `script`, so it is Linux/WSL only. A planned v1.2 swaps in `node-pty` for macOS and Windows support. (Extended thinking itself shipped in v1.1: interactive mode reads the session transcript, where thinking is plaintext.)
 - **Treasure (message collections)** — long-press any message to save it into named folders. Snapshots keep the content alive even if the original message is later deleted, and both partners share one library.
 - **Wish jar** — a shared wishlist: one side posts a wish (with reference files), the other claims it and ships it, with a progress timeline and completion notifications.
 - **Cinema** — a shared media room for watching films with local subtitles; progress sync and a music shelf are in the works.

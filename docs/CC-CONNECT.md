@@ -17,37 +17,58 @@ so **no `server.js` changes are needed** — you just point the app's provider s
 the bridge.
 
 ```
-┌──────────────┐   POST /v1/chat/completions   ┌──────────────┐   spawn    ┌──────────────────┐
-│  Companion    │ ────────────────────────────▶ │    bridge     │ ─────────▶ │  claude -p        │
-│  App (8787)   │ ◀──── reply (+ signatures) ─── │   (8788)      │ ◀─ stream- │  (your CLI +      │
-└──────┬───────┘                                └──────┬───────┘   json ───  │   MCP + sub)      │
-       │  POST /api/console/events (live tool feed)    │                     └──────────────────┘
+┌──────────────┐   POST /v1/chat/completions   ┌──────────────┐  types msg   ┌──────────────────┐
+│  Companion    │ ────────────────────────────▶ │    bridge     │ ─(pty)─────▶ │  claude           │
+│  App (8787)   │ ◀──── reply + thinking ─────── │   (8788)      │ ◀─ reads ─── │  (interactive):   │
+└──────┬───────┘                                └──────┬───────┘   transcript  │  sub + MCP + CoT  │
+       │  POST /api/console/events (thinking + tools)  │            jsonl      └──────────────────┘
        └───────────────────────────────────────────────┘
 ```
 
 - **Companion App** — serves the UI, stores messages, calls the bridge as its provider.
-- **bridge** — OpenAI-compatible endpoint; runs `claude -p --output-format stream-json`
-  per turn, streams tool activity back to the app's Console, returns the final reply.
+- **bridge** — OpenAI-compatible endpoint. In the default `interactive` mode it types your
+  message into a real interactive CLI (in a pty) and reads the session transcript jsonl, so
+  extended thinking is captured; in `print` mode it runs `claude -p` (no thinking). Either way
+  it streams thinking/tool activity to the Console and returns the final reply. See
+  [Modes](#modes-interactive-default-vs-print).
 - **Claude Code CLI** — your real CLI: your subscription, your MCP servers, your config.
 
 ## What you get
 
 - **Your Claude subscription** — the bridge runs the real CLI, so there is no separate API bill.
 - **MCP tools** — the CLI loads your existing MCP servers; tool calls stream to the Console tab.
+- **Extended thinking** — the default interactive mode reads the transcript, so thinking blocks show in chat + Console (Linux/WSL).
 - **Session continuity** — one long-lived Claude Code session is resumed across turns.
 
-## Known limitation: thinking blocks (v1)
+## Modes: interactive (default) vs print
 
-The subscription CLI's **headless print mode** (`claude -p`) does **not** expose raw
-chain-of-thought. Extended thinking still runs, but the stream carries only encrypted
-thinking *signatures*, not the plaintext — so thinking blocks are not shown in this mode.
-The Console tab shows live tool activity instead.
+Set `BRIDGE_MODE`:
 
-This is a platform behavior, not a bug in the bridge: the same subscription exposes
-thinking in the *interactive* CLI, but not in headless `-p`. Restoring full thinking
-without an API key is on the [roadmap](../README.md#roadmap): drive the CLI in interactive
-mode and read the structured session transcript
-(`~/.claude/projects/*/<session>.jsonl`), where interactive-mode thinking is plaintext.
+- **`interactive`** (default, **Linux/WSL only**): drives a real interactive Claude Code
+  CLI inside a pseudo-tty (via util-linux `script`) and reads the session transcript jsonl.
+  The interactive CLI exposes **plaintext extended thinking** in the transcript, so thinking
+  blocks appear in chat (`reasoning_content`) and stream to the Console. The terminal is
+  treated as a dumb pipe — the bridge only types your message into it and reads all content
+  (thinking, reply, tool calls) from the transcript, never by scraping the screen.
+- **`print`**: headless `claude -p` (the v1 path) — faster and cross-platform, but the
+  subscription CLI redacts thinking in print mode (only encrypted signatures come back), so
+  no thinking blocks are shown; the Console shows tool activity instead.
+
+Why two modes? On a subscription, plaintext chain-of-thought is exposed by the *interactive*
+CLI but not by headless `-p` — a platform behavior, not a bridge choice. Interactive mode
+works around it by reading the transcript. `node-pty` for macOS/Windows interactive support
+is on the [roadmap](../README.md#roadmap) (v1.2); until then, non-Linux users can use `print` mode.
+
+### Tool permissions (interactive mode)
+
+The interactive CLI asks for confirmation before running tools that aren't pre-approved.
+The bridge does **not** bypass this (it never enables `--dangerously-skip-permissions`).
+Pre-approve your tools by running `claude` once in the same directory and accepting the
+allowlist, or set `BRIDGE_PERMISSION_MODE` (passed through as `claude --permission-mode`,
+e.g. `plan` / `acceptEdits` / `default`). If a turn stalls waiting for an unapproved tool,
+the bridge posts a Console note ("possibly waiting for a permission prompt — check the
+terminal") instead of hanging silently, and the turn eventually times out (the session
+stays alive for the next turn).
 
 ## Prerequisites
 
@@ -97,6 +118,8 @@ The bridge reads the same `.env` file. All variables have safe defaults:
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `BRIDGE_MODE` | `interactive` | `interactive` (reads transcript → thinking; Linux/WSL) or `print` (headless `-p`; no thinking; cross-platform). |
+| `BRIDGE_PERMISSION_MODE` | *(empty)* | Interactive only: passed as `claude --permission-mode` (e.g. `plan` / `acceptEdits`). Empty = use your existing config. |
 | `BRIDGE_HOST` | `127.0.0.1` | Bind address. **Keep local** (see Security). |
 | `BRIDGE_PORT` | `8788` | Bridge listen port (matches `OPENAI_BASE_URL`). |
 | `APP_URL` | `http://127.0.0.1:8787` | Where the bridge posts live thinking/tool events. |
@@ -109,15 +132,17 @@ The bridge reads the same `.env` file. All variables have safe defaults:
 
 ## Session management
 
-The bridge keeps **one** Claude Code session and resumes it (`claude -p --resume <id>`)
-on every turn, so context persists across messages — and across bridge restarts.
+The bridge keeps **one** Claude Code session and resumes it (`--resume <id>`) on every
+turn, so context persists across messages — and across bridge restarts.
 
-- The active session id is stored in `<DATA_DIR>/bridge-session.json` (default `data/bridge-session.json`).
-- On restart with `BRIDGE_SESSION_MODE=resume` (default), the bridge resumes the saved session.
+- The active session id is stored under `<DATA_DIR>/`: `bridge-session-interactive.json`
+  for interactive mode, `bridge-session.json` for print mode.
+- Interactive mode always resumes its persisted session across restarts; if the CLI process
+  crashes mid-conversation, the next turn transparently respawns with `--resume` (context intact).
+- Print mode honors `BRIDGE_SESSION_MODE` (`resume` persists / `fresh` starts new each restart).
 - If the saved session is gone (deleted transcript, CLI upgrade), the bridge automatically
   starts a fresh session on the next turn.
-- **To start a brand-new conversation:** stop the bridge and delete
-  `data/bridge-session.json` (or set `BRIDGE_SESSION_MODE=fresh`), then start it again.
+- **To start a brand-new conversation:** stop the bridge and delete that session file, then start again.
 
 ## Security
 
@@ -140,8 +165,11 @@ Yes. The CLI loads your normal MCP configuration; tool calls appear in the Conso
 they run. Use `CLAUDE_MCP_CONFIG` to add servers just for the bridge.
 
 **Why don't I see thinking blocks?**
-See [Known limitation](#known-limitation-thinking-blocks-v1) above — headless `-p` does not
-expose raw thinking on a subscription. This is planned for v1.1.
+Thinking shows in the default `interactive` mode (Linux/WSL). If it's missing, you're likely
+in `print` mode (`BRIDGE_MODE=print`, which redacts thinking on a subscription) or on a
+platform where interactive mode isn't supported yet (macOS/Windows — see the
+[roadmap](../README.md#roadmap)). Note thinking is also model-driven: simple prompts may not
+trigger extended thinking at all.
 
 **Does the chat reply stream token-by-token?**
 No. The app stores each assistant message when it is complete (same as Mode 1), so the
