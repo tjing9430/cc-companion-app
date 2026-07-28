@@ -1,5 +1,11 @@
 # Claude Code + cc-connect Setup
 
+> **⚠️ Status update (2026-07-28):** the `cc-connect start --url <app-url>` companion-app mode described below currently only exists in the authors' **private patched build** of cc-connect — it has **not been published to npm yet**. The `cc-connect` you get from `npm install -g cc-connect` is the upstream messaging-platform bridge (Feishu / Telegram / Slack / …) and does **not** support this app, so this guide will not work as written for now. If your Claude Code told you "cc-connect doesn't support the companion app", it was right — nothing is wrong on your side.
+>
+> **What works today:** run the app in [Mode 1 (Standalone / API Direct)](../README.md#mode-1-standalone-api-direct) — set `OPENAI_API_KEY` / `OPENAI_BASE_URL` in `.env` and the full app works (you lose CLI-side MCP tools and thinking blocks, per the trade-off table below). The app's backend is plain HTTP + SSE, so writing your own small bridge against it is also possible.
+>
+> We are working on releasing the companion-app adapter. This page will be updated when it ships.
+
 This guide explains how to use [cc-connect](https://github.com/chenhg5/cc-connect) to bridge Claude Code CLI to this companion app.
 
 ## Why cc-connect?

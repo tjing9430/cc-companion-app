@@ -78,6 +78,8 @@ Use [cc-connect](https://github.com/chenhg5/cc-connect) to bridge a local Claude
 
 This is how the original authors use this app. It avoids the trade-off between MCP tools and thinking blocks.
 
+> **Note (2026-07-28):** this mode currently requires the authors' private patched build of cc-connect, which is **not yet published to npm** — the `cc-connect` package on npm is the upstream messaging-platform bridge and does not support this app. Until the adapter is released, use Mode 1 above. Details in [docs/CC-CONNECT.md](docs/CC-CONNECT.md).
+
 ```bash
 # 1. Start the companion app
 cp .env.example .env
