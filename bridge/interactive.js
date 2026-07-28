@@ -38,8 +38,12 @@ export function foldTurnEntries(entries) {
     if (!j || j.type !== 'assistant' || !j.message || !Array.isArray(j.message.content)) continue;
     for (const b of j.message.content) {
       if (b.type === 'thinking' && b.thinking) thinking += b.thinking;
-      else if (b.type === 'text' && b.text) text += b.text;
-      else if (b.type === 'tool_use' && b.name) tools.push(b.name);
+      else if (b.type === 'text' && b.text) {
+        // separate distinct text blocks (e.g. pre-tool "let me check…" and the post-tool
+        // conclusion) so precise outputs don't collide as "PART-APART-B".
+        if (text && !/\s$/.test(text) && !/^\s/.test(b.text)) text += '\n\n';
+        text += b.text;
+      } else if (b.type === 'tool_use' && b.name) tools.push(b.name);
     }
     if (j.message.stop_reason === 'end_turn' && j.message.content.some((b) => b.type === 'text')) done = true;
   }
