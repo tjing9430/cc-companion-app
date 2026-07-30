@@ -238,17 +238,42 @@ Pending attachment previews are shown in the chat timeline as local-only draft b
 
 See `docs/IMAGES.md` for the current thresholds and extension points.
 
-## Access From Your Phone
+## Install It On Your Phone
 
-Three options, from simplest to most permanent:
+There is no APK and no App Store listing — and you do not need one. The app is a PWA:
+open it once in the phone browser and add it to the home screen. You get an icon in your
+app drawer that launches full-screen with no browser address bar, so day to day it looks
+and behaves like a native app.
 
-1. **Same WiFi** — open `http://<computer-ip>:8787` on the phone and add it to the home screen (PWA).
-2. **Anywhere, zero config** — install the free [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) binary, set `TUNNEL=quick` in `.env`, and restart. The server opens a public HTTPS URL (printed in the terminal and in the app's console tab) that works from any network while the computer is on. The URL changes on every restart. **Set `APP_AUTH_TOKEN` first** — anyone with the URL can otherwise use your AI.
-3. **Stable setup** — a named Cloudflare tunnel, Tailscale, or any reverse proxy with HTTPS in front of port 8787.
+Two steps.
 
-## PWA
+### Step 1 — Make the app reachable from the phone
 
-The app includes `public/manifest.json` and `public/sw.js`. The service worker caches the static app shell for offline access and the frontend keeps the latest successful bootstrap payload in local storage for read-only offline viewing.
+Pick whichever fits, simplest first:
+
+1. **Same WiFi** — open `http://<computer-ip>:8787` on the phone. Nothing to install.
+2. **Anywhere, zero config** — install the free [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) binary, set `TUNNEL=quick` in `.env`, and restart. The server opens a public HTTPS URL (printed in the terminal and in the app's Console tab) that works from any network while the computer is on. The URL changes on every restart. **Set `APP_AUTH_TOKEN` first** — anyone with the URL can otherwise use your AI.
+3. **Stable setup** — a named Cloudflare tunnel, Tailscale, or any reverse proxy with HTTPS in front of port 8787. Best if you want one address that never changes.
+
+### Step 2 — Add it to the home screen
+
+- **Android** (Chrome / Edge): open the page → `⋮` menu → **Add to Home screen** → confirm **Install**.
+- **iPhone / iPad** (Safari): open the page → Share button → **Add to Home Screen**. This must be Safari; Chrome on iOS cannot install PWAs.
+
+Launch it from that new icon rather than from the browser — that is what gives you the
+full-screen, app-like window.
+
+### What you get, and what you still need
+
+The app ships `public/manifest.json` and `public/sw.js`. Once installed it keeps its own
+icon and window, and the service worker caches the app shell so it opens instantly and
+survives a flaky connection. The frontend also keeps the last successful bootstrap
+payload in local storage, so recent content stays readable offline.
+
+It is still a **client**, though: the Node server — your computer, or wherever you host
+it — has to be running for chat to work. If that machine is asleep, the icon opens to
+cached content only. For an always-available setup, host the server somewhere that stays
+on and use option 3 above.
 
 Web Push notifications are not included in this version.
 
