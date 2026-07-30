@@ -362,5 +362,5 @@ server.listen(PORT, HOST, () => {
   if (HOST !== '127.0.0.1' && HOST !== 'localhost') {
     log('warn', 'bound to a non-local address — this exposes your Claude subscription. Put auth + TLS in front of it!');
   }
-  if (!APP_AUTH_TOKEN) log('warn', 'APP_AUTH_TOKEN is empty — set it to match the app so console events are accepted when the app is protected.');
+  if (!APP_AUTH_TOKEN) log('info', 'no APP_AUTH_TOKEN set — that is fine for local use. If you add a password to the app later, put the same value here so console events keep coming through.');
 });
