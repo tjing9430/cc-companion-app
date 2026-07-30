@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { runInScopeOrder, newTiming, tmark, latencySegments, formatLatency } from './lib/scope-fifo.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +80,7 @@ server.listen(PORT, () => {
     console.log(`Heartbeat enabled: every ${HEARTBEAT_INTERVAL_MINUTES} min, min idle ${HEARTBEAT_MIN_IDLE_MINUTES} min, quiet ${HEARTBEAT_QUIET_START}:00-${HEARTBEAT_QUIET_END}:00.`);
   }
   startQuickTunnel();
+  scheduleBackfill(); // backfill memories/documents loaded from disk that predate embeddings (no-op without a model)
 });
 
 // TUNNEL=quick: expose the app on a public HTTPS URL via a Cloudflare quick
@@ -371,6 +373,7 @@ function writeSse(client, event, payload) {
 }
 
 async function handleSend(res, scope, body) {
+  const timing = newTiming();
   const settings = store.settings;
   const sender = cleanString(body.sender, settings.userName);
   const outgoing = normalizeOutgoingMessages(body);
@@ -387,17 +390,35 @@ async function handleSend(res, scope, body) {
     msg_type: 'chat',
   }));
 
-  let reply = null;
   const combinedContent = messages.map((message) => message.content).filter(Boolean).join('\n');
+  let queued = false;
   if (scope === 'chat' || shouldReplyInGroup(combinedContent)) {
     const replySource = { ...messages[messages.length - 1], content: combinedContent, turn_first_id: messages[0].id };
-    reply = await generateAgentReply(scope, replySource);
+    queued = true;
+    // Async ack: acknowledge the send immediately and produce the reply in the background.
+    // Ordering is still guaranteed per scope by runInScopeOrder (concurrent same-scope sends reply
+    // in arrival order; different scopes run concurrently). The finished assistant message reaches
+    // clients through addMessage → SSE, so we never await it on the request path.
+    runInScopeOrder(scope, () => {
+      tmark(timing, 'processStart'); // FIFO acquired — admission (queue wait) ends here
+      return generateAgentReply(scope, replySource, timing);
+    }).then(
+      () => {
+        try { console.log(formatLatency(scope, latencySegments(timing))); } catch { /* logging must never break */ }
+        scheduleBackfill(); // embedding backfill runs off the request hot path
+      },
+      (err) => {
+        // A background task must never surface as an unhandled rejection. generateAgentReply already
+        // converts agent errors into a fallback reply, so this only fires on truly unexpected faults.
+        try { addConsoleEvent('error', '后台回复失败', (err && err.message) ? err.message : String(err)); } catch { /* noop */ }
+      },
+    );
   }
 
-  sendJson(res, 201, { ok: true, messages, message: messages[0], reply });
+  sendJson(res, 201, { ok: true, messages, message: messages[0], reply: null, queued });
 }
 
-async function generateAgentReply(scope, userMessage) {
+async function generateAgentReply(scope, userMessage, timing) {
   const settings = store.settings;
   const assistantName = settings.assistantName || 'Assistant';
   addConsoleEvent('received', scope === 'group' ? '群聊消息' : '私聊消息', userMessage.content || '[附件]');
@@ -406,7 +427,7 @@ async function generateAgentReply(scope, userMessage) {
   let content = '';
   let thinking = '';
   try {
-    const result = await callConfiguredAgent(scope, userMessage);
+    const result = await callConfiguredAgent(scope, userMessage, timing);
     content = result.content;
     thinking = result.thinking || '';
   } catch (err) {
@@ -423,6 +444,7 @@ async function generateAgentReply(scope, userMessage) {
     parent_msg_id: userMessage.id,
     msg_type: 'chat',
   });
+  tmark(timing, 'finalEnd');
   addConsoleEvent('reply', assistantName, content);
   maybeExtractMemories(scope).catch(() => {});
   return reply;
@@ -478,9 +500,36 @@ function dedupeMemories(list) {
 const EMBEDDING_MODEL = String(process.env.EMBEDDING_MODEL || '').trim();
 const EMBEDDING_DIMENSIONS = Math.max(0, Number(process.env.EMBEDDING_DIMENSIONS || 0));
 const EMBEDDING_TAG = EMBEDDING_MODEL ? `${EMBEDDING_MODEL}:${EMBEDDING_DIMENSIONS || 'native'}` : '';
+const BACKFILL_MAX_ROUNDS = 2000; // ≤64 items/round → ~128k-item backstop; the zero-write break ends it far sooner
 
-async function recallMemories(queryText, limit = MEMORY_RECALL_LIMIT) {
-  const semantic = await semanticRecall(queryText, limit);
+// A memory/chunk is "embeddable" only with non-empty source text; the backfill skips empty ones, so they
+// must not count toward corpus readiness (else one empty row would block semantic recall forever).
+const memoryEmbeddable = (m) => !!cleanString(`${(m && m.title) || ''}${(m && m.content) || ''}`, '');
+const chunkEmbeddable = (c) => !!cleanString((c && c.text) || '', '');
+
+// A corpus is "ready" only when EVERY embeddable item already carries a current-tag vector. Semantic
+// recall and the per-turn shared query embed both gate on this: an empty or partially-backfilled corpus
+// fails open to lexical, so a newly-added (not-yet-embedded) item is never silently dropped from results.
+function memoryCorpusReady() {
+  if (!EMBEDDING_MODEL) return false;
+  const eligible = store.memories.filter(memoryEmbeddable);
+  return eligible.length > 0 && eligible.every((m) => m.embedding_tag === EMBEDDING_TAG && m.embedding_b64);
+}
+function docCorpusReady() {
+  if (!EMBEDDING_MODEL) return false;
+  let any = false;
+  for (const doc of store.documents) {
+    for (const chunk of doc.chunks || []) {
+      if (!chunkEmbeddable(chunk)) continue;
+      any = true;
+      if (chunk.embedding_tag !== EMBEDDING_TAG || !chunk.embedding_b64) return false;
+    }
+  }
+  return any;
+}
+
+async function recallMemories(queryText, limit = MEMORY_RECALL_LIMIT, sharedQueryVec = undefined) {
+  const semantic = await semanticRecall(queryText, limit, sharedQueryVec);
   return semantic || selectRelevantMemories(queryText, limit);
 }
 
@@ -624,6 +673,23 @@ async function embedTexts(texts) {
   }
 }
 
+// Embed the recall query at most once. callConfiguredAgent computes this a single time per turn and
+// shares the result with both memory and document recall (single-flight), so the query never gets
+// embedded twice for one message.
+async function embedQueryVec(query) {
+  const q = cleanString(query, '');
+  if (!EMBEDDING_MODEL || !q) return null;
+  try {
+    const vectors = await embedTexts([q.slice(0, 2000)]);
+    return (vectors && vectors[0]) ? new Float32Array(vectors[0]) : null;
+  } catch {
+    // embedTexts throws on connection-level failure / DNS / the 20s abort. Fail open to lexical here so
+    // a slow or down embedding provider can never crash or stall the whole turn (tri-state: null). This
+    // is the single choke point every recall shares, so one guard covers all call sites.
+    return null;
+  }
+}
+
 function vecToB64(vec) {
   return Buffer.from(new Float32Array(vec).buffer).toString('base64');
 }
@@ -647,31 +713,79 @@ function cosineSim(a, b) {
   return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1);
 }
 
+const memorySourceText = (m) => `${m.title || ''}\n${m.content || ''}`.slice(0, 2000);
+
 async function ensureMemoryEmbeddings() {
+  if (!EMBEDDING_MODEL) return 0;
   const missing = store.memories
-    .filter((m) => cleanString(`${m.title || ''}${m.content || ''}`, '') && m.embedding_tag !== EMBEDDING_TAG)
+    .filter((m) => memoryEmbeddable(m) && m.embedding_tag !== EMBEDDING_TAG)
     .slice(0, 64);
-  if (!missing.length) return;
-  const vectors = await embedTexts(missing.map((m) => `${m.title || ''}\n${m.content || ''}`.slice(0, 2000)));
-  if (!vectors || vectors.length !== missing.length) return;
+  if (!missing.length) return 0;
+  // Capture the exact source each vector is computed from. embedTexts is awaited, and a memory can
+  // be edited or deleted meanwhile — we must never write a vector back onto content it no longer
+  // matches (a stale/dirty vector), nor onto a memory that has since been removed.
+  const sources = missing.map(memorySourceText);
+  const vectors = await embedTexts(sources);
+  if (!vectors || vectors.length !== missing.length) return 0;
+  let wrote = 0;
   missing.forEach((memory, index) => {
+    if (!store.memories.includes(memory)) return;             // deleted during the await
+    if (memorySourceText(memory) !== sources[index]) return;  // source changed during the await
     memory.embedding_b64 = vecToB64(vectors[index]);
     memory.embedding_tag = EMBEDDING_TAG;
+    wrote += 1;
   });
-  saveStore();
+  if (wrote) saveStore();
+  return wrote; // caller drains in batches until a pass writes 0
 }
 
-async function semanticRecall(queryText, limit = MEMORY_RECALL_LIMIT) {
+// Single-flight background embedding backfill: kept OFF the request hot path. Recall reads only
+// already-ready vectors and fails open to lexical scoring until this catches up. Triggered at startup
+// and on every memory/document create/update so bulk imports and edits fully backfill on their own,
+// not only after the next chat turn.
+let backfillInFlight = null;
+let backfillDirty = false; // set when a trigger arrives mid-drain → forces one more sweep so nothing is missed
+function scheduleBackfill() {
+  if (!EMBEDDING_MODEL) return null; // nothing to embed without a configured model
+  if (backfillInFlight) { backfillDirty = true; return backfillInFlight; }
+  backfillInFlight = (async () => {
+    try {
+      do {
+        backfillDirty = false;
+        // Drain in bounded ≤64 batches until a full pass writes nothing (caught up) or a round throws
+        // (provider down). Stopping on a zero-write pass guarantees a persistently-failing or perpetually-
+        // stale item can never spin this loop.
+        for (let round = 0; round < BACKFILL_MAX_ROUNDS; round += 1) {
+          let wrote = 0;
+          try {
+            wrote += await ensureMemoryEmbeddings();
+            wrote += await ensureDocumentEmbeddings();
+          } catch { backfillDirty = false; break; } // provider error → stop (don't spin); next trigger retries
+          if (!wrote) break;
+        }
+      } while (backfillDirty); // a create/update landed during the drain → sweep once more to catch it
+    } finally { backfillInFlight = null; }
+  })();
+  backfillInFlight.catch(() => {}); // never an unhandled rejection
+  return backfillInFlight;
+}
+
+async function semanticRecall(queryText, limit = MEMORY_RECALL_LIMIT, sharedQueryVec = undefined) {
   if (!EMBEDDING_MODEL) return null;
   const query = cleanString(queryText, '');
   if (!query || !store.memories.length) return null;
   try {
-    await ensureMemoryEmbeddings();
+    // Backfill runs in the background (scheduleBackfill); recall only reads already-ready vectors and
+    // fails open to lexical scoring when none are ready yet — the request hot path never waits on it.
+    // Symmetric with document recall: only score semantically when the WHOLE eligible corpus is
+    // backfilled. On a partial set we'd silently drop every not-yet-embedded memory, so fall open to
+    // lexical (which sees all of them) until backfill catches up.
+    if (!memoryCorpusReady()) return null;
     const embedded = store.memories.filter((m) => m.embedding_tag === EMBEDDING_TAG && m.embedding_b64);
-    if (!embedded.length) return null;
-    const vectors = await embedTexts([query.slice(0, 2000)]);
-    if (!vectors || !vectors[0]) return null;
-    const queryVec = new Float32Array(vectors[0]);
+    // Single-flight: reuse the shared query vector when provided (explicit null = embed already tried
+    // and failed → fall open to lexical); only embed here on a direct call (sharedQueryVec undefined).
+    const queryVec = (sharedQueryVec !== undefined) ? sharedQueryVec : await embedQueryVec(query);
+    if (!queryVec) return null;
     const cap = Math.max(1, Number(limit) || MEMORY_RECALL_LIMIT);
     const scored = embedded
       .map((memory) => ({ memory, score: cosineSim(queryVec, b64ToVec(memory.embedding_b64)) * memoryRecencyFactor(memory) }))
@@ -741,7 +855,7 @@ function contextHistory(scope, beforeId) {
   return eligible.map(toTurn);
 }
 
-async function callConfiguredAgent(scope, userMessage) {
+async function callConfiguredAgent(scope, userMessage, timing) {
   const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
   if (!apiKey) return { content: mockReply(scope, userMessage), thinking: '（演示思考）当前是内置 mock agent。配置一个会返回推理内容的模型（例如 deepseek-reasoner）后，这里会显示它真实的思考过程。' };
 
@@ -753,16 +867,39 @@ async function callConfiguredAgent(scope, userMessage) {
     `你是 ${store.settings.assistantName || 'AI'}，运行在一个自部署 AI 伴侣聊天 App 里。`,
     '请用清楚、简短、自然的中文回复。',
   ].join('\n\n');
-  const history = contextHistory(scope, userMessage.turn_first_id || userMessage.id);
-  const recallQuery = recallQueryFor(scope, userMessage);
-  const memories = (await recallMemories(recallQuery, MEMORY_RECALL_LIMIT))
-    .map((m) => `- ${m.title}: ${m.content}`).join('\n');
-  const docChunks = await recallDocumentChunks(recallQuery, DOC_RECALL_LIMIT);
-  const docsBlock = docChunks.map((chunk) => `【${chunk.name}】${chunk.text}`).join('\n---\n');
+  tmark(timing, 'recallStart');
+  let history;
+  let memories = '';
+  let docsBlock = '';
+  try {
+    history = contextHistory(scope, userMessage.turn_first_id || userMessage.id);
+    const recallQuery = recallQueryFor(scope, userMessage);
+    // Single-flight query embedding: embed the recall query at most once per turn AND only when it can
+    // actually be used — i.e. at least one corpus (memory or docs) is fully backfilled. An empty or
+    // partially-embedded corpus falls open to lexical, so paying the (up to 20s) embed here would be pure
+    // latency on the final reply. null = "don't embed" → both recalls score lexically. Docs only count
+    // when doc recall is actually enabled (DOC_RECALL_LIMIT > 0): a ready doc corpus with recall disabled
+    // must not trigger a query embed that recallDocumentChunks then skips (limit 0 → early return).
+    const sharedQueryVec = (EMBEDDING_MODEL && (memoryCorpusReady() || (DOC_RECALL_LIMIT > 0 && docCorpusReady())))
+      ? await embedQueryVec(recallQuery)
+      : null;
+    const [mem, docChunks] = await Promise.all([
+      recallMemories(recallQuery, MEMORY_RECALL_LIMIT, sharedQueryVec),
+      recallDocumentChunks(recallQuery, DOC_RECALL_LIMIT, sharedQueryVec),
+    ]);
+    memories = mem.map((m) => `- ${m.title}: ${m.content}`).join('\n');
+    docsBlock = docChunks.map((chunk) => `【${chunk.name}】${chunk.text}`).join('\n---\n');
+  } finally {
+    // Guarantee the recall segment is observable even when recall throws (the error path is the
+    // one we most want measured). The original exception still propagates.
+    tmark(timing, 'recallEnd');
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
   let response;
+  let data = {};
+  tmark(timing, 'agentStart');
   try {
     response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
@@ -786,14 +923,17 @@ async function callConfiguredAgent(scope, userMessage) {
         temperature: 0.7,
       }),
     });
+    data = await response.json().catch(() => ({}));
   } catch (err) {
     if (err && err.name === 'AbortError') throw new Error(`Agent API timed out after ${AGENT_TIMEOUT_MS} ms`);
     throw err;
   } finally {
     clearTimeout(timeout);
+    // Guarantee the agent segment is observable on the error path too (network refused / abort /
+    // parse), which is exactly when it used to go missing. The original exception still propagates.
+    tmark(timing, 'agentEnd');
   }
 
-  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = data && data.error && data.error.message ? data.error.message : `HTTP ${response.status}`;
     throw new Error(message);
@@ -1387,21 +1527,31 @@ function createMemory(input) {
   addConsoleEvent('memory', '记忆已创建', memory.title);
   const output = publicMemory(memory);
   broadcastSse('memory', { action: 'created', memory: output });
+  scheduleBackfill(); // embed the new memory in the background (no-op without a model)
   return output;
 }
 
 function updateMemory(id, input) {
   const memory = store.memories.find((item) => item.id === id);
   if (!memory) return null;
+  const prevSource = memorySourceText(memory);
   if ('title' in input) memory.title = cleanString(input.title, memory.title);
   if ('content' in input) memory.content = cleanString(input.content, memory.content);
   if ('mood' in input) memory.mood = cleanString(input.mood, memory.mood || defaultMemoryMood(memory.tags));
   if ('author' in input) memory.author = cleanString(input.author, memory.author || store.settings.assistantName || 'AI');
   if ('tags' in input) memory.tags = normalizeTags(input.tags);
   if ('pinned' in input) memory.pinned = input.pinned === true;
+  // Title+content feed the embedding vector; if either changed, the stored vector no longer matches the
+  // text. Drop it so semantic recall can never score a stale vector against new content, and let backfill
+  // recompute. (Also fixes a pre-existing bug: the old tag-match filter never re-embedded edited memories.)
+  if (memorySourceText(memory) !== prevSource) {
+    delete memory.embedding_tag;
+    delete memory.embedding_b64;
+  }
   memory.updated_at = new Date().toISOString();
   saveStore();
   addConsoleEvent('memory', '记忆已更新', memory.title);
+  scheduleBackfill(); // re-embed the edited memory in the background (no-op without a model)
   const output = publicMemory(memory);
   broadcastSse('memory', { action: 'updated', memory: output });
   return output;
@@ -1521,6 +1671,7 @@ function createDocument(input) {
   store.documents.push(doc);
   saveStore();
   addConsoleEvent('memory', '资料已添加', doc.name);
+  scheduleBackfill(); // embed the new document's chunks in the background (no-op without a model)
   return publicDocument(doc);
 }
 
@@ -1536,6 +1687,7 @@ function updateDocument(id, input) {
   doc.updated_at = new Date().toISOString();
   saveStore();
   addConsoleEvent('memory', '资料已更新', doc.name);
+  scheduleBackfill(); // re-embed re-chunked content in the background (no-op without a model)
   return publicDocument(doc);
 }
 
@@ -1551,42 +1703,53 @@ function deleteDocument(id) {
 }
 
 async function ensureDocumentEmbeddings() {
+  if (!EMBEDDING_MODEL) return 0;
   const missing = [];
+  const owners = new Map(); // chunk -> its doc, so we can re-verify reachability after the await
   for (const doc of store.documents) {
     for (const chunk of doc.chunks || []) {
-      if (chunk.embedding_tag !== EMBEDDING_TAG && cleanString(chunk.text, '')) missing.push(chunk);
+      if (chunk.embedding_tag !== EMBEDDING_TAG && chunkEmbeddable(chunk)) { missing.push(chunk); owners.set(chunk, doc); }
       if (missing.length >= 64) break;
     }
     if (missing.length >= 64) break;
   }
-  if (!missing.length) return;
-  const vectors = await embedTexts(missing.map((chunk) => chunk.text.slice(0, 2000)));
-  if (!vectors || vectors.length !== missing.length) return;
+  if (!missing.length) return 0;
+  const sources = missing.map((chunk) => chunk.text.slice(0, 2000));
+  const vectors = await embedTexts(sources);
+  if (!vectors || vectors.length !== missing.length) return 0;
+  let wrote = 0;
   missing.forEach((chunk, index) => {
+    const doc = owners.get(chunk);
+    if (!store.documents.includes(doc)) return;               // document deleted during the await
+    if (!(doc.chunks || []).includes(chunk)) return;          // re-chunked / chunk removed during the await
+    if (chunk.text.slice(0, 2000) !== sources[index]) return; // chunk text changed during the await
     chunk.embedding_b64 = vecToB64(vectors[index]);
     chunk.embedding_tag = EMBEDDING_TAG;
+    wrote += 1;
   });
-  saveStore();
+  if (wrote) saveStore();
+  return wrote; // caller drains in batches until a pass writes 0
 }
 
-async function recallDocumentChunks(queryText, limit = DOC_RECALL_LIMIT) {
+async function recallDocumentChunks(queryText, limit = DOC_RECALL_LIMIT, sharedQueryVec = undefined) {
   if (!limit || !store.documents.length) return [];
   const query = cleanString(queryText, '');
   if (!query) return [];
   const entries = [];
   for (const doc of store.documents) {
-    for (const chunk of doc.chunks || []) entries.push({ name: doc.name, chunk });
+    for (const chunk of doc.chunks || []) {
+      if (chunkEmbeddable(chunk)) entries.push({ name: doc.name, chunk }); // skip empty chunks: unembeddable, and they'd block the all-ready gate
+    }
   }
   if (!entries.length) return [];
-  // Semantic scoring when embeddings are on and backfilled; lexical otherwise.
+  // Semantic scoring only when every chunk already has a ready vector (backfill is background-only);
+  // otherwise fall open to lexical. The request hot path never triggers embedding backfill.
   if (EMBEDDING_MODEL) {
     try {
-      await ensureDocumentEmbeddings();
       const embedded = entries.filter((entry) => entry.chunk.embedding_tag === EMBEDDING_TAG && entry.chunk.embedding_b64);
       if (embedded.length === entries.length) {
-        const vectors = await embedTexts([query.slice(0, 2000)]);
-        if (vectors && vectors[0]) {
-          const queryVec = new Float32Array(vectors[0]);
+        const queryVec = (sharedQueryVec !== undefined) ? sharedQueryVec : await embedQueryVec(query);
+        if (queryVec) {
           return embedded
             .map((entry) => ({ entry, score: cosineSim(queryVec, b64ToVec(entry.chunk.embedding_b64)) }))
             .sort((a, b) => b.score - a.score)
