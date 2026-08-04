@@ -1100,3 +1100,30 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   .memory-summary{gap:.55rem}
   .memory-mood{font-size:.74rem;padding:.24rem .55rem}
 }
+
+/* Phase 2: memory tag filter (分类) + timeline view (时间线) */
+.memory-viewtoggle{display:flex;gap:.35rem;margin:.1rem 0 .5rem;justify-content:flex-end}
+.memory-viewtoggle button{
+  border:1px solid var(--line);border-radius:var(--radius-pill);
+  background:var(--panel);color:var(--muted);
+  padding:.26rem .8rem;font-size:.8rem;cursor:pointer;font-family:inherit;
+}
+.memory-viewtoggle button.on{background:var(--accent-soft);color:var(--text);border-color:var(--accent)}
+.memory-tag-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin:.15rem 0 .1rem}
+.memory-tag-chip{
+  display:inline-flex;align-items:center;gap:.3rem;
+  border:1px solid var(--line);border-radius:var(--radius-pill);
+  background:var(--panel);color:var(--muted);
+  padding:.24rem .7rem;font-size:.78rem;cursor:pointer;font-family:inherit;
+}
+.memory-tag-chip.on{background:var(--accent-soft);color:var(--text);border-color:var(--accent)}
+.memory-tag-count{color:var(--faint);font-size:.72rem}
+.memory-tag-chip.on .memory-tag-count{color:var(--accent-strong)}
+.memory-tl-group{margin-top:.2rem}
+.memory-tl-head{
+  display:flex;align-items:center;justify-content:space-between;
+  color:var(--muted);font-size:.8rem;font-weight:600;
+  padding:.5rem .2rem .3rem;margin-top:.3rem;
+  border-bottom:1px solid var(--line-soft);
+}
+.memory-tl-head span{color:var(--faint);font-weight:400;font-size:.74rem}

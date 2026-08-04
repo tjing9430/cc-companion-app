@@ -45,6 +45,8 @@ const state = {
   memoryEditing: null,
   memoryWriterOpen: false,
   memoryOpen: {},
+  memoryView: 'cards',
+  memoryTagFilter: '',
   stickToBottom: { chat: true, group: true, console: true },
   scrollTop: { chat: 0, group: 0, console: 0 },
   busy: false,
@@ -269,6 +271,15 @@ function bindEvents() {
       state.memoryTab = action.dataset.tab === 'docs' ? 'docs' : 'diary';
       render();
       if (state.memoryTab === 'docs') loadDocuments();
+    }
+    if (name === 'memory-view') {
+      state.memoryView = action.dataset.view === 'timeline' ? 'timeline' : 'cards';
+      render();
+    }
+    if (name === 'memory-tag-filter') {
+      const tag = action.dataset.tag || '';
+      state.memoryTagFilter = state.memoryTagFilter === tag ? '' : tag;
+      render();
     }
     if (name === 'toggle-doc-writer') {
       state.docWriterOpen = !state.docWriterOpen;
@@ -1311,6 +1322,10 @@ function renderMemory() {
   const editTags = editing && Array.isArray(editing.tags) ? editing.tags.join(', ') : '';
   const editMood = editing ? memoryMood(editing) : '';
   const editAuthor = editing ? memoryAuthor(editing) : (state.settings.userName || '你');
+  const all = Array.isArray(state.memories) ? state.memories : [];
+  const tagFilter = state.memoryTagFilter || '';
+  const shown = tagFilter ? all.filter((m) => (m.tags || []).some((t) => String(t) === tagFilter)) : all;
+  const view = state.memoryView === 'timeline' ? 'timeline' : 'cards';
   return `
     <div class="memory-view">
       <div class="memory-headline">
@@ -1318,7 +1333,7 @@ function renderMemory() {
           <div class="section-kicker">记忆</div>
           <h2>日记</h2>
         </div>
-        <div class="memory-count">${state.memories.length} 条</div>
+        <div class="memory-count">${shown.length}${tagFilter ? ` / ${all.length}` : ''} 条</div>
       </div>
       ${seg}
       ${writerOpen ? renderMemoryWriter(editing, editMood, editAuthor, editTags) : renderMemoryWriterCard()}
@@ -1326,8 +1341,15 @@ function renderMemory() {
         <input data-memory-search="1" placeholder="搜索记忆" value="${escAttr(state.memoryQuery)}">
         ${state.memoryQuery ? '<button class="ghost" type="button" data-action="clear-memory-search">清空</button>' : ''}
       </div>
+      ${renderMemoryTagChips(all)}
+      <div class="memory-viewtoggle">
+        <button type="button" class="${view === 'cards' ? 'on' : ''}" data-action="memory-view" data-view="cards">卡片</button>
+        <button type="button" class="${view === 'timeline' ? 'on' : ''}" data-action="memory-view" data-view="timeline">时间线</button>
+      </div>
       <div class="memory-list">
-        ${state.memories.length ? state.memories.map(renderMemoryItem).join('') : `<div class="empty">${state.memoryQuery ? '没有匹配的记忆。' : '还没有记忆。'}</div>`}
+        ${shown.length
+          ? (view === 'timeline' ? renderMemoryTimeline(shown) : shown.map(renderMemoryItem).join(''))
+          : `<div class="empty">${state.memoryQuery || tagFilter ? '没有匹配的记忆。' : '还没有记忆。'}</div>`}
       </div>
     </div>`;
 }
@@ -1534,6 +1556,49 @@ function renderMemoryItem(memory) {
         </div>
       ` : ''}
     </article>`;
+}
+
+function renderMemoryTagChips(memories) {
+  const counts = new Map();
+  for (const m of memories) for (const t of (m.tags || [])) {
+    const tag = String(t || '').trim();
+    if (tag) counts.set(tag, (counts.get(tag) || 0) + 1);
+  }
+  if (!counts.size) return '';
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const active = state.memoryTagFilter || '';
+  const chip = (tag, label, count) => `<button type="button" class="memory-tag-chip${active === tag ? ' on' : ''}" data-action="memory-tag-filter" data-tag="${escAttr(tag)}">${esc(label)}<span class="memory-tag-count">${count}</span></button>`;
+  return `<div class="memory-tag-chips">${chip('', '全部', memories.length)}${top.map(([t, c]) => chip(t, t, c)).join('')}</div>`;
+}
+
+function renderMemoryTimeline(memories) {
+  const sorted = [...memories].sort((a, b) => memoryTime(b) - memoryTime(a));
+  const order = [];
+  const byKey = new Map();
+  for (const m of sorted) {
+    const key = memoryMonthLabel(m);
+    if (!byKey.has(key)) { byKey.set(key, []); order.push(key); }
+    byKey.get(key).push(m);
+  }
+  return order.map((label) => `
+    <div class="memory-tl-group">
+      <div class="memory-tl-head">${esc(label)}<span>${byKey.get(label).length}</span></div>
+      ${byKey.get(label).map(renderMemoryItem).join('')}
+    </div>`).join('');
+}
+
+function memoryTime(memory) {
+  const ts = memory && (memory.updated_at || memory.created_at);
+  const t = ts ? new Date(ts).getTime() : 0;
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function memoryMonthLabel(memory) {
+  const ts = memory && (memory.updated_at || memory.created_at);
+  if (!ts) return '未知时间';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '未知时间';
+  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月`;
 }
 
 function renderSettings() {
