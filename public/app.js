@@ -127,7 +127,7 @@ function bindEvents() {
       }
     }
     if (name === 'delete-message') {
-      if (!confirm('删除这条消息？不可恢复。')) return;
+      if (!confirm('删除这条消息？不可恢复。\n（AI 可能仍记得它。）')) return;
       const list = action.closest('.message-list');
       const scope = (list && list.dataset.scrollScope) || (state.tab === 'group' ? 'group' : 'chat');
       const id = action.dataset.id;
@@ -141,7 +141,7 @@ function bindEvents() {
     }
     if (name === 'clear-chat') {
       const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
-      if (!confirm(`清空${scope === 'group' ? '群聊' : '对话'}的全部消息？此操作不可恢复。`)) return;
+      if (!confirm(`清空${scope === 'group' ? '群聊' : '对话'}的全部消息？此操作不可恢复。\n（AI 已记住或已写入记忆库的内容不受影响；服务器会在 data/ 存一份带时间戳的备份。）`)) return;
       state[scope] = [];
       render();
       try {
@@ -823,7 +823,7 @@ function renderChatToolsBtns(scope) {
   const copyAll = s.featureCopyAll !== false
     ? `<button class="fav-filter" type="button" data-action="copy-all" data-scope="${escAttr(scope)}" aria-label="复制全部对话">复制全部</button>`
     : '';
-  const clear = s.featureDelete !== false
+  const clear = (s.featureDelete !== false && s.authEnabled)
     ? `<button class="fav-filter" type="button" data-action="clear-chat" data-scope="${escAttr(scope)}" aria-label="清空聊天记录">清空</button>`
     : '';
   return `${copyAll}${clear}`;
@@ -1049,7 +1049,7 @@ function renderMessage(message, opts = {}) {
     btns.push(`<button class="fav-btn${message.favorited ? ' on' : ''}" type="button" data-action="toggle-favorite" data-id="${idAttr}" aria-label="${message.favorited ? '取消收藏' : '收藏'}">${message.favorited ? '★' : '☆'}</button>`);
     if (isMe && feat.featureRecall !== false) btns.push(`<button class="recall-btn" type="button" data-action="recall-message" data-id="${idAttr}" aria-label="撤回">撤回</button>`);
   }
-  if (feat.featureDelete !== false && !message.pending) btns.push(`<button class="del-btn" type="button" data-action="delete-message" data-id="${idAttr}" aria-label="删除">删除</button>`);
+  if (feat.featureDelete !== false && feat.authEnabled && !message.pending) btns.push(`<button class="del-btn" type="button" data-action="delete-message" data-id="${idAttr}" aria-label="删除">删除</button>`);
   if (opts.showJump) btns.push(`<button class="jump-btn" type="button" data-action="jump-to" data-id="${idAttr}" aria-label="跳到原文">跳转</button>`);
   const bubbleInner = recalled
     ? `<div class="recalled-note">${isMe ? '你撤回了一条消息' : `${esc(message.sender)} 撤回了一条消息`}</div>`

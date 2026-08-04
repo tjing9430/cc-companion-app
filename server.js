@@ -212,11 +212,13 @@ async function handleRequest(req, res) {
 
   const deleteMessageMatch = route.match(/^\/api\/(chat|group)\/messages\/(\d+)$/);
   if (deleteMessageMatch && req.method === 'DELETE') {
+    if (!AUTH_TOKEN) return sendJson(res, 403, { error: 'auth_required', message: '设置 APP_AUTH_TOKEN 后才能删除消息' });
     const ok = deleteMessage(deleteMessageMatch[1], Number(deleteMessageMatch[2]));
     return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'message_not_found' });
   }
 
   if (req.method === 'DELETE' && (route === '/api/chat/messages' || route === '/api/group/messages')) {
+    if (!AUTH_TOKEN) return sendJson(res, 403, { error: 'auth_required', message: '设置 APP_AUTH_TOKEN 后才能清空聊天记录' });
     const scope = route === '/api/group/messages' ? 'group' : 'chat';
     return sendJson(res, 200, { ok: true, cleared: clearMessages(scope) });
   }
@@ -1130,6 +1132,7 @@ function recallMessage(scope, id) {
   const key = scope === 'group' ? 'group_messages' : 'chat_messages';
   const message = (store[key] || []).find((m) => Number(m.id) === Number(id));
   if (!message) return null;
+  if (message.role !== 'user') return null;  // only the user's own messages are recallable (沈屿 #6676 P2)
   message.recalled = true;
   message.recalled_at = new Date().toISOString();
   saveStore();
@@ -1150,7 +1153,17 @@ function deleteMessage(scope, id) {
 
 function clearMessages(scope) {
   const key = scope === 'group' ? 'group_messages' : 'chat_messages';
-  const count = Array.isArray(store[key]) ? store[key].length : 0;
+  const rows = Array.isArray(store[key]) ? store[key] : [];
+  const count = rows.length;
+  if (count) {
+    // Undo path: dump what we're about to wipe, timestamped, so a misclick is recoverable. (沈屿 #6676 P1)
+    try {
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      fs.writeFileSync(path.join(DATA_DIR, `cleared-${scope}-${stamp}.json`), JSON.stringify(rows, null, 2));
+    } catch (err) {
+      console.error('clearMessages backup failed:', err && err.message);
+    }
+  }
   store[key] = [];
   saveStore();
   broadcastSse('cleared', { scope });
@@ -1158,7 +1171,10 @@ function clearMessages(scope) {
 }
 
 function publicMessage(message) {
-  return { ...message, attachments: normalizeAttachments(message.attachments) };
+  const out = { ...message, attachments: normalizeAttachments(message.attachments) };
+  // A recalled message keeps its content in the store (trace) but must not leak it over the API. (沈屿 #6676 P1)
+  if (out.recalled) { out.content = ''; out.attachments = []; }
+  return out;
 }
 
 function publicMemory(memory) {
@@ -2175,10 +2191,16 @@ function setCommonHeaders(res) {
 
 function isAuthorized(req, url = null) {
   if (!AUTH_TOKEN) return true;
-  const query = url && url.searchParams ? String(url.searchParams.get('token') || '').trim() : '';
   const token = String(req.headers['x-app-token'] || '').trim();
   const auth = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  return token === AUTH_TOKEN || auth === AUTH_TOKEN || query === AUTH_TOKEN;
+  if (token === AUTH_TOKEN || auth === AUTH_TOKEN) return true;
+  // Query-string token only authorizes GET (EventSource can't set headers). Never for writes:
+  // SSE/asset URLs leak into history, proxy logs, Referer — a leaked token must not enable DELETE. (沈屿 #6676 P2)
+  if (req.method === 'GET') {
+    const query = url && url.searchParams ? String(url.searchParams.get('token') || '').trim() : '';
+    if (query && query === AUTH_TOKEN) return true;
+  }
+  return false;
 }
 
 function normalizeRoute(route) {
