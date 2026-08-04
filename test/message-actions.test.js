@@ -145,11 +145,24 @@ test('feature toggles default on and persist off', async () => {
     assert.equal(def.featureDelete, true);
     assert.equal(def.featureCopyAll, true);
     assert.equal(def.featureAutoExtract, true);
-    await af(ctx, '/api/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ featureRecall: false, featureDelete: false, featureCopyAll: false, featureAutoExtract: false }) });
+    assert.equal(def.featureSemanticSearch, true);
+    await af(ctx, '/api/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ featureRecall: false, featureDelete: false, featureCopyAll: false, featureAutoExtract: false, featureSemanticSearch: false }) });
     const off = await json(await af(ctx, '/api/settings'));
     assert.equal(off.featureRecall, false);
     assert.equal(off.featureDelete, false);
     assert.equal(off.featureCopyAll, false);
     assert.equal(off.featureAutoExtract, false);
+    assert.equal(off.featureSemanticSearch, false);
+  } finally { await stopServer(ctx.srv); fs.rmSync(ctx.dataDir, { recursive: true, force: true }); }
+});
+
+test('memory search: no embedding model -> lexical (substring) results, not semantic', async () => {
+  const ctx = await boot({ token: TOKEN });
+  try {
+    await af(ctx, '/api/memory', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '猫', content: 'findme-orange-cat' }) });
+    const hit = await json(await af(ctx, '/api/memory?q=findme-orange-cat'));
+    assert.ok(Array.isArray(hit) && hit.some((m) => /findme-orange-cat/.test(m.content || '')), 'lexical q returns the matching memory');
+    const miss = await json(await af(ctx, '/api/memory?q=ZZZ_no_such_text_anywhere'));
+    assert.equal(miss.length, 0, 'no embeddings + no substring match -> empty (lexical, not semantic)');
   } finally { await stopServer(ctx.srv); fs.rmSync(ctx.dataDir, { recursive: true, force: true }); }
 });

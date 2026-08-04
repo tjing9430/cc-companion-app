@@ -679,6 +679,7 @@ async function submitSettings(form) {
   body.featureRecall = form.elements.featureRecall ? form.elements.featureRecall.checked : true;
   body.featureDelete = form.elements.featureDelete ? form.elements.featureDelete.checked : true;
   body.featureAutoExtract = form.elements.featureAutoExtract ? form.elements.featureAutoExtract.checked : true;
+  body.featureSemanticSearch = form.elements.featureSemanticSearch ? form.elements.featureSemanticSearch.checked : true;
   state.settings = await api('/api/settings', { method: 'POST', body });
   applySettingsRename(previous, state.settings);
   cacheBootstrap();
@@ -1629,8 +1630,9 @@ function renderSettings() {
         <label class="chip"><input name="featureDelete" type="checkbox" ${s.featureDelete !== false ? 'checked' : ''}> 消息「删除」+ 顶栏「清空」</label>
       </div>
       <div class="event">
-        <div class="event-title"><span>记忆</span><span>自动提炼需在 .env 配置提取模型 / bridge</span></div>
+        <div class="event-title"><span>记忆</span><span>自动提炼 / 语义搜索需在 .env 配置模型</span></div>
         <label class="chip"><input name="featureAutoExtract" type="checkbox" ${s.featureAutoExtract !== false ? 'checked' : ''}> 自动从聊天提炼长期记忆</label>
+        <label class="chip"><input name="featureSemanticSearch" type="checkbox" ${s.featureSemanticSearch !== false ? 'checked' : ''}> 记忆搜索用语义（配了 EMBEDDING_MODEL 才生效）</label>
       </div>
       <div class="event">
         <div class="event-title"><span>AI 接入</span><span>${esc(s.agent.model)}</span></div>

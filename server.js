@@ -251,12 +251,14 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === 'GET' && route === '/api/memory') {
-    return sendJson(res, 200, listMemories({
-      q: url.searchParams.get('q') || '',
-      tag: url.searchParams.get('tag') || '',
-      sort: url.searchParams.get('sort') || '',
-      limit: url.searchParams.get('limit') || '',
-    }));
+    const q = url.searchParams.get('q') || '';
+    const tag = url.searchParams.get('tag') || '';
+    const limit = url.searchParams.get('limit') || '';
+    if (q.trim()) {
+      const semantic = await semanticSearchMemories(q, { tag, limit }).catch(() => null);
+      if (semantic) return sendJson(res, 200, semantic);  // else fall through to lexical
+    }
+    return sendJson(res, 200, listMemories({ q, tag, sort: url.searchParams.get('sort') || '', limit }));
   }
 
   if (req.method === 'POST' && route === '/api/memory') {
@@ -672,9 +674,12 @@ async function maybeExtractMemories(scope) {
 }
 
 async function embedTexts(texts) {
-  const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
-  if (!apiKey || !EMBEDDING_MODEL || !texts.length) return null;
-  const baseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  // Embeddings can point at a separate endpoint (a cloud key OR a local server like ollama/LM Studio/TEI),
+  // independent of the main agent. A local endpoint may need no key. (Phase 2 a)
+  const apiKey = String(process.env.EMBEDDING_API_KEY || process.env.OPENAI_API_KEY || '').trim();
+  const baseUrl = String(process.env.EMBEDDING_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  if (!EMBEDDING_MODEL || !texts.length) return null;
+  if (!apiKey && !process.env.EMBEDDING_BASE_URL) return null;  // cloud default needs a key; a custom (local) endpoint may not
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
@@ -682,7 +687,7 @@ async function embedTexts(texts) {
     if (EMBEDDING_DIMENSIONS) body.dimensions = EMBEDDING_DIMENSIONS;
     const response = await fetch(`${baseUrl}/embeddings`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+      headers: { 'content-type': 'application/json', ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
       signal: controller.signal,
       body: JSON.stringify(body),
     });
@@ -814,6 +819,30 @@ async function semanticRecall(queryText, limit = MEMORY_RECALL_LIMIT, sharedQuer
       .map((item) => item.memory);
     const pinned = store.memories.filter((m) => m && m.pinned);
     return dedupeMemories([...pinned, ...scored]).slice(0, cap);
+  } catch (err) {
+    return null;
+  }
+}
+
+// Semantic ranking for the memory-tab search box (Phase 2 a). Returns null → caller falls back to
+// lexical, so search never silently drops rows when: no model / toggle off / partial corpus / embed fails.
+async function semanticSearchMemories(q, opts = {}) {
+  if (!EMBEDDING_MODEL) return null;
+  if (store.settings && store.settings.featureSemanticSearch === false) return null;
+  const query = cleanString(q, '');
+  if (!query || !store.memories.length) return null;
+  if (!memoryCorpusReady()) return null;
+  try {
+    const queryVec = await embedQueryVec(query);
+    if (!queryVec) return null;
+    const tagLc = String(opts.tag || '').trim().toLowerCase();
+    const limit = Math.min(Number(opts.limit) || 50, 50);
+    const scored = store.memories
+      .filter((m) => m.embedding_tag === EMBEDDING_TAG && m.embedding_b64)
+      .filter((m) => !tagLc || (m.tags || []).map((t) => String(t).toLowerCase()).includes(tagLc))
+      .map((m) => ({ m, score: cosineSim(queryVec, b64ToVec(m.embedding_b64)) }))
+      .sort((a, b) => ((b.m.pinned === true) - (a.m.pinned === true)) || (b.score - a.score));
+    return scored.slice(0, limit).map((x) => publicMemory(x.m));
   } catch (err) {
     return null;
   }
@@ -2042,6 +2071,7 @@ function normalizeSettings(input) {
     featureRecall: true,
     featureDelete: true,
     featureAutoExtract: true,
+    featureSemanticSearch: true,
   };
   const settings = { ...defaults, ...(input || {}) };
   return {
@@ -2056,6 +2086,7 @@ function normalizeSettings(input) {
     featureRecall: settings.featureRecall !== false && String(settings.featureRecall).toLowerCase() !== 'false',
     featureDelete: settings.featureDelete !== false && String(settings.featureDelete).toLowerCase() !== 'false',
     featureAutoExtract: settings.featureAutoExtract !== false && String(settings.featureAutoExtract).toLowerCase() !== 'false',
+    featureSemanticSearch: settings.featureSemanticSearch !== false && String(settings.featureSemanticSearch).toLowerCase() !== 'false',
   };
 }
 

@@ -321,3 +321,23 @@ test('startup triggers backfill: a corpus loaded from disk with no vectors fully
     if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test('memory search: a ready embedded corpus returns matches for a NON-lexical query (semantic path, Phase 2 a)', async () => {
+  const up = await startMockUpstream({});
+  const app = await startApp({ OPENAI_BASE_URL: up.url, EMBEDDING_MODEL: 'mock-embed' });
+  try {
+    await clearCorpus(app);
+    await app.addMemory('猫', '家里养了一只橘猫');
+    await app.addMemory('咖啡', '喝手冲不加糖');
+    assert.ok(await waitEmbedded(up, '橘猫'), 'first memory embedded');
+    assert.ok(await waitEmbedded(up, '手冲'), 'second memory embedded');
+    // The query is NOT a lexical substring of any memory: lexical search → 0 rows; the semantic path,
+    // once the corpus is embedded, ranks and returns the embedded rows. Getting ≥1 proves semantic ran.
+    const rows = await pollFor(async () => {
+      const r = await fetch(`${app.base}/api/memory?q=${encodeURIComponent('ZZZ_no_lexical_hit_here')}`);
+      const body = await r.json().catch(() => []);
+      return (Array.isArray(body) && body.length >= 1) ? body : null;
+    });
+    assert.ok(rows && rows.length >= 1, 'semantic search returns matches for a non-lexical query once the corpus is ready (lexical would be 0)');
+  } finally { await app.stop(); await up.close(); }
+});
