@@ -64,7 +64,7 @@ bridge 只绑 `127.0.0.1`，不要裸暴露到公网。默认 `interactive` 模�
 **第一步，让手机够得着它**（三选一，从简到稳）：
 
 1. **同一个 WiFi**：手机直接开 `http://<电脑IP>:8787`。
-2. **任何网络、零配置**：装免费的 [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)，`.env` 里设 `TUNNEL=quick` 重启——终端和控制台里会打出一个公网 HTTPS 地址。**先设好 `APP_AUTH_TOKEN`**，不然拿到链接的人都能用你的 AI。
+2. **任何网络、零配置**：装免费的 [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)，`.env` 里设 `TUNNEL=quick` 重启——终端和控制台里会打出一个公网 HTTPS 地址。**先设好 `APP_AUTH_TOKEN`**，不然拿到链接的人能读你全部消息、用你的 AI（未设时删除 / 清空这类破坏性操作会被拒，相关按钮也不显示）。
 3. **要稳定地址**：named Cloudflare tunnel / Tailscale / 自己的反代 + HTTPS。
 
 **第二步，加到桌面**：
@@ -81,7 +81,7 @@ bridge 只绑 `127.0.0.1`，不要裸暴露到公网。默认 `interactive` 模�
 - 控制台：运行事件流 + `/forge`（清理历史开新段）、`/quota`（查额度）命令
 - 发送前的本地草稿气泡、手机照片浏览器端压缩、GIF 动图保留
 - SSE 实时推送（无轮询），断线自动回退慢刷新
-- `APP_AUTH_TOKEN` 访问口令：不设时读消息 / 发消息任何人都能用（适合纯本机）；**删除单条、清空聊天记录这类破坏性操作在未设 token 时一律拒绝（403）**——公网部署务必设置，否则拿到链接的人能读你全部消息、用你的 AI
+- `APP_AUTH_TOKEN` 访问口令：不设时读消息 / 发消息任何人都能用（适合纯本机）；**删除单条、清空聊天记录这类破坏性操作在未设 token 时一律拒绝（403）**——公网部署务必设置，否则拿到链接的人能读你全部消息、用你的 AI（未设 token 时删除 / 清空按钮不显示）
 - 存储就是两个路径：`data/app-data.json` + `data/uploads/`，备份 = 复制
 
 ## 进阶文档
