@@ -203,6 +203,24 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, message);
   }
 
+  const recallMatch = route.match(/^\/api\/(chat|group)\/messages\/(\d+)\/recall$/);
+  if (recallMatch && req.method === 'POST') {
+    const message = recallMessage(recallMatch[1], Number(recallMatch[2]));
+    if (!message) return sendJson(res, 404, { error: 'message_not_found' });
+    return sendJson(res, 200, message);
+  }
+
+  const deleteMessageMatch = route.match(/^\/api\/(chat|group)\/messages\/(\d+)$/);
+  if (deleteMessageMatch && req.method === 'DELETE') {
+    const ok = deleteMessage(deleteMessageMatch[1], Number(deleteMessageMatch[2]));
+    return sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'message_not_found' });
+  }
+
+  if (req.method === 'DELETE' && (route === '/api/chat/messages' || route === '/api/group/messages')) {
+    const scope = route === '/api/group/messages' ? 'group' : 'chat';
+    return sendJson(res, 200, { ok: true, cleared: clearMessages(scope) });
+  }
+
   if (req.method === 'GET' && route === '/api/stickers') {
     return sendJson(res, 200, Array.isArray(store.stickers) ? store.stickers : []);
   }
@@ -1108,6 +1126,37 @@ function setMessageFavorite(scope, id, favorited) {
   return publicMessage(message);
 }
 
+function recallMessage(scope, id) {
+  const key = scope === 'group' ? 'group_messages' : 'chat_messages';
+  const message = (store[key] || []).find((m) => Number(m.id) === Number(id));
+  if (!message) return null;
+  message.recalled = true;
+  message.recalled_at = new Date().toISOString();
+  saveStore();
+  broadcastSse('message', { scope, message: publicMessage(message) });
+  return publicMessage(message);
+}
+
+function deleteMessage(scope, id) {
+  const key = scope === 'group' ? 'group_messages' : 'chat_messages';
+  if (!Array.isArray(store[key])) return false;
+  const before = store[key].length;
+  store[key] = store[key].filter((m) => Number(m.id) !== Number(id));
+  if (store[key].length === before) return false;
+  saveStore();
+  broadcastSse('deleted', { scope, id: Number(id) });
+  return true;
+}
+
+function clearMessages(scope) {
+  const key = scope === 'group' ? 'group_messages' : 'chat_messages';
+  const count = Array.isArray(store[key]) ? store[key].length : 0;
+  store[key] = [];
+  saveStore();
+  broadcastSse('cleared', { scope });
+  return count;
+}
+
 function publicMessage(message) {
   return { ...message, attachments: normalizeAttachments(message.attachments) };
 }
@@ -1972,6 +2021,9 @@ function normalizeSettings(input) {
     agentMention: process.env.AGENT_MENTION || 'assistant',
     autoReplyGroup: String(process.env.AUTO_REPLY_GROUP || '').toLowerCase() === 'true',
     theme: 'light',
+    featureCopyAll: true,
+    featureRecall: true,
+    featureDelete: true,
   };
   const settings = { ...defaults, ...(input || {}) };
   return {
@@ -1982,6 +2034,9 @@ function normalizeSettings(input) {
     agentMention: cleanString(settings.agentMention, defaults.agentMention).replace(/^@+/, '') || 'assistant',
     autoReplyGroup: settings.autoReplyGroup === true || String(settings.autoReplyGroup).toLowerCase() === 'true',
     theme: settings.theme === 'light' ? 'light' : 'dark',
+    featureCopyAll: settings.featureCopyAll !== false && String(settings.featureCopyAll).toLowerCase() !== 'false',
+    featureRecall: settings.featureRecall !== false && String(settings.featureRecall).toLowerCase() !== 'false',
+    featureDelete: settings.featureDelete !== false && String(settings.featureDelete).toLowerCase() !== 'false',
   };
 }
 

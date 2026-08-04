@@ -98,6 +98,56 @@ function bindEvents() {
       const ok = await copyText(body ? body.textContent : '');
       flashCopied(action, ok);
     }
+    if (name === 'copy-all') {
+      const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
+      const rows = (scope === 'group' ? state.group : state.chat) || [];
+      const text = rows
+        .filter((m) => !m.recalled && !m.pending)
+        .map((m) => `${m.sender}: ${String(m.content || ((m.attachments || []).length ? '[附件]' : '')).trim()}`)
+        .join('\n\n');
+      flashCopied(action, await copyText(text));
+    }
+    if (name === 'recall-message') {
+      const list = action.closest('.message-list');
+      const scope = (list && list.dataset.scrollScope) || (state.tab === 'group' ? 'group' : 'chat');
+      const id = action.dataset.id;
+      const msg = findMessageById(id);
+      if (!msg) return;
+      const prev = msg.recalled;
+      msg.recalled = true;
+      render();
+      try {
+        await api(`/api/${scope}/messages/${id}/recall`, { method: 'POST' });
+      } catch (err) {
+        msg.recalled = prev;
+        render();
+        handleBackgroundError(err);
+      }
+    }
+    if (name === 'delete-message') {
+      if (!confirm('删除这条消息？不可恢复。')) return;
+      const list = action.closest('.message-list');
+      const scope = (list && list.dataset.scrollScope) || (state.tab === 'group' ? 'group' : 'chat');
+      const id = action.dataset.id;
+      removeMessagesById(scope, [id]);
+      render();
+      try {
+        await api(`/api/${scope}/messages/${id}`, { method: 'DELETE' });
+      } catch (err) {
+        await refreshCurrent().catch(handleBackgroundError);
+      }
+    }
+    if (name === 'clear-chat') {
+      const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
+      if (!confirm(`清空${scope === 'group' ? '群聊' : '对话'}的全部消息？此操作不可恢复。`)) return;
+      state[scope] = [];
+      render();
+      try {
+        await api(`/api/${scope}/messages`, { method: 'DELETE' });
+      } catch (err) {
+        await refreshCurrent().catch(handleBackgroundError);
+      }
+    }
     if (name === 'reply-to') {
       const list = action.closest('.message-list');
       const scope = (list && list.dataset.scrollScope) || (state.tab === 'group' ? 'group' : 'chat');
@@ -614,6 +664,9 @@ async function submitSettings(form) {
   const previous = { ...state.settings };
   const body = Object.fromEntries(new FormData(form).entries());
   body.autoReplyGroup = form.elements.autoReplyGroup.checked;
+  body.featureCopyAll = form.elements.featureCopyAll ? form.elements.featureCopyAll.checked : true;
+  body.featureRecall = form.elements.featureRecall ? form.elements.featureRecall.checked : true;
+  body.featureDelete = form.elements.featureDelete ? form.elements.featureDelete.checked : true;
   state.settings = await api('/api/settings', { method: 'POST', body });
   applySettingsRename(previous, state.settings);
   cacheBootstrap();
@@ -748,9 +801,21 @@ function renderTopbar() {
       <div class="topbar-actions">
         ${(state.tab === 'chat' || state.tab === 'group') ? renderChatSearchBtn(state.tab) : ''}
         ${(state.tab === 'chat' || state.tab === 'group') ? renderFavFilterBtn(state.tab) : ''}
+        ${(state.tab === 'chat' || state.tab === 'group') ? renderChatToolsBtns(state.tab) : ''}
         <div class="status-pill">${esc(live)}</div>
       </div>
     </header>`;
+}
+
+function renderChatToolsBtns(scope) {
+  const s = state.settings || {};
+  const copyAll = s.featureCopyAll !== false
+    ? `<button class="fav-filter" type="button" data-action="copy-all" data-scope="${escAttr(scope)}" aria-label="复制全部对话">复制全部</button>`
+    : '';
+  const clear = s.featureDelete !== false
+    ? `<button class="fav-filter" type="button" data-action="clear-chat" data-scope="${escAttr(scope)}" aria-label="清空聊天记录">清空</button>`
+    : '';
+  return `${copyAll}${clear}`;
 }
 
 async function loadSearchPool(scope) {
@@ -953,27 +1018,40 @@ function renderQuotedParent(message) {
 
 function renderMessage(message, opts = {}) {
   const isMe = message.role === 'user' || message.sender === state.settings.userName;
-  const attachments = message.attachments || [];
-  const text = String(message.content || '').replace(/\n{3,}/g, '\n\n').trim();
+  const recalled = !!message.recalled;
+  const feat = state.settings || {};
+  const attachments = recalled ? [] : (message.attachments || []);
+  const text = recalled ? '' : String(message.content || '').replace(/\n{3,}/g, '\n\n').trim();
   const classes = [
     'message-row',
     isMe ? 'me' : '',
+    recalled ? 'recalled' : '',
     message.pending ? 'pending' : '',
     message.failed ? 'failed' : '',
     isWideMessage(text, attachments) ? 'wide' : '',
   ].filter(Boolean).join(' ');
+  const idAttr = esc(String(message.id));
+  const btns = [];
+  if (!recalled && text) btns.push(`<button class="copy-btn" type="button" data-action="copy-message" aria-label="复制消息">复制</button>`);
+  if (!recalled && !message.pending) {
+    btns.push(`<button class="reply-btn" type="button" data-action="reply-to" data-id="${idAttr}" aria-label="回复">回复</button>`);
+    btns.push(`<button class="fav-btn${message.favorited ? ' on' : ''}" type="button" data-action="toggle-favorite" data-id="${idAttr}" aria-label="${message.favorited ? '取消收藏' : '收藏'}">${message.favorited ? '★' : '☆'}</button>`);
+    if (isMe && feat.featureRecall !== false) btns.push(`<button class="recall-btn" type="button" data-action="recall-message" data-id="${idAttr}" aria-label="撤回">撤回</button>`);
+  }
+  if (feat.featureDelete !== false && !message.pending) btns.push(`<button class="del-btn" type="button" data-action="delete-message" data-id="${idAttr}" aria-label="删除">删除</button>`);
+  if (opts.showJump) btns.push(`<button class="jump-btn" type="button" data-action="jump-to" data-id="${idAttr}" aria-label="跳到原文">跳转</button>`);
+  const bubbleInner = recalled
+    ? `<div class="recalled-note">${isMe ? '你撤回了一条消息' : `${esc(message.sender)} 撤回了一条消息`}</div>`
+    : `${message.thinking ? `<div class="thinking">💭 ${esc(message.thinking)}</div>` : ''}${renderQuotedParent(message)}${text ? `<div class="body-text">${esc(text)}</div>` : ''}${attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : ''}`;
   return `
-    <article class="${classes}" id="msg-${esc(String(message.id))}">
+    <article class="${classes}" id="msg-${idAttr}">
       <div class="avatar">${esc(initials(message.sender))}</div>
       <div class="msg-col">
         <div class="msg-sender">${esc(message.sender)}</div>
         <div class="bubble">
-          ${message.thinking ? `<div class="thinking">💭 ${esc(message.thinking)}</div>` : ''}
-          ${renderQuotedParent(message)}
-          ${text ? `<div class="body-text">${esc(text)}</div>` : ''}
-          ${attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : ''}
+          ${bubbleInner}
         </div>
-        <div class="msg-time">${formatTime(message.created_at)}${text ? ` <button class="copy-btn" type="button" data-action="copy-message" aria-label="复制消息">复制</button>` : ''}${message.pending ? '' : ` <button class="reply-btn" type="button" data-action="reply-to" data-id="${esc(String(message.id))}" aria-label="回复">回复</button> <button class="fav-btn${message.favorited ? ' on' : ''}" type="button" data-action="toggle-favorite" data-id="${esc(String(message.id))}" aria-label="${message.favorited ? '取消收藏' : '收藏'}">${message.favorited ? '★' : '☆'}</button>`}${opts.showJump ? ` <button class="jump-btn" type="button" data-action="jump-to" data-id="${esc(String(message.id))}" aria-label="跳到原文">跳转</button>` : ''}</div>
+        <div class="msg-time">${formatTime(message.created_at)}${btns.length ? ' ' + btns.join(' ') : ''}</div>
       </div>
     </article>`;
 }
@@ -1479,6 +1557,12 @@ function renderSettings() {
       </div>
       <label class="chip"><input name="autoReplyGroup" type="checkbox" ${s.autoReplyGroup ? 'checked' : ''}> 群聊里不提到唤起词也自动回复</label>
       <div class="event">
+        <div class="event-title"><span>消息操作</span><span>控制气泡上出现哪些按钮</span></div>
+        <label class="chip"><input name="featureCopyAll" type="checkbox" ${s.featureCopyAll !== false ? 'checked' : ''}> 顶栏「复制全部」</label>
+        <label class="chip"><input name="featureRecall" type="checkbox" ${s.featureRecall !== false ? 'checked' : ''}> 消息「撤回」（只对自己发的）</label>
+        <label class="chip"><input name="featureDelete" type="checkbox" ${s.featureDelete !== false ? 'checked' : ''}> 消息「删除」+ 顶栏「清空」</label>
+      </div>
+      <div class="event">
         <div class="event-title"><span>AI 接入</span><span>${esc(s.agent.model)}</span></div>
         <div class="event-body">${s.agent.configured ? '服务器已配置 OpenAI-compatible API。' : '当前使用内置演示回复。在 .env 里设置 OPENAI_API_KEY 后会接入真实模型。'}</div>
       </div>
@@ -1736,6 +1820,20 @@ function connectStream() {
     cacheBootstrap();
     renderMessages(data.scope);
     maybeNotify(data.message);
+  });
+  eventStream.addEventListener('deleted', (event) => {
+    const data = parseStreamData(event);
+    if (!data || !data.scope || data.id == null) return;
+    removeMessagesById(data.scope, [data.id]);
+    cacheBootstrap();
+    renderMessages(data.scope);
+  });
+  eventStream.addEventListener('cleared', (event) => {
+    const data = parseStreamData(event);
+    if (!data || (data.scope !== 'chat' && data.scope !== 'group')) return;
+    state[data.scope] = [];
+    cacheBootstrap();
+    renderMessages(data.scope);
   });
   eventStream.addEventListener('console', (event) => {
     const data = parseStreamData(event);

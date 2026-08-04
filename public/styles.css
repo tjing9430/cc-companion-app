@@ -337,7 +337,7 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   padding:0 .2rem;
 }
 .reply-banner-cancel:hover{color:var(--danger)}
-.fav-btn,.jump-btn{
+.fav-btn,.jump-btn,.recall-btn,.del-btn{
   margin-left:.4rem;
   padding:0 .28rem;
   font-family:inherit;
@@ -350,8 +350,11 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   cursor:pointer;
   vertical-align:baseline;
 }
-.fav-btn:hover,.jump-btn:hover,.jump-btn:focus-visible{color:var(--accent);outline:none}
+.fav-btn:hover,.jump-btn:hover,.jump-btn:focus-visible,.recall-btn:hover,.recall-btn:focus-visible{color:var(--accent);outline:none}
+.del-btn:hover,.del-btn:focus-visible{color:var(--danger);outline:none}
 .fav-btn.on{color:#e0a63c}
+.recalled-note{font-style:italic;color:var(--faint)}
+.message-row.recalled .bubble{opacity:.85}
 .chat-toolbar{display:flex;justify-content:flex-end;padding:.3rem .6rem 0}
 .fav-filter{
   padding:.2rem .6rem;
