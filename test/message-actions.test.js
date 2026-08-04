@@ -144,10 +144,12 @@ test('feature toggles default on and persist off', async () => {
     assert.equal(def.featureRecall, true);
     assert.equal(def.featureDelete, true);
     assert.equal(def.featureCopyAll, true);
-    await af(ctx, '/api/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ featureRecall: false, featureDelete: false, featureCopyAll: false }) });
+    assert.equal(def.featureAutoExtract, true);
+    await af(ctx, '/api/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ featureRecall: false, featureDelete: false, featureCopyAll: false, featureAutoExtract: false }) });
     const off = await json(await af(ctx, '/api/settings'));
     assert.equal(off.featureRecall, false);
     assert.equal(off.featureDelete, false);
     assert.equal(off.featureCopyAll, false);
+    assert.equal(off.featureAutoExtract, false);
   } finally { await stopServer(ctx.srv); fs.rmSync(ctx.dataDir, { recursive: true, force: true }); }
 });

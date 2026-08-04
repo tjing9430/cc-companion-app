@@ -614,6 +614,7 @@ function parseExtractedMemories(raw) {
 // as AI-authored memories. Fire-and-forget; never blocks the reply.
 async function maybeExtractMemories(scope) {
   if (!MEMORY_EXTRACT_EVERY) return;
+  if (store.settings && store.settings.featureAutoExtract === false) return;  // UI opt-out (per-instance toggle)
   // Extraction can run on its own (small/cheap) model via EXTRACT_*; each
   // falls back to the main OPENAI_* config. With EXTRACT_* set this also
   // works in Claude Code mode, where no main API key is configured.
@@ -2040,6 +2041,7 @@ function normalizeSettings(input) {
     featureCopyAll: true,
     featureRecall: true,
     featureDelete: true,
+    featureAutoExtract: true,
   };
   const settings = { ...defaults, ...(input || {}) };
   return {
@@ -2053,6 +2055,7 @@ function normalizeSettings(input) {
     featureCopyAll: settings.featureCopyAll !== false && String(settings.featureCopyAll).toLowerCase() !== 'false',
     featureRecall: settings.featureRecall !== false && String(settings.featureRecall).toLowerCase() !== 'false',
     featureDelete: settings.featureDelete !== false && String(settings.featureDelete).toLowerCase() !== 'false',
+    featureAutoExtract: settings.featureAutoExtract !== false && String(settings.featureAutoExtract).toLowerCase() !== 'false',
   };
 }
 
