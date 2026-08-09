@@ -712,14 +712,14 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 .composer-field{
   flex:1;
   min-width:0;
-  min-height:40px;                 /* 跟 + / 发送 圆键等高:不等高时 flex-end 只对齐底边,看着就是「没对齐」 */
+  min-height:44px;                 /* 跟 + / 发送 圆键等高:不等高时 flex-end 只对齐底边,看着就是「没对齐」 */
   display:flex;
   align-items:center;
   gap:.1rem;
   background:var(--panel);
   border:1px solid var(--line);
-  border-radius:20px;
-  padding:2px 8px 2px 3px;         /* 表情在左,所以左边留小、右边留大 */
+  border-radius:24px;              /* 用户:更圆一点点 */
+  padding:2px 10px 2px 4px;         /* 表情在左,所以左边留小、右边留大 */
   transition:border-color .15s,box-shadow .15s;
 }
 .composer-field:focus-within{
@@ -733,8 +733,8 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   border:0;
   background:transparent;
   resize:none;
-  padding:.42rem .35rem;
-  min-height:34px;
+  padding:.45rem .4rem;
+  min-height:36px;
   max-height:200px;
   line-height:1.4;
   outline:none;
@@ -744,7 +744,7 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 .composer-bar textarea:focus{box-shadow:none;border:0}
 .composer-btn{
   flex:0 0 auto;
-  width:40px;height:40px;
+  width:44px;height:44px;
   border-radius:50%;
   display:grid;place-items:center;
   padding:0;
@@ -756,10 +756,14 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 }
 .composer-btn:hover:not(:disabled){background:var(--panel-soft);color:var(--text)}
 .composer-btn:active:not(:disabled){transform:translateY(.5px)}
-.composer-btn svg{width:19px;height:19px;display:block}
-.composer-field .sticker-toggle{width:32px;height:32px;margin:0}
-.composer-field .sticker-toggle svg{width:19px;height:19px}
-.composer-attach{position:relative;display:inline-grid;place-items:center;border-color:var(--line);background:var(--panel)}
+.composer-btn svg{width:20px;height:20px;display:block}
+.composer-field .sticker-toggle{width:38px;height:38px;margin:0;color:var(--accent-strong)}  /* 用户:表情用可爱版那个(更大+主题色) */
+.composer-field .sticker-toggle svg{width:23px;height:23px}
+.composer-attach{
+  position:relative;display:inline-grid;place-items:center;
+  border-color:var(--line);background:var(--panel);
+  margin:0;   /* ★全局 label{margin:0 0 .3rem} 会漏进来:「+」是 <label>,flex-end 对齐 margin 盒 → 比别的高 4.8px(用户两轮都说没对齐,就是它) */
+}
 .composer-attach input[type=file]{
   position:absolute;inset:0;
   width:100%;height:100%;
@@ -802,6 +806,11 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   background:var(--danger-soft);color:var(--danger);
   border-radius:8px;font-size:.82rem;line-height:1.5;overflow-wrap:anywhere;
 }
+/* ★全局 input{width:100%} 会把勾选框撑满整行:.chip 原来是 inline-flex(按内容宽),
+   撑不开所以没露馅;我把 .setting-group 改成 grid 后 chip 变成整行宽,input 就真的
+   拉满了 → 勾选框和文字被推到右边(用户那张设置页截图里就是)。今天第 4 个全局规则漏进组件的例子。 */
+.chip input[type="checkbox"],
+.chip input[type="radio"]{width:auto;flex:0 0 auto;margin:0}
 .chip{
   display:inline-flex;align-items:center;gap:.3rem;
   background:var(--panel);
@@ -810,7 +819,8 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   padding:.22rem .55rem;
   color:var(--muted);
   font-size:.72rem;
-  white-space:nowrap;
+  white-space:normal;
+  line-height:1.45;
 }
 
 /* Split layouts */
