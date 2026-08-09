@@ -1393,6 +1393,8 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 
 /* 日记页头 —— 行楷标题 + 小纸片按钮,搜索/标签/视图收进放大镜 */
 /* 字体只 subset 了「日记资料库写」六个字(2.9KB),别拿它排正文 */
+/* Ma Shan Zheng（马善政楷体），SIL OFL 1.1 —— 许可证见 fonts/OFL.txt
+   这里只放了标题用得到的那十来个字的子集（4.8KB），不是完整字体 */
 @font-face{
   font-family:'HangkaiUI';
   src:url('fonts/hangkai-ui.woff2') format('woff2');

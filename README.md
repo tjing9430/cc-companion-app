@@ -114,6 +114,7 @@ API 路由总表、控制台命令的适配器 JSON 协议等长内容都在上�
 
 - [CyberSealNull/CcCompanion](https://github.com/CyberSealNull/CcCompanion)（电脑眠眠豹）——iOS 版 Claude Code 口袋客户端。看到它才动手补了这个 Web/Android 侧的实现；代码为独立编写，方向上它是先行者。
 - [DasterProkio/awesome-ai-companion](https://github.com/DasterProkio/awesome-ai-companion) —— 收录了本项目。
+- [Ma Shan Zheng 马善政楷体](https://github.com/googlefonts/mashanzheng) —— 记忆页标题用的行楷。SIL Open Font License 1.1,许可证全文见 `public/fonts/OFL.txt`。仓库里只放了子集(标题那十来个字,4.8KB),不是完整字体。
 
 ## 商标与免责
 
