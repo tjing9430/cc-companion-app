@@ -712,7 +712,7 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 .composer-field{
   flex:1;
   min-width:0;
-  min-height:44px;                 /* 跟 + / 发送 圆键等高:不等高时 flex-end 只对齐底边,看着就是「没对齐」 */
+  min-height:40px;                 /* 跟 + / 发送 圆键等高:不等高时 flex-end 只对齐底边,看着就是「没对齐」 */
   display:flex;
   align-items:center;
   gap:.1rem;
@@ -733,8 +733,8 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   border:0;
   background:transparent;
   resize:none;
-  padding:.45rem .4rem;
-  min-height:36px;
+  padding:.4rem .35rem;
+  min-height:34px;
   max-height:200px;
   line-height:1.4;
   outline:none;
@@ -744,7 +744,7 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 .composer-bar textarea:focus{box-shadow:none;border:0}
 .composer-btn{
   flex:0 0 auto;
-  width:44px;height:44px;
+  width:2.42rem;height:2.42rem;    /* = 用户自己 App 的 .send-fab 真实尺寸(38.7px);原来 44px,用户说发送键「太大看起来很笨」 */
   border-radius:50%;
   display:grid;place-items:center;
   padding:0;
@@ -756,9 +756,9 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 }
 .composer-btn:hover:not(:disabled){background:var(--panel-soft);color:var(--text)}
 .composer-btn:active:not(:disabled){transform:translateY(.5px)}
-.composer-btn svg{width:20px;height:20px;display:block}
-.composer-field .sticker-toggle{width:38px;height:38px;margin:0;color:var(--accent-strong)}  /* 用户:表情用可爱版那个(更大+主题色) */
-.composer-field .sticker-toggle svg{width:23px;height:23px}
+.composer-btn svg{width:18px;height:18px;display:block}
+.composer-field .sticker-toggle{width:32px;height:32px;margin:0;color:var(--accent-strong)}  /* 用户:表情用可爱版那个(更大+主题色) */
+.composer-field .sticker-toggle svg{width:20px;height:20px}
 .composer-attach{
   position:relative;display:inline-grid;place-items:center;
   border-color:var(--line);background:var(--panel);
@@ -1334,3 +1334,6 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   .sticker-toggle .sk-eye{animation:none}
   .sticker-toggle svg{transition:none}
 }
+
+/* console 命令栏:同一套胶囊,但里面没有表情键,左右内边距对称即可 */
+.console-command .composer-field{padding:2px 8px}

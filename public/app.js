@@ -1364,8 +1364,10 @@ function renderConsole() {
           ${CONSOLE_COMMANDS.map(([cmd, label]) => `<button type="button" data-action="console-shortcut" data-cmd="${escAttr(cmd)}">${esc(label)}</button>`).join('')}
         </div>
         <div class="composer-bar">
-          <textarea name="command" rows="1" placeholder="输入控制台命令" ${state.offline ? 'disabled' : ''}></textarea>
-          <button class="composer-btn composer-send" type="submit" aria-label="添加附件" title="添加附件" ${state.offline ? 'disabled' : ''}>${ICONS.send}</button>
+          <div class="composer-field">
+            <textarea name="command" rows="1" placeholder="输入控制台命令" ${state.offline ? 'disabled' : ''}></textarea>
+          </div>
+          <button class="composer-btn composer-send" type="submit" aria-label="发送命令" title="发送命令" ${state.offline ? 'disabled' : ''}>${ICONS.send}</button>
         </div>
       </form>
       <div class="event-list" data-scroll-list data-scroll-scope="console">
