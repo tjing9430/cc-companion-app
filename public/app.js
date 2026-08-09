@@ -295,8 +295,13 @@ function bindEvents() {
       const tab = action.dataset.tab;
       state.memoryTab = ['home', 'docs', 'all'].includes(tab) ? tab : 'diary';
       state.memoryToolsOpen = false;
+      // 换一叠就把筛选松开:「全部条目」里筛着 auto 再切回日记,日记会空成 0 条(日记本就不含 auto)
+      const hadQuery = Boolean(state.memoryQuery);
+      state.memoryTagFilter = '';
+      state.memoryQuery = '';
       render();
       if (state.memoryTab === 'docs') loadDocuments();
+      else if (hadQuery) loadMemories();
     }
     if (name === 'memory-view') {
       state.memoryView = action.dataset.view === 'timeline' ? 'timeline' : 'cards';
@@ -896,7 +901,10 @@ function renderTopbar() {
   const live = state.offline ? status : `${streamStatusLabel()} - ${status}`;
   return `
     <header class="topbar${mem ? ' topbar-paper' : ''}">
-      <div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>
+      <div class="topbar-title">
+        ${mem && mem.back ? '<button type="button" class="topbar-back" data-action="memory-tab" data-tab="home" aria-label="回记忆">‹</button>' : ''}
+        <div class="topbar-title-text"><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>
+      </div>
       <div class="topbar-actions">
         ${(state.tab === 'chat' || state.tab === 'group') ? renderChatSearchBtn(state.tab) : ''}
         ${(state.tab === 'chat' || state.tab === 'group') ? renderFavFilterBtn(state.tab) : ''}
@@ -1443,13 +1451,13 @@ function memoryTabHeading() {
   const tail = tagFilter ? ` · 「${tagFilter}」` : ' · 点标题进去看全文';
   if (state.memoryTab === 'docs') {
     const docs = Array.isArray(state.documents) ? state.documents : [];
-    return { title: '资料库', subtitle: `${docs.length} 份 · ${state.settings.assistantName || 'AI'}也读得到` };
+    return { back: true, title: '资料库', subtitle: `${docs.length} 份 · ${state.settings.assistantName || 'AI'}也读得到` };
   }
   if (state.memoryTab === 'all') {
-    return { title: '全部条目', subtitle: `${countOf(everything)} 条${tail}` };
+    return { back: true, title: '全部条目', subtitle: `${countOf(everything)} 条${tail}` };
   }
   if (state.memoryTab === 'diary') {
-    return { title: '日记', subtitle: `${countOf(everything.filter((m) => !isAuto(m)))} 篇${tail}` };
+    return { back: true, title: '日记', subtitle: `${countOf(everything.filter((m) => !isAuto(m)))} 篇${tail}` };
   }
   return { title: '记忆', subtitle: '今天想翻哪一叠?' };
 }
@@ -1491,10 +1499,9 @@ function renderMemoryHome() {
 }
 
 function renderMemory() {
-  // 分段控件并进副标题行当一个小链接 —— 省一整行,页面才留得出白
-  const jump = (tab, label) => `<button type="button" class="diary-jump" data-action="memory-tab" data-tab="${tab}">${label}</button>`;
+  // 返回箭头在顶栏(‹ 日记),页里不再放导航
   if (state.memoryTab === 'home') return renderMemoryHome();
-  if (state.memoryTab === 'docs') return renderDocs(jump('home', '‹ 记忆'));
+  if (state.memoryTab === 'docs') return renderDocs();
   const editing = state.memoryEditing;
   const writerOpen = Boolean(editing || state.memoryWriterOpen);
   const editTags = editing && Array.isArray(editing.tags) ? editing.tags.join(', ') : '';
@@ -1509,28 +1516,47 @@ function renderMemory() {
   const view = state.memoryView === 'timeline' ? 'timeline' : 'cards';
   // 找东西的家什(搜索/标签/视图)默认收起,只在点了放大镜时落下来 —— 日记页要留白
   const toolsOpen = Boolean(state.memoryToolsOpen || state.memoryQuery || tagFilter);
+  const searchRow = `
+    <div class="search-row memory-search">
+      <input data-memory-search="1" placeholder="搜索记忆" value="${escAttr(state.memoryQuery)}">
+      ${state.memoryQuery ? '<button class="ghost" type="button" data-action="clear-memory-search">清空</button>' : ''}
+    </div>`;
+  const viewToggle = `
+    <div class="memory-viewtoggle">
+      <button type="button" class="${view === 'cards' ? 'on' : ''}" data-action="memory-view" data-view="cards">卡片</button>
+      <button type="button" class="${view === 'timeline' ? 'on' : ''}" data-action="memory-view" data-view="timeline">时间线</button>
+    </div>`;
+  // 全部条目是「翻库」的地方:搜索框和标签一直摆在外面,跟内容一起往上滚(反馈 #47455)
+  // 日记只有几篇、要留白,还是收在放大镜里
+  if (isAll) {
+    return `
+      <div class="memory-view mem-lib">
+        ${searchRow}
+        <div class="mem-lib-views">${viewToggle}</div>
+        <div class="mem-tag-scroll">${renderMemoryTagChips(all)}</div>
+        <div class="memory-list">
+          ${shown.length
+            ? (view === 'timeline' ? renderMemoryTimeline(shown) : shown.map(renderMemoryItem).join(''))
+            : `<div class="empty">${state.memoryQuery || tagFilter ? '没有匹配的记忆。' : '还没有记忆。'}</div>`}
+        </div>
+      </div>`;
+  }
   return `
     <div class="memory-view">
       <div class="diary-head">
-        ${jump('home', '‹ 记忆')}
+        <span></span>
         <div class="diary-head-acts">
           <button type="button" class="diary-tool${toolsOpen ? ' on' : ''}" data-action="toggle-memory-tools" aria-label="搜索和筛选" aria-expanded="${toolsOpen}">${ICON_SEARCH}</button>
-          ${isAll ? '' : '<button type="button" class="diary-write" data-action="toggle-memory-writer">✎ 写日记</button>'}
+          <button type="button" class="diary-write" data-action="toggle-memory-writer">✎ 写日记</button>
         </div>
       </div>
       ${writerOpen ? renderMemoryWriter(editing, editMood, editAuthor, editTags) : ''}
       ${toolsOpen ? `
       <div class="diary-tools">
-        <div class="search-row memory-search">
-          <input data-memory-search="1" placeholder="搜索记忆" value="${escAttr(state.memoryQuery)}">
-          ${state.memoryQuery ? '<button class="ghost" type="button" data-action="clear-memory-search">清空</button>' : ''}
-        </div>
+        ${searchRow}
         <div class="diary-tools-row">
           ${renderMemoryTagChips(all)}
-          <div class="memory-viewtoggle">
-            <button type="button" class="${view === 'cards' ? 'on' : ''}" data-action="memory-view" data-view="cards">卡片</button>
-            <button type="button" class="${view === 'timeline' ? 'on' : ''}" data-action="memory-view" data-view="timeline">时间线</button>
-          </div>
+          ${viewToggle}
         </div>
       </div>` : ''}
       <div class="memory-list">
@@ -1541,11 +1567,10 @@ function renderMemory() {
     </div>`;
 }
 
-function renderDocs(backLink) {
+function renderDocs() {
   const docs = Array.isArray(state.documents) ? state.documents : [];
   return `
     <div class="memory-view">
-      <div class="diary-head">${backLink}</div>
       <div class="doc-toolbar">
         <button class="memory-writer-card doc-add" type="button" data-action="open-doc-picker">
           <span class="memory-writer-icon" aria-hidden="true">↑</span>

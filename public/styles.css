@@ -1416,10 +1416,6 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   padding:.34rem .75rem;cursor:pointer;
 }
 .diary-write:active{background:var(--accent-soft)}
-.diary-jump{
-  flex:none;border:0;background:none;cursor:pointer;font-family:inherit;
-  color:var(--accent);font-size:.74rem;padding:.62rem .8rem .62rem 0;margin:-.62rem 0;
-}
 .diary-tools{
   border:1px solid var(--line-soft);border-radius:14px;background:var(--panel);
   padding:.55rem .6rem .4rem;margin:.1rem 0 .55rem;
@@ -1501,3 +1497,33 @@ body[data-theme="dark"] .mem-note-tape{
 @media (max-width:480px){
   .topbar.topbar-paper p{display:block}
 }
+
+/* 顶栏返回箭头:记忆子页用,回首屏 */
+.topbar-title{display:flex;align-items:center;gap:.5rem;min-width:0}
+.topbar-title-text{min-width:0}
+.topbar-back{
+  flex:none;border:0;background:none;cursor:pointer;color:var(--text);
+  font-size:1.5rem;line-height:1;padding:.35rem .45rem .5rem;margin-left:-.45rem;
+}
+.topbar-back:active{opacity:.55}
+
+/* 全部条目 = 翻库页:搜索框和标签摆在外面,跟内容一起往上滚(反馈 #47455) */
+/* .memory-view 是 grid;栅格项 min-width 默认 auto = 不肯缩到内容宽以下,
+   一行 nowrap 标签就能把整列撑爆、连搜索框和卡片一起拉宽 → 必须显式归零 */
+.mem-lib>*{min-width:0}
+.mem-lib .memory-search{margin:.1rem 0 .6rem}
+/* 上面一排大 pill(看法),下面一排小 tag(筛选)—— 照用户给的参考图分两行 */
+.mem-lib-views{margin:0 0 .5rem}
+.mem-lib-views .memory-viewtoggle{margin:0;justify-content:flex-start}
+.mem-lib-views .memory-viewtoggle button{padding:.42rem 1.05rem;font-size:.85rem;border-radius:999px}
+/* 标签横着滑;滑条藏掉,别在内容上方留一道灰杠 */
+.mem-tag-scroll{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:0 0 .75rem}
+.mem-tag-scroll::-webkit-scrollbar{display:none}
+.mem-tag-scroll .memory-tag-chips{flex-wrap:nowrap;margin:0;width:max-content;padding-right:.5rem}
+/* 小 tag 走纯文字,选中的才填色 —— 参考图里那一排就是这个分量 */
+.mem-lib .memory-tag-chip{
+  white-space:nowrap;font-size:.76rem;padding:.3rem .6rem;
+  border-color:transparent;background:none;color:var(--muted);
+}
+.mem-lib .memory-tag-chip.on{background:var(--accent);border-color:var(--accent);color:#fff8f0}
+.mem-lib .memory-tag-chip.on .memory-tag-count{color:#fff8f0;opacity:.75}
