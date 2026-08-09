@@ -878,12 +878,14 @@ function renderAuth() {
 }
 
 function renderTopbar() {
-  const title = state.tab === 'chat'
+  // 记忆 tab 的顶栏跟着小 tab 走 —— 页里不再重复一遍标题(反馈 #47434)
+  const mem = state.tab === 'memory' ? memoryTabHeading() : null;
+  const title = mem ? mem.title : (state.tab === 'chat'
     ? state.settings.assistantName
     : (state.tab === 'group'
       ? state.settings.groupName
-      : (tabs.find(([id]) => id === state.tab)?.[1] || 'App'));
-  const subtitle = {
+      : (tabs.find(([id]) => id === state.tab)?.[1] || 'App')));
+  const subtitle = mem ? mem.subtitle : {
     chat: `和 ${state.settings.assistantName} 单独说话。`,
     group: `共享房间，提到 @${state.settings.agentMention} 会唤起 AI。`,
     console: '查看运行事件、回复和调试日志。',
@@ -893,7 +895,7 @@ function renderTopbar() {
   const status = state.offline ? '离线快照' : (state.settings.agent.configured ? 'API 已配置' : '演示模式');
   const live = state.offline ? status : `${streamStatusLabel()} - ${status}`;
   return `
-    <header class="topbar">
+    <header class="topbar${mem ? ' topbar-paper' : ''}">
       <div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>
       <div class="topbar-actions">
         ${(state.tab === 'chat' || state.tab === 'group') ? renderChatSearchBtn(state.tab) : ''}
@@ -1432,6 +1434,26 @@ function renderConsoleEvent(event) {
     </article>`;
 }
 
+// 顶栏在记忆 tab 上显示的是「当前这一叠」的名字和条数,页里就不再写一遍
+function memoryTabHeading() {
+  const everything = Array.isArray(state.memories) ? state.memories : [];
+  const isAuto = (m) => (m.tags || []).some((t) => String(t) === 'auto');
+  const tagFilter = state.memoryTagFilter || '';
+  const countOf = (list) => (tagFilter ? list.filter((m) => (m.tags || []).some((t) => String(t) === tagFilter)).length : list.length);
+  const tail = tagFilter ? ` · 「${tagFilter}」` : ' · 点标题进去看全文';
+  if (state.memoryTab === 'docs') {
+    const docs = Array.isArray(state.documents) ? state.documents : [];
+    return { title: '资料库', subtitle: `${docs.length} 份 · ${state.settings.assistantName || 'AI'}也读得到` };
+  }
+  if (state.memoryTab === 'all') {
+    return { title: '全部条目', subtitle: `${countOf(everything)} 条${tail}` };
+  }
+  if (state.memoryTab === 'diary') {
+    return { title: '日记', subtitle: `${countOf(everything.filter((m) => !isAuto(m)))} 篇${tail}` };
+  }
+  return { title: '记忆', subtitle: '今天想翻哪一叠?' };
+}
+
 // 撕纸的毛边 = feTurbulence 位移,只作用在「纸面层」;字浮在上面,一点不糊
 const TORN_DEFS = `
 <svg class="torn-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -1460,8 +1482,6 @@ function renderMemoryHome() {
   return `
     <div class="mem-home">
       ${TORN_DEFS}
-      <h2 class="mem-home-title">记忆</h2>
-      <div class="mem-home-sub">今天想翻哪一叠?</div>
       ${note('n1 a', 'diary', 'DIARY · 自己写的', '日记', mine.length, '篇')}
       ${note('n2 b', 'docs', 'DOCS · 存起来备查', '资料库', docs.length, '份')}
       ${note('n3 c', 'all', 'ALL · 聊天里自动记的', '全部条目', all.length, '条')}
@@ -1489,20 +1509,15 @@ function renderMemory() {
   const view = state.memoryView === 'timeline' ? 'timeline' : 'cards';
   // 找东西的家什(搜索/标签/视图)默认收起,只在点了放大镜时落下来 —— 日记页要留白
   const toolsOpen = Boolean(state.memoryToolsOpen || state.memoryQuery || tagFilter);
-  const unit = isAll ? '条' : '篇';
-  const sub = tagFilter
-    ? `${shown.length} / ${all.length} ${unit} · 「${esc(tagFilter)}」`
-    : `${all.length} ${unit} · 点标题进去看全文`;
   return `
     <div class="memory-view">
       <div class="diary-head">
-        <h2 class="diary-title">${isAll ? '全部条目' : '日记'}</h2>
+        ${jump('home', '‹ 记忆')}
         <div class="diary-head-acts">
           <button type="button" class="diary-tool${toolsOpen ? ' on' : ''}" data-action="toggle-memory-tools" aria-label="搜索和筛选" aria-expanded="${toolsOpen}">${ICON_SEARCH}</button>
           ${isAll ? '' : '<button type="button" class="diary-write" data-action="toggle-memory-writer">✎ 写日记</button>'}
         </div>
       </div>
-      <div class="diary-sub"><span>${sub}</span>${jump('home', '‹ 记忆')}</div>
       ${writerOpen ? renderMemoryWriter(editing, editMood, editAuthor, editTags) : ''}
       ${toolsOpen ? `
       <div class="diary-tools">
@@ -1530,10 +1545,7 @@ function renderDocs(backLink) {
   const docs = Array.isArray(state.documents) ? state.documents : [];
   return `
     <div class="memory-view">
-      <div class="diary-head">
-        <h2 class="diary-title">资料库</h2>
-      </div>
-      <div class="diary-sub"><span>${docs.length} 份 · 沈屿也读得到</span>${backLink}</div>
+      <div class="diary-head">${backLink}</div>
       <div class="doc-toolbar">
         <button class="memory-writer-card doc-add" type="button" data-action="open-doc-picker">
           <span class="memory-writer-icon" aria-hidden="true">↑</span>

@@ -1398,11 +1398,7 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   src:url('fonts/hangkai-ui.woff2') format('woff2');
   font-weight:400;font-style:normal;font-display:swap;
 }
-.diary-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin:.1rem 0 .1rem}
-.diary-title{
-  margin:0;font-family:'HangkaiUI',var(--font-serif,Georgia),serif;
-  font-size:1.5rem;line-height:1.25;font-weight:400;letter-spacing:0;color:var(--text);
-}
+.diary-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin:.1rem 0 .7rem;min-height:36px}
 .diary-head-acts{display:flex;align-items:center;gap:.4rem;flex:none}
 .diary-tool{
   width:34px;height:34px;flex:none;display:grid;place-items:center;
@@ -1420,13 +1416,9 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   padding:.34rem .75rem;cursor:pointer;
 }
 .diary-write:active{background:var(--accent-soft)}
-.diary-sub{
-  display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;
-  color:var(--muted);font-size:.74rem;margin:0 0 1rem;
-}
 .diary-jump{
   flex:none;border:0;background:none;cursor:pointer;font-family:inherit;
-  color:var(--accent);font-size:.74rem;padding:.62rem 0 .62rem .8rem;margin:-.62rem 0;
+  color:var(--accent);font-size:.74rem;padding:.62rem .8rem .62rem 0;margin:-.62rem 0;
 }
 .diary-tools{
   border:1px solid var(--line-soft);border-radius:14px;background:var(--panel);
@@ -1444,7 +1436,7 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   --paper-ink:#4a3c2c; --paper-kicker:#b08a72; --paper-muted:#a3917c;
   --paper-bg1:#fbf7f1; --paper-bg2:#f7f1e8; --paper-shadow:rgba(90,70,50,.16);
   /* 满屏铺到边:把 .content 的内边距吃掉,纸才像纸不像卡片 */
-  position:relative;margin:-.75rem -.75rem -.6rem;padding:1.05rem .9rem 2rem;
+  position:relative;margin:-.75rem -.75rem -.6rem;padding:1.6rem .9rem 2rem;
   background:
     repeating-linear-gradient(0deg, transparent 0 33px, var(--paper-line) 33px 34px),
     linear-gradient(180deg,var(--paper-bg1),var(--paper-bg2));
@@ -1456,11 +1448,6 @@ body[data-theme="dark"] .mem-home{
   --paper-bg1:#221e1a; --paper-bg2:#1d1916; --paper-shadow:rgba(0,0,0,.4);
 }
 .torn-defs{position:absolute;width:0;height:0}
-.mem-home-title{
-  margin:.1rem 0 .1rem;font-family:'HangkaiUI',var(--font-serif,Georgia),serif;
-  font-size:1.5rem;font-weight:400;color:var(--paper-ink);
-}
-.mem-home-sub{font-size:.74rem;color:var(--paper-muted);margin-bottom:1rem}
 
 /* 一张便签 = 纸面层(带毛边滤镜)+ 格纹层(笔直)+ 文字层(清晰) */
 .mem-note{
@@ -1507,3 +1494,10 @@ body[data-theme="dark"] .mem-note-tape{
 .mem-home-heart{position:absolute;right:6%;top:56%;color:rgba(198,86,74,.45);font-size:1.1rem}
 /* 关了动效就别转纸片 —— 只留质感,不留歪斜 */
 @media (prefers-reduced-motion: reduce){ .mem-note{transform:none!important} }
+
+/* 记忆 tab 的顶栏标题走行楷:页里不再重复标题,这里就是唯一那一个(反馈 #47434) */
+.topbar-paper h1{font-family:'HangkaiUI',var(--font-serif,Georgia),serif;font-weight:400;letter-spacing:.02em}
+/* 手机上顶栏副标题本来是藏的(聊天页省地方);记忆页的条数现在只剩这一处 → 放出来 */
+@media (max-width:480px){
+  .topbar.topbar-paper p{display:block}
+}
