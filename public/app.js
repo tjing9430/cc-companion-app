@@ -68,7 +68,7 @@ const ICONS = {
   settings:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M3.5 10h2M14.5 10h2M5.4 5.4l1.4 1.4M13.2 13.2l1.4 1.4M5.4 14.6l1.4-1.4M13.2 6.8l1.4-1.4"/></svg>',
   plus:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg>',
   send:    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10h13M11 4.5l5.5 5.5L11 15.5"/></svg>',
-  sticker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="13" height="13" rx="4"/><circle cx="7.6" cy="8.4" r=".85" fill="currentColor" stroke="none"/><circle cx="12.4" cy="8.4" r=".85" fill="currentColor" stroke="none"/><path d="M7.3 11.8c.7.9 1.7 1.4 2.7 1.4s2-.5 2.7-1.4"/></svg>',
+  sticker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6.7"/><circle class="sk-eye" cx="7.7" cy="8.5" r=".9" fill="currentColor" stroke="none"/><circle class="sk-eye sk-eye2" cx="12.3" cy="8.5" r=".9" fill="currentColor" stroke="none"/><path class="sk-mouth" d="M7.4 11.9c.7.9 1.6 1.4 2.6 1.4s1.9-.5 2.6-1.4"/></svg>',
 };
 
 const tabs = [
@@ -828,7 +828,7 @@ function renderAuth() {
     <main class="auth-card">
       <h1>CC Companion</h1>
       <p class="brand-subtitle">如果服务器开启了 APP_AUTH_TOKEN，在这里输入访问口令。</p>
-      ${state.error ? `<p class="event error">${esc(state.error)}</p>` : ''}
+      ${state.error ? `<p class="server-note">${esc(state.error)}</p>` : ''}
       <form data-auth-form="1" class="stack">
         <div class="form-row">
           <label>访问口令</label>
@@ -1256,8 +1256,8 @@ function renderComposer(scope) {
              「+」和「发送」是胶囊外的独立圆键。之前是 +/☺/文字/发送 全塞进一个大胶囊,
              那一坨就是用户说的「笨笨的」。 -->
         <div class="composer-field">
-          <textarea name="content" rows="1" placeholder="${escAttr(placeholder)}" ${state.offline ? 'disabled' : ''}>${esc(draft)}</textarea>
           <button class="composer-btn sticker-toggle${state.stickerOpen && state.stickerOpen[scope] ? ' on' : ''}" type="button" data-action="toggle-stickers" data-scope="${escAttr(scope)}" aria-label="表情" title="表情">${ICONS.sticker}</button>
+          <textarea name="content" rows="1" placeholder="${escAttr(placeholder)}" ${state.offline ? 'disabled' : ''}>${esc(draft)}</textarea>
         </div>
         <label class="composer-btn composer-attach" aria-label="添加附件" title="添加附件">
           <input data-file-scope="${escAttr(scope)}" type="file" accept="image/*,.pdf,.txt" multiple ${state.offline ? 'disabled' : ''}>
@@ -1703,24 +1703,26 @@ function renderSettings() {
         </div>
       </div>
       <label class="chip"><input name="autoReplyGroup" type="checkbox" ${s.autoReplyGroup ? 'checked' : ''}> 群聊里不提到唤起词也自动回复</label>
-      <div class="event">
-        <div class="event-title"><span>消息操作</span><span>控制气泡上出现哪些按钮</span></div>
+      <div class="setting-group">
+        <div class="setting-group-head"><span class="setting-group-title">消息操作</span></div>
+        <p class="setting-group-hint">控制气泡上出现哪些按钮</p>
         <label class="chip"><input name="featureCopyAll" type="checkbox" ${s.featureCopyAll !== false ? 'checked' : ''}> 顶栏「复制全部」</label>
         <label class="chip"><input name="featureRecall" type="checkbox" ${s.featureRecall !== false ? 'checked' : ''}> 消息「撤回」（只对自己发的）</label>
         <label class="chip"><input name="featureDelete" type="checkbox" ${s.featureDelete !== false ? 'checked' : ''}> 消息「删除」+ 顶栏「清空」</label>
       </div>
-      <div class="event">
-        <div class="event-title"><span>记忆</span><span>自动提炼 / 语义搜索需在 .env 配置模型</span></div>
+      <div class="setting-group">
+        <div class="setting-group-head"><span class="setting-group-title">记忆</span></div>
+        <p class="setting-group-hint">自动提炼 / 语义搜索需在 .env 配置模型</p>
         <label class="chip"><input name="featureAutoExtract" type="checkbox" ${s.featureAutoExtract !== false ? 'checked' : ''}> 自动从聊天提炼长期记忆</label>
         <label class="chip"><input name="featureSemanticSearch" type="checkbox" ${s.featureSemanticSearch !== false ? 'checked' : ''}> 记忆搜索用语义（配了 EMBEDDING_MODEL 才生效）</label>
       </div>
-      <div class="event">
-        <div class="event-title"><span>AI 接入</span><span>${esc(s.agent.model)}</span></div>
-        <div class="event-body">${s.agent.configured ? '服务器已配置 OpenAI-compatible API。' : '当前使用内置演示回复。在 .env 里设置 OPENAI_API_KEY 后会接入真实模型。'}</div>
+      <div class="setting-group">
+        <div class="setting-group-head"><span class="setting-group-title">AI 接入</span><span class="setting-group-value">${esc(s.agent.model)}</span></div>
+        <p class="setting-group-hint">${s.agent.configured ? '服务器已配置 OpenAI-compatible API。' : '当前使用内置演示回复。在 .env 里设置 OPENAI_API_KEY 后会接入真实模型。'}</p>
       </div>
-      ${notifySupported() ? `<div class="event">
-        <div class="event-title"><span>后台通知</span><span>${Notification.permission === 'denied' ? '被浏览器拒绝' : (notifyEnabled() ? '已开启' : '未开启')}</span></div>
-        <div class="event-body">页面在后台时，AI 的新消息（包括它主动发来的）会弹系统通知。只对本设备生效。${Notification.permission === 'denied' ? '需要先在浏览器的网站设置里允许通知。' : ''}</div>
+      ${notifySupported() ? `<div class="setting-group">
+        <div class="setting-group-head"><span class="setting-group-title">后台通知</span><span class="setting-group-value">${Notification.permission === 'denied' ? '被浏览器拒绝' : (notifyEnabled() ? '已开启' : '未开启')}</span></div>
+        <p class="setting-group-hint">页面在后台时，AI 的新消息（包括它主动发来的）会弹系统通知。只对本设备生效。${Notification.permission === 'denied' ? '需要先在浏览器的网站设置里允许通知。' : ''}</p>
         ${Notification.permission === 'denied' ? '' : `<button class="ghost" type="button" data-action="toggle-notify">${notifyEnabled() ? '关闭通知' : '开启通知'}</button>`}
       </div>` : ''}
       <div class="composer-actions">

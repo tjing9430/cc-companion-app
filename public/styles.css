@@ -712,13 +712,14 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 .composer-field{
   flex:1;
   min-width:0;
+  min-height:40px;                 /* 跟 + / 发送 圆键等高:不等高时 flex-end 只对齐底边,看着就是「没对齐」 */
   display:flex;
-  align-items:flex-end;
-  gap:.15rem;
+  align-items:center;
+  gap:.1rem;
   background:var(--panel);
   border:1px solid var(--line);
   border-radius:20px;
-  padding:2px 4px 2px 6px;
+  padding:2px 8px 2px 3px;         /* 表情在左,所以左边留小、右边留大 */
   transition:border-color .15s,box-shadow .15s;
 }
 .composer-field:focus-within{
@@ -732,8 +733,8 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   border:0;
   background:transparent;
   resize:none;
-  padding:.34rem .3rem;
-  min-height:32px;
+  padding:.42rem .35rem;
+  min-height:34px;
   max-height:200px;
   line-height:1.4;
   outline:none;
@@ -743,7 +744,7 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 .composer-bar textarea:focus{box-shadow:none;border:0}
 .composer-btn{
   flex:0 0 auto;
-  width:34px;height:34px;
+  width:40px;height:40px;
   border-radius:50%;
   display:grid;place-items:center;
   padding:0;
@@ -755,9 +756,9 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 }
 .composer-btn:hover:not(:disabled){background:var(--panel-soft);color:var(--text)}
 .composer-btn:active:not(:disabled){transform:translateY(.5px)}
-.composer-btn svg{width:17px;height:17px;display:block}
-.composer-field .sticker-toggle{width:28px;height:28px;margin-bottom:2px}
-.composer-field .sticker-toggle svg{width:16px;height:16px}
+.composer-btn svg{width:19px;height:19px;display:block}
+.composer-field .sticker-toggle{width:32px;height:32px;margin:0}
+.composer-field .sticker-toggle svg{width:19px;height:19px}
 .composer-attach{position:relative;display:inline-grid;place-items:center;border-color:var(--line);background:var(--panel)}
 .composer-attach input[type=file]{
   position:absolute;inset:0;
@@ -777,6 +778,30 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   color:var(--accent-ink);
 }
 .composer-send:disabled{background:var(--panel-2);color:var(--faint);border-color:transparent;box-shadow:none}
+/* 设置页自己的分组件——原先跟日志条目共用 .event,结果:
+   ① 日志改时间轴时,竖线和圆点漏到设置页上;
+   ② .event-title 是 flex+space-between,右边说明一长,左边「记忆」就被挤成一列竖排(反馈#蓝圈)。
+   现在标题永不换行,说明一律降级成小字放下面(反馈#红圈)。 */
+.setting-group{
+  background:var(--panel);
+  border:1px solid var(--line-soft);
+  border-radius:8px;
+  padding:.7rem .8rem;
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:.42rem;
+  box-shadow:var(--shadow-sm);
+}
+.setting-group-head{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;min-width:0}
+.setting-group-title{font-weight:600;white-space:nowrap}
+.setting-group-value{color:var(--muted);font-size:.76rem;text-align:right;overflow-wrap:anywhere;min-width:0}
+.setting-group-hint{margin:0;color:var(--faint);font-size:.74rem;line-height:1.5;overflow-wrap:anywhere}
+.setting-group .chip{margin:0}
+.server-note{
+  margin:0 0 .6rem;padding:.55rem .7rem;
+  background:var(--danger-soft);color:var(--danger);
+  border-radius:8px;font-size:.82rem;line-height:1.5;overflow-wrap:anywhere;
+}
 .chip{
   display:inline-flex;align-items:center;gap:.3rem;
   background:var(--panel);
@@ -1281,3 +1306,21 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   border-bottom:1px solid var(--line-soft);
 }
 .memory-tl-head span{color:var(--faint);font-weight:400;font-size:.74rem}
+
+/* 圆脸表情键:眨眼 + 按下的小回弹(用户要「圆形 + CSS/SVG 动画」)。
+   眨眼用 scaleY,6 秒一次、只眨一下——常驻动画会吵,设计手册里也写了「复杂效果叠加不是高级是吵」。 */
+.sticker-toggle .sk-eye{transform-origin:center;animation:skBlink 6s infinite}
+.sticker-toggle .sk-eye2{animation-delay:.08s}
+.sticker-toggle .sk-mouth{transition:d .2s ease}
+.sticker-toggle:hover svg,.sticker-toggle.on svg{transform:scale(1.08)}
+.sticker-toggle svg{transition:transform .18s cubic-bezier(.34,1.56,.64,1)}
+.sticker-toggle:active svg{transform:scale(.92)}
+.sticker-toggle.on{color:var(--accent-strong)}
+@keyframes skBlink{
+  0%,92%,100%{transform:scaleY(1)}
+  95%{transform:scaleY(.12)}
+}
+@media (prefers-reduced-motion:reduce){
+  .sticker-toggle .sk-eye{animation:none}
+  .sticker-toggle svg{transition:none}
+}
