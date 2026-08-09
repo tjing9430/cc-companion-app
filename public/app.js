@@ -33,6 +33,8 @@ const state = {
   chatSearchOpen: { chat: false, group: false },
   chatSearch: { chat: '', group: '' },
   searchPool: { chat: null, group: null },
+  openMsgActions: null,   // 反馈#4:每条底下 5 个按钮太重 → 收进 ⋮,这里记展开的那条 id
+  topbarMenuOpen: false,  // 反馈#1:顶栏挤成一坨 → 复制全部/清空 收进 ⋯
   memoryTab: 'diary',
   documents: [],
   docContent: {},
@@ -183,6 +185,17 @@ function bindEvents() {
         render();
         handleBackgroundError(err);
       }
+    }
+    if (name === 'toggle-topbar-menu') {
+      state.topbarMenuOpen = !state.topbarMenuOpen;
+      render();
+      return;
+    }
+    if (state.topbarMenuOpen && name !== 'toggle-topbar-menu') state.topbarMenuOpen = false;
+    if (name === 'toggle-msg-actions') {
+      const id = action.dataset.id;
+      state.openMsgActions = String(state.openMsgActions || '') === String(id) ? null : id;
+      render();
     }
     if (name === 'toggle-fav-filter') {
       const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
@@ -814,21 +827,28 @@ function renderTopbar() {
       <div class="topbar-actions">
         ${(state.tab === 'chat' || state.tab === 'group') ? renderChatSearchBtn(state.tab) : ''}
         ${(state.tab === 'chat' || state.tab === 'group') ? renderFavFilterBtn(state.tab) : ''}
-        ${(state.tab === 'chat' || state.tab === 'group') ? renderChatToolsBtns(state.tab) : ''}
-        <div class="status-pill">${esc(live)}</div>
+        ${(state.tab === 'chat' || state.tab === 'group') ? renderChatToolsMenu(state.tab) : ''}
+        <div class="status-pill" title="${escAttr(live)}"><span class="pill-long">${esc(live)}</span><span class="pill-short">${esc(streamStatusLabel())}</span></div>
       </div>
     </header>`;
 }
 
-function renderChatToolsBtns(scope) {
+function renderChatToolsMenu(scope) {
+  // 反馈#1:顶栏「复制全部/清空」文字长、把标题挤到截断 → 收进 ⋯,点开才出
   const s = state.settings || {};
-  const copyAll = s.featureCopyAll !== false
-    ? `<button class="fav-filter" type="button" data-action="copy-all" data-scope="${escAttr(scope)}" aria-label="复制全部对话">复制全部</button>`
-    : '';
-  const clear = (s.featureDelete !== false && s.authEnabled)
-    ? `<button class="fav-filter" type="button" data-action="clear-chat" data-scope="${escAttr(scope)}" aria-label="清空聊天记录">清空</button>`
-    : '';
-  return `${copyAll}${clear}`;
+  const items = [];
+  if (s.featureCopyAll !== false) {
+    items.push(`<button type="button" data-action="copy-all" data-scope="${escAttr(scope)}">复制全部对话</button>`);
+  }
+  if (s.featureDelete !== false && s.authEnabled) {
+    items.push(`<button type="button" class="danger-item" data-action="clear-chat" data-scope="${escAttr(scope)}">清空聊天记录</button>`);
+  }
+  if (!items.length) return '';
+  const open = !!state.topbarMenuOpen;
+  return `<div class="topbar-menu-wrap">
+      <button class="fav-filter topbar-more${open ? ' on' : ''}" type="button" data-action="toggle-topbar-menu" aria-label="更多" aria-expanded="${open}">⋯</button>
+      ${open ? `<div class="topbar-menu">${items.join('')}</div>` : ''}
+    </div>`;
 }
 
 async function loadSearchPool(scope) {
@@ -1042,6 +1062,7 @@ function renderMessage(message, opts = {}) {
     message.pending ? 'pending' : '',
     message.failed ? 'failed' : '',
     isWideMessage(text, attachments) ? 'wide' : '',
+    String(state.openMsgActions || '') === String(message.id) ? 'actions-open' : '',
   ].filter(Boolean).join(' ');
   const idAttr = esc(String(message.id));
   const btns = [];
@@ -1064,7 +1085,7 @@ function renderMessage(message, opts = {}) {
         <div class="bubble">
           ${bubbleInner}
         </div>
-        <div class="msg-time">${formatTime(message.created_at)}${btns.length ? ' ' + btns.join(' ') : ''}</div>
+        <div class="msg-time">${formatTime(message.created_at)}${btns.length ? `<button class="msg-more" type="button" data-action="toggle-msg-actions" data-id="${idAttr}" aria-label="更多操作" aria-expanded="${String(state.openMsgActions || '') === String(message.id)}">⋮</button><span class="msg-actions">${btns.join(' ')}</span>` : ''}</div>
       </div>
     </article>`;
 }

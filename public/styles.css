@@ -208,6 +208,44 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   white-space:nowrap;
   flex:0 0 auto;
 }
+/* 反馈#1:顶栏「复制全部/清空」文字长,把标题挤到截断 → 收进 ⋯ 下拉 */
+.topbar{position:relative}
+.topbar-menu-wrap{position:relative;display:inline-flex}
+.topbar-more{font-size:1rem;line-height:1;padding:.3rem .5rem}
+.topbar-menu{
+  position:absolute;
+  right:0;
+  top:calc(100% + .35rem);
+  z-index:30;
+  min-width:9.5rem;
+  display:grid;
+  gap:2px;
+  padding:.3rem;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+  box-shadow:var(--shadow-md);
+}
+.topbar-menu button{
+  width:100%;
+  text-align:left;
+  border:none;
+  background:none;
+  border-radius:6px;
+  padding:.45rem .55rem;
+  font-size:.82rem;
+  color:var(--text);
+  white-space:nowrap;
+}
+.topbar-menu button:hover:not(:disabled){background:var(--panel-soft)}
+.topbar-menu .danger-item{color:var(--danger)}
+.topbar-menu .danger-item:hover:not(:disabled){background:var(--danger-soft)}
+/* 状态胶囊:宽屏给全文,窄屏只留「实时/离线」,完整文案进 title */
+.pill-short{display:none}
+@media (max-width:560px){
+  .pill-long{display:none}
+  .pill-short{display:inline}
+}
 .content{flex:1;min-height:0;overflow:auto;padding:1.1rem 1.5rem 1.25rem}
 
 /* Chat */
@@ -265,6 +303,22 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   line-height:1.25;
   padding:0 .18rem;
 }
+/* 反馈#4:每条消息底下 复制/回复/☆/撤回/删除 一整排太重 → 默认只露时间+⋮,点开才出 */
+.msg-more{
+  margin-left:.3rem;
+  padding:0 .3rem;
+  font-family:inherit;
+  font-size:.82rem;
+  line-height:1.25;
+  color:var(--faint);
+  background:none;
+  border:none;
+  border-radius:4px;
+}
+.msg-more:hover:not(:disabled){background:var(--panel-soft);color:var(--muted)}
+.message-row.actions-open .msg-more{color:var(--accent-strong);background:var(--accent-soft)}
+.msg-actions{display:none}
+.message-row.actions-open .msg-actions{display:inline}
 .copy-btn{
   margin-left:.4rem;
   padding:0 .28rem;
@@ -564,6 +618,8 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 
 /* Composer */
 .composer{display:grid;grid-template-columns:minmax(0,1fr);gap:.45rem}
+/* 反馈#11:输入框显小一点——只收内边距,min-height 36px 是触控下限不再压 */
+.composer textarea{padding:.45rem .7rem}
 .message-drafts{
   display:grid;
   gap:.7rem;
@@ -1103,12 +1159,12 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   }
   .nav button.active .nav-icon{color:var(--accent)}
 
-  .main{max-height:100dvh;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  .main{max-height:100dvh;padding-bottom:calc(54px + env(safe-area-inset-bottom))}  /* 反馈#9:nav 实高 50,原来预留 64 =凭空 14px 空档 */
   .topbar{height:54px;padding:0 1rem}
   .topbar h1{font-size:1rem}
   .topbar p{font-size:.72rem}
   .status-pill{font-size:.7rem;padding:.25rem .55rem}
-  .content{padding:.85rem .9rem 1rem}
+  .content{padding:.85rem .9rem .5rem}
 
   .split{grid-template-columns:1fr}
   .settings-grid{grid-template-columns:1fr}
@@ -1122,7 +1178,7 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 @media (max-width:480px){
   .topbar p{display:none}
   .status-pill{max-width:42vw;overflow:hidden;text-overflow:ellipsis}
-  .content{padding:.75rem .75rem .9rem}
+  .content{padding:.75rem .75rem .45rem}
   .avatar{display:none}
   .msg-col{max-width:88%;min-width:0}
   .message-row.wide .msg-col{width:88%;flex-basis:88%}
