@@ -49,6 +49,7 @@ const state = {
   memoryEditing: null,
   memoryWriterOpen: false,
   memoryOpen: {},
+  memoryReading: null,
   memoryView: 'cards',
   memoryTagFilter: '',
   stickToBottom: { chat: true, group: true, console: true },
@@ -357,12 +358,14 @@ function bindEvents() {
       }
     }
     if (name === 'delete-memory') {
-      if (!confirm('删除这条记忆？')) return;
+      if (!confirm('删除这条记忆？删掉就找不回来了。')) return;
+      state.memoryReading = null;
       await api(`/api/memory/${action.dataset.id}`, { method: 'DELETE' });
       await loadMemories();
     }
     if (name === 'edit-memory') {
       const id = Number(action.dataset.id);
+      state.memoryReading = null;
       state.memoryEditing = state.memories.find((item) => Number(item.id) === id) || null;
       if (state.memoryEditing) state.memoryOpen[id] = true;
       if (state.memoryEditing) state.memoryWriterOpen = true;
@@ -382,6 +385,24 @@ function bindEvents() {
       const id = Number(action.dataset.id);
       state.memoryOpen[id] = !state.memoryOpen[id];
       render();
+    }
+    if (name === 'open-memory-reader') {
+      state.memoryReading = Number(action.dataset.id);
+      render();
+    }
+    if (name === 'close-memory-reader') {
+      state.memoryReading = null;
+      render();
+    }
+    if (name === 'memory-mood-pick') {
+      const input = document.querySelector('[data-memory-form] input[name="mood"]');
+      if (input) {
+        input.value = action.dataset.mood || '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      document.querySelectorAll('.memory-mood-pick').forEach((el) => {
+        el.classList.toggle('on', el === action);
+      });
     }
     if (name === 'remove-composer-part') {
       const scope = action.dataset.scope;
@@ -531,6 +552,11 @@ function bindEvents() {
   });
 
   document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.memoryReading) {
+      state.memoryReading = null;
+      render();
+      return;
+    }
     if (event.key === 'Escape' && state.lightbox) {
       state.lightbox = null;
       render();
@@ -791,6 +817,7 @@ function render() {
         <div class="content">${renderTab()}</div>
       </section>
     </div>
+    ${renderMemoryReader()}
     ${renderLightbox()}`;
   scrollLists();
 }
@@ -1583,6 +1610,10 @@ function renderMemoryWriterCard() {
     </button>`;
 }
 
+// 六个快选 + 「自己写一个」输入框 —— 沈屿的心情是自由短语,规格不对齐就一眼看得出
+// 谁是系统给的、谁是自己写的(小匠 #7023)
+const MEMORY_MOODS = ['☀ 晴', '☁ 阴', '☂ 雨天', '✿ 雀跃', '· 平静', '~ 疲惫'];
+
 function renderMemoryWriter(editing, editMood, editAuthor, editTags) {
   return `
     <section class="panel memory-editor">
@@ -1593,7 +1624,13 @@ function renderMemoryWriter(editing, editMood, editAuthor, editTags) {
       <form class="stack" data-memory-form="1">
         <div class="memory-form-grid">
           <div class="form-row"><label>标题</label><input name="title" maxlength="120" value="${escAttr(editing && editing.title || '')}"></div>
-          <div class="form-row"><label>心情</label><input name="mood" maxlength="40" placeholder="平静" value="${escAttr(editMood)}"></div>
+          <div class="form-row memory-mood-row">
+            <label>心情</label>
+            <div class="memory-mood-picks">
+              ${MEMORY_MOODS.map((m) => `<button type="button" class="memory-mood-pick${editMood === m ? ' on' : ''}" data-action="memory-mood-pick" data-mood="${escAttr(m)}">${esc(m)}</button>`).join('')}
+            </div>
+            <input name="mood" maxlength="40" placeholder="或者自己写一个…" value="${escAttr(editMood)}">
+          </div>
           <div class="form-row"><label>作者</label><input name="author" maxlength="80" value="${escAttr(editAuthor)}"></div>
           <div class="form-row"><label>标签</label><input name="tags" placeholder="日记, 偏好" value="${escAttr(editTags)}"></div>
         </div>
@@ -1606,40 +1643,62 @@ function renderMemoryWriter(editing, editMood, editAuthor, editTags) {
     </section>`;
 }
 
+// 月牙用内联 SVG,不用 emoji —— 部分安卓 WebView 没有彩色 emoji 字体会渲成豆腐块
+const MEMORY_MOON = '<svg class="memory-moon" viewBox="0 0 12 12" aria-hidden="true"><path d="M9.4 7.85A4.25 4.25 0 0 1 4.15 2.6 4.25 4.25 0 1 0 9.4 7.85Z"/></svg>';
+
+// 卡片 = 标题(可换行) + 心情签右上 / 月牙·作者·时间 / 细线 / [编辑][删除]
+// 不放正文预览:点标题进全屏本子看全文(反馈 #7012「下面不要内容,是编辑/删除」)
 function renderMemoryItem(memory) {
-  const id = Number(memory.id);
-  const open = state.memoryOpen[id] === true || (state.memoryEditing && Number(state.memoryEditing.id) === id);
   const mood = memoryMood(memory);
   const author = memoryAuthor(memory);
   const time = formatDateTime(memory.updated_at || memory.created_at);
-  const preview = String(memory.content || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   return `
-    <article class="memory-item ${open ? 'open' : ''}">
-      <button class="memory-summary" type="button" data-action="toggle-memory" data-id="${memory.id}" aria-expanded="${open ? 'true' : 'false'}">
-        <div class="memory-summary-main">
-          <div class="memory-title">${memory.pinned ? '<span class="memory-pin" title="已置顶：永远带给 agent">📌</span>' : ''}${esc(memory.title)}</div>
-          <div class="memory-meta">
-            <span class="memory-mood-mark" aria-hidden="true"></span>
-            <span>${esc(author)}</span>
-            <span>·</span>
-            <time>${esc(time)}</time>
-          </div>
-          ${!open && preview ? `<div class="memory-preview">${esc(preview)}</div>` : ''}
-        </div>
-        <span class="memory-mood">${esc(mood)}</span>
-        <span class="memory-chevron" aria-hidden="true">▾</span>
+    <article class="memory-card">
+      <button class="memory-card-top" type="button" data-action="open-memory-reader" data-id="${memory.id}">
+        <span class="memory-card-title">${memory.pinned ? '<span class="memory-pin" title="已置顶：永远带给 agent">📌</span>' : ''}${esc(memory.title)}</span>
+        ${mood ? `<span class="memory-mood">${esc(mood)}</span>` : ''}
       </button>
-      ${open ? `
-        <div class="memory-content">${esc(memory.content)}</div>
-        ${(memory.tags || []).length ? `<div class="memory-tags">${(memory.tags || []).map((tag) => `<span>${esc(tag)}</span>`).join('')}</div>` : ''}
-        <div class="memory-rule"></div>
-        <div class="memory-actions">
-          <button class="ghost" data-action="toggle-pin" data-id="${memory.id}" data-pinned="${memory.pinned ? '1' : ''}" type="button">${memory.pinned ? '取消置顶' : '📌 置顶'}</button>
-          <button class="ghost" data-action="edit-memory" data-id="${memory.id}" type="button">编辑</button>
-          <button class="danger" data-action="delete-memory" data-id="${memory.id}" type="button">删除</button>
-        </div>
-      ` : ''}
+      <div class="memory-card-meta">
+        ${MEMORY_MOON}<span class="memory-card-who">${esc(author)}</span>
+        <span class="memory-card-time">· ${esc(time)}</span>
+      </div>
+      <div class="memory-card-foot">
+        <button class="memory-act" data-action="edit-memory" data-id="${memory.id}" type="button">编辑</button>
+        <button class="memory-act memory-act-del" data-action="delete-memory" data-id="${memory.id}" type="button">删除</button>
+        <button class="memory-act memory-act-pin" data-action="toggle-pin" data-id="${memory.id}" data-pinned="${memory.pinned ? '1' : ''}" type="button">${memory.pinned ? '取消置顶' : '置顶'}</button>
+      </div>
     </article>`;
+}
+
+// 点开一篇 → 全屏「本子」:横线纸 + 大返回键(88×44,系统推荐最小可点尺寸)
+function renderMemoryReader() {
+  const id = Number(state.memoryReading);
+  if (!id) return '';
+  const memory = (state.memories || []).find((item) => Number(item.id) === id);
+  if (!memory) return '';
+  const mood = memoryMood(memory);
+  const time = formatDateTime(memory.updated_at || memory.created_at);
+  const tags = (memory.tags || []).filter(Boolean);
+  return `
+    <div class="memory-reader" role="dialog" aria-label="${escAttr(memory.title)}">
+      <div class="memory-reader-bar">
+        <button class="memory-back" type="button" data-action="close-memory-reader">‹ 日记</button>
+        <span class="memory-reader-right">
+          ${mood ? `<span class="memory-mood">${esc(mood)}</span>` : ''}
+          <span class="memory-reader-date">${esc(time)}</span>
+        </span>
+      </div>
+      <div class="memory-reader-scroll">
+        <h2 class="memory-reader-title">${esc(memory.title)}</h2>
+        <div class="memory-reader-who">${MEMORY_MOON}${esc(memoryAuthor(memory))}</div>
+        <div class="memory-reader-body">${esc(memory.content || '')}</div>
+        ${tags.length ? `<div class="memory-tags">${tags.map((tag) => `<span>${esc(tag)}</span>`).join('')}</div>` : ''}
+        <div class="memory-reader-foot">
+          <button class="memory-act" data-action="edit-memory" data-id="${memory.id}" type="button">编辑</button>
+          <button class="memory-act memory-act-del" data-action="delete-memory" data-id="${memory.id}" type="button">删除</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderMemoryTagChips(memories) {

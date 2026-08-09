@@ -1337,3 +1337,63 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 
 /* console 命令栏:同一套胶囊,但里面没有表情键,左右内边距对称即可 */
 .console-command .composer-field{padding:2px 8px}
+
+/* ============ 记忆页:日记卡片 + 全屏本子(反馈 #7012/#7014,照用户的 App 日记流做) ============ */
+.memory-card{
+  background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;
+  padding:.85rem .85rem .6rem;margin-bottom:.7rem;box-shadow:0 1px 2px rgba(90,70,50,.05);
+}
+.memory-card-top{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem;
+  width:100%;background:none;border:0;padding:0;text-align:left;cursor:pointer;color:inherit;font:inherit;
+}
+.memory-card-title{font-size:1.02rem;font-weight:700;color:var(--text);line-height:1.35;min-width:0}
+.memory-card-meta{display:flex;align-items:center;gap:.32rem;margin-top:.45rem;font-size:.76rem}
+.memory-card-who{color:var(--muted)}
+.memory-card-time{color:var(--faint)}
+.memory-moon{width:13px;height:13px;flex:none;display:block;fill:#e0b84f}
+.memory-card-foot{
+  display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;
+  margin-top:.62rem;padding-top:.6rem;border-top:1px solid var(--line-soft);
+}
+.memory-act{
+  font-size:.8rem;color:var(--muted);background:var(--panel-soft,rgba(255,255,255,.6));
+  border:1px solid var(--line-soft);border-radius:9px;padding:.32rem .95rem;cursor:pointer;
+}
+.memory-act:active{transform:translateY(1px)}
+.memory-act-del{color:#a86a5e}
+.memory-act-pin{margin-left:auto;font-size:.74rem;padding:.3rem .7rem;color:var(--faint)}
+
+/* 全屏本子:横线纸 + 大返回键 */
+.memory-reader{
+  position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(196,120,120,.16) 33px 34px),
+    var(--bg);
+}
+.memory-reader-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+  padding:.7rem .9rem .5rem;flex:none;
+}
+.memory-back{
+  display:inline-flex;align-items:center;justify-content:center;gap:.3rem;
+  min-height:44px;min-width:88px;               /* 44px = 系统推荐最小可点尺寸 */
+  font-size:1.02rem;color:var(--muted);background:var(--panel);
+  border:1px solid var(--line-soft);border-radius:999px;padding:.2rem 1rem;cursor:pointer;
+}
+.memory-reader-right{display:flex;align-items:center;gap:.45rem}
+.memory-reader-date{font-size:.7rem;color:var(--faint);letter-spacing:.04em}
+.memory-reader-scroll{flex:1;overflow-y:auto;padding:0 .95rem 2rem;-webkit-overflow-scrolling:touch}
+.memory-reader-title{font-size:1.5rem;font-weight:700;color:var(--text);margin:.2rem 0 .35rem;line-height:1.3}
+.memory-reader-who{display:flex;align-items:center;gap:.32rem;font-size:.76rem;color:var(--muted);margin-bottom:.9rem}
+.memory-reader-body{font-size:.9rem;line-height:2.3611;color:var(--text);white-space:pre-wrap;word-break:break-word}
+.memory-reader-foot{display:flex;gap:.5rem;margin-top:1.6rem}
+
+/* 写日记:心情快选 */
+.memory-mood-row{display:block}
+.memory-mood-picks{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem;margin:.3rem 0 .45rem}
+.memory-mood-pick{
+  font-size:.78rem;color:var(--muted);background:var(--panel);min-width:0;text-align:center;
+  border:1px solid var(--line-soft);border-radius:999px;padding:.32rem .5rem;cursor:pointer;
+}
+.memory-mood-pick.on{background:var(--accent);border-color:var(--accent);color:#fff8f0}
