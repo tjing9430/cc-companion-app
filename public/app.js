@@ -37,7 +37,7 @@ const state = {
   topbarMenuOpen: false,  // 反馈#1:顶栏挤成一坨 → 复制全部/清空 收进 ⋯
   renamingFile: null,     // 反馈#12:附件草稿只有「删除」没「编辑」→ {scope,index} 表示正在改名的那个
   openEvents: {},         // 日志页展开的条目 id→true(可同时展开多条,跟消息气泡的单开不同)
-  memoryTab: 'diary',
+  memoryTab: 'home',
   documents: [],
   docContent: {},
   docOpen: {},
@@ -292,7 +292,9 @@ function bindEvents() {
       render();
     }
     if (name === 'memory-tab') {
-      state.memoryTab = action.dataset.tab === 'docs' ? 'docs' : 'diary';
+      const tab = action.dataset.tab;
+      state.memoryTab = ['home', 'docs', 'all'].includes(tab) ? tab : 'diary';
+      state.memoryToolsOpen = false;
       render();
       if (state.memoryTab === 'docs') loadDocuments();
     }
@@ -1430,34 +1432,77 @@ function renderConsoleEvent(event) {
     </article>`;
 }
 
+// 撕纸的毛边 = feTurbulence 位移,只作用在「纸面层」;字浮在上面,一点不糊
+const TORN_DEFS = `
+<svg class="torn-defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <filter id="tornA"><feTurbulence type="fractalNoise" baseFrequency="0.016 0.042" numOctaves="4" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G"/></filter>
+  <filter id="tornB"><feTurbulence type="fractalNoise" baseFrequency="0.018 0.038" numOctaves="4" seed="21" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G"/></filter>
+  <filter id="tornC"><feTurbulence type="fractalNoise" baseFrequency="0.015 0.045" numOctaves="4" seed="42" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="18" xChannelSelector="R" yChannelSelector="G"/></filter>
+</svg>`;
+
+// 记忆首屏:三张撕纸便签贴在横线纸上 —— 「今天想翻哪一叠?」
+function renderMemoryHome() {
+  const all = Array.isArray(state.memories) ? state.memories : [];
+  const mine = all.filter((m) => !(m.tags || []).some((t) => String(t) === 'auto'));
+  const docs = Array.isArray(state.documents) ? state.documents : [];
+  const note = (cls, tab, kicker, name, count, unit) => `
+    <button type="button" class="mem-note ${cls}" data-action="memory-tab" data-tab="${tab}">
+      <span class="mem-note-paper" aria-hidden="true"></span>
+      <span class="mem-note-grid" aria-hidden="true"></span>
+      <span class="mem-note-tape" aria-hidden="true"></span>
+      <span class="mem-note-kicker">${kicker}</span>
+      <span class="mem-note-name">${name}</span>
+      <span class="mem-note-count">${count} ${unit}</span>
+    </button>`;
+  return `
+    <div class="mem-home">
+      ${TORN_DEFS}
+      <h2 class="mem-home-title">记忆</h2>
+      <div class="mem-home-sub">今天想翻哪一叠?</div>
+      ${note('n1 a', 'diary', 'DIARY · 自己写的', '日记', mine.length, '篇')}
+      ${note('n2 b', 'docs', 'DOCS · 存起来备查', '资料库', docs.length, '份')}
+      ${note('n3 c', 'all', 'ALL · 聊天里自动记的', '全部条目', all.length, '条')}
+      <span class="mem-home-dot" aria-hidden="true"></span>
+      <span class="mem-home-heart" aria-hidden="true">♡</span>
+    </div>`;
+}
+
 function renderMemory() {
   // 分段控件并进副标题行当一个小链接 —— 省一整行,页面才留得出白
   const jump = (tab, label) => `<button type="button" class="diary-jump" data-action="memory-tab" data-tab="${tab}">${label}</button>`;
-  if (state.memoryTab === 'docs') return renderDocs(jump('diary', '‹ 日记'));
+  if (state.memoryTab === 'home') return renderMemoryHome();
+  if (state.memoryTab === 'docs') return renderDocs(jump('home', '‹ 记忆'));
   const editing = state.memoryEditing;
   const writerOpen = Boolean(editing || state.memoryWriterOpen);
   const editTags = editing && Array.isArray(editing.tags) ? editing.tags.join(', ') : '';
   const editMood = editing ? memoryMood(editing) : '';
   const editAuthor = editing ? memoryAuthor(editing) : (state.settings.userName || '你');
-  const all = Array.isArray(state.memories) ? state.memories : [];
+  const everything = Array.isArray(state.memories) ? state.memories : [];
+  // 日记 = 自己写的;全部条目 = 连聊天里自动记的一起(auto 标签是提取器打的)
+  const isAll = state.memoryTab === 'all';
+  const all = isAll ? everything : everything.filter((m) => !(m.tags || []).some((t) => String(t) === 'auto'));
   const tagFilter = state.memoryTagFilter || '';
   const shown = tagFilter ? all.filter((m) => (m.tags || []).some((t) => String(t) === tagFilter)) : all;
   const view = state.memoryView === 'timeline' ? 'timeline' : 'cards';
   // 找东西的家什(搜索/标签/视图)默认收起,只在点了放大镜时落下来 —— 日记页要留白
   const toolsOpen = Boolean(state.memoryToolsOpen || state.memoryQuery || tagFilter);
+  const unit = isAll ? '条' : '篇';
   const sub = tagFilter
-    ? `${shown.length} / ${all.length} 篇 · 「${esc(tagFilter)}」`
-    : `${all.length} 篇 · 点标题进去看全文`;
+    ? `${shown.length} / ${all.length} ${unit} · 「${esc(tagFilter)}」`
+    : `${all.length} ${unit} · 点标题进去看全文`;
   return `
     <div class="memory-view">
       <div class="diary-head">
-        <h2 class="diary-title">日记</h2>
+        <h2 class="diary-title">${isAll ? '全部条目' : '日记'}</h2>
         <div class="diary-head-acts">
           <button type="button" class="diary-tool${toolsOpen ? ' on' : ''}" data-action="toggle-memory-tools" aria-label="搜索和筛选" aria-expanded="${toolsOpen}">${ICON_SEARCH}</button>
-          <button type="button" class="diary-write" data-action="toggle-memory-writer">✎ 写日记</button>
+          ${isAll ? '' : '<button type="button" class="diary-write" data-action="toggle-memory-writer">✎ 写日记</button>'}
         </div>
       </div>
-      <div class="diary-sub"><span>${sub}</span>${jump('docs', '资料库 ›')}</div>
+      <div class="diary-sub"><span>${sub}</span>${jump('home', '‹ 记忆')}</div>
       ${writerOpen ? renderMemoryWriter(editing, editMood, editAuthor, editTags) : ''}
       ${toolsOpen ? `
       <div class="diary-tools">

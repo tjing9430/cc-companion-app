@@ -1,7 +1,7 @@
 // ⚠️ 改了 app.js / styles.css 就要 bump 这个版本号(等价于主站的 ?v= 缓存串)。
 // 2026-08-09 踩过:没 bump + 下面 fetch 是 stale-while-revalidate(先给缓存、新的只存下次用)
 // → 用户永远慢一个刷新,把我已经修好的东西当成「你忘记做了」。现在核心资源改成 network-first。
-const CACHE_VERSION = 'cc-companion-static-v9-20260809-diary';
+const CACHE_VERSION = 'cc-companion-static-v10-20260809-paper';
 // 这两个是会天天改的代码,必须每次拿最新的;其余(图标/manifest)继续走缓存优先
 const ALWAYS_FRESH = ['/app.js', '/styles.css', '/index.html'];
 const STATIC_ASSETS = [

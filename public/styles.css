@@ -1436,3 +1436,74 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 .diary-tools-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap}
 .diary-tools-row .memory-tag-chips{margin:0;flex:1;min-width:0}
 .diary-tools-row .memory-viewtoggle{margin:0;flex:none}
+
+/* ── 记忆首屏:三张撕纸便签贴在横线纸上(v4 图纸) ───────────────── */
+/* 纸色单列一套变量,深色主题整体压暗,不然一片惨白 */
+.mem-home{
+  --paper:#f7f3e7; --paper-line:rgba(196,120,120,.20); --paper-grid:rgba(150,140,118,.17);
+  --paper-ink:#4a3c2c; --paper-kicker:#b08a72; --paper-muted:#a3917c;
+  --paper-bg1:#fbf7f1; --paper-bg2:#f7f1e8; --paper-shadow:rgba(90,70,50,.16);
+  /* 满屏铺到边:把 .content 的内边距吃掉,纸才像纸不像卡片 */
+  position:relative;margin:-.75rem -.75rem -.6rem;padding:1.05rem .9rem 2rem;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 33px, var(--paper-line) 33px 34px),
+    linear-gradient(180deg,var(--paper-bg1),var(--paper-bg2));
+  min-height:calc(100% + 1.35rem);overflow:hidden;
+}
+body[data-theme="dark"] .mem-home{
+  --paper:#2a2520; --paper-line:rgba(196,120,120,.13); --paper-grid:rgba(190,175,150,.10);
+  --paper-ink:#e8ddcd; --paper-kicker:#b08a72; --paper-muted:#9a8b78;
+  --paper-bg1:#221e1a; --paper-bg2:#1d1916; --paper-shadow:rgba(0,0,0,.4);
+}
+.torn-defs{position:absolute;width:0;height:0}
+.mem-home-title{
+  margin:.1rem 0 .1rem;font-family:'HangkaiUI',var(--font-serif,Georgia),serif;
+  font-size:1.5rem;font-weight:400;color:var(--paper-ink);
+}
+.mem-home-sub{font-size:.74rem;color:var(--paper-muted);margin-bottom:1rem}
+
+/* 一张便签 = 纸面层(带毛边滤镜)+ 格纹层(笔直)+ 文字层(清晰) */
+.mem-note{
+  position:relative;display:block;width:76%;margin:0 0 1.5rem;padding:.8rem .9rem .9rem;
+  border:0;background:none;text-align:left;cursor:pointer;font-family:inherit;
+}
+.mem-note-paper{position:absolute;inset:0;z-index:0;background:var(--paper);box-shadow:0 4px 10px var(--paper-shadow)}
+/* 格纹画在没滤镜的内层:格子笔直,只有纸边是撕的 */
+.mem-note-grid{
+  position:absolute;inset:5px;z-index:0;pointer-events:none;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 10px, var(--paper-grid) 10px 11px),
+    repeating-linear-gradient(90deg, transparent 0 10px, var(--paper-grid) 10px 11px);
+}
+.mem-note.a .mem-note-paper{filter:url(#tornA)}
+.mem-note.b .mem-note-paper{filter:url(#tornB)}
+.mem-note.c .mem-note-paper{filter:url(#tornC)}
+.mem-note-tape{
+  position:absolute;z-index:2;top:-10px;width:70px;height:23px;
+  background:linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.66));
+  border-top:1px solid rgba(255,255,255,.92);
+  border-bottom:1px solid rgba(190,175,155,.28);
+  box-shadow:0 1px 3px rgba(90,70,50,.13);
+}
+body[data-theme="dark"] .mem-note-tape{
+  background:linear-gradient(180deg, rgba(240,235,225,.30), rgba(240,235,225,.16));
+  border-top-color:rgba(255,255,255,.28);
+}
+.mem-note-kicker,.mem-note-name,.mem-note-count{position:relative;z-index:1;display:block}
+.mem-note-kicker{
+  font-family:ui-monospace,Menlo,monospace;font-size:.6rem;letter-spacing:.1em;
+  color:var(--paper-kicker);margin-bottom:.3rem;
+}
+.mem-note-name{
+  font-family:'HangkaiUI',var(--font-serif,Georgia),serif;
+  font-size:1.08rem;line-height:1.5;color:var(--paper-ink);
+}
+.mem-note-count{font-size:.64rem;color:var(--paper-muted);margin-top:.1rem}
+.mem-note.n1{transform:rotate(-1.6deg)} .mem-note.n1 .mem-note-tape{left:58%;transform:rotate(-9deg)}
+.mem-note.n2{margin-left:auto;transform:rotate(1.2deg)} .mem-note.n2 .mem-note-tape{left:6%;transform:rotate(7deg)}
+.mem-note.n3{margin-left:8%;transform:rotate(-.9deg)} .mem-note.n3 .mem-note-tape{left:46%;transform:rotate(-6deg)}
+.mem-note:active{transform:translateY(1px) rotate(0deg)}
+.mem-home-dot{position:absolute;right:8%;top:29%;width:7px;height:7px;border-radius:50%;background:rgba(150,130,110,.16)}
+.mem-home-heart{position:absolute;right:6%;top:56%;color:rgba(198,86,74,.45);font-size:1.1rem}
+/* 关了动效就别转纸片 —— 只留质感,不留歪斜 */
+@media (prefers-reduced-motion: reduce){ .mem-note{transform:none!important} }
