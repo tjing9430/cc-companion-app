@@ -936,13 +936,6 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 .memory-title{font-weight:700;letter-spacing:0;font-size:1.02rem}
 .memory-summary-main{min-width:0;flex:1}
 .memory-pin{font-size:.8rem;margin-right:.28rem}
-.memory-seg{display:flex;gap:.35rem;margin:.1rem 0 .2rem}
-.memory-seg button{
-  border:1px solid var(--line);border-radius:var(--radius-pill);
-  background:var(--panel);color:var(--muted);
-  padding:.32rem .85rem;font-size:.82rem;cursor:pointer;font-family:inherit;
-}
-.memory-seg button.on{background:var(--accent-soft);color:var(--text);border-color:var(--accent)}
 .doc-toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
 .doc-add{cursor:pointer}
 .memory-preview{
@@ -1397,3 +1390,49 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   border:1px solid var(--line-soft);border-radius:999px;padding:.32rem .5rem;cursor:pointer;
 }
 .memory-mood-pick.on{background:var(--accent);border-color:var(--accent);color:#fff8f0}
+
+/* 日记页头 —— 行楷标题 + 小纸片按钮,搜索/标签/视图收进放大镜 */
+/* 字体只 subset 了「日记资料库写」六个字(2.9KB),别拿它排正文 */
+@font-face{
+  font-family:'HangkaiUI';
+  src:url('fonts/hangkai-ui.woff2') format('woff2');
+  font-weight:400;font-style:normal;font-display:swap;
+}
+.diary-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin:.1rem 0 .1rem}
+.diary-title{
+  margin:0;font-family:'HangkaiUI',var(--font-serif,Georgia),serif;
+  font-size:1.5rem;line-height:1.25;font-weight:400;letter-spacing:0;color:var(--text);
+}
+.diary-head-acts{display:flex;align-items:center;gap:.4rem;flex:none}
+.diary-tool{
+  width:34px;height:34px;flex:none;display:grid;place-items:center;
+  border:1px solid var(--line);border-radius:999px;background:var(--panel);
+  color:var(--muted);cursor:pointer;padding:0;
+}
+.diary-tool svg{width:16px;height:16px}
+.diary-tool.on{background:var(--accent-soft);border-color:var(--accent);color:var(--text)}
+.diary-write{
+  font-family:'HangkaiUI',var(--font-serif,Georgia),serif;
+  font-size:.95rem;letter-spacing:0;
+  border:1px solid var(--line);background:var(--panel);color:var(--text);
+  /* 四角不等 = 手撕纸片,v7 就是靠这个不像按钮的 */
+  border-radius:2px 9px 3px 8px;box-shadow:0 1px 2px rgba(90,70,50,.1);
+  padding:.34rem .75rem;cursor:pointer;
+}
+.diary-write:active{background:var(--accent-soft)}
+.diary-sub{
+  display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;
+  color:var(--muted);font-size:.74rem;margin:0 0 1rem;
+}
+.diary-jump{
+  flex:none;border:0;background:none;cursor:pointer;font-family:inherit;
+  color:var(--accent);font-size:.74rem;padding:.62rem 0 .62rem .8rem;margin:-.62rem 0;
+}
+.diary-tools{
+  border:1px solid var(--line-soft);border-radius:14px;background:var(--panel);
+  padding:.55rem .6rem .4rem;margin:.1rem 0 .55rem;
+}
+.diary-tools .memory-search{margin:0 0 .4rem}
+.diary-tools-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap}
+.diary-tools-row .memory-tag-chips{margin:0;flex:1;min-width:0}
+.diary-tools-row .memory-viewtoggle{margin:0;flex:none}

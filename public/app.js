@@ -52,6 +52,7 @@ const state = {
   memoryReading: null,
   memoryView: 'cards',
   memoryTagFilter: '',
+  memoryToolsOpen: false,
   stickToBottom: { chat: true, group: true, console: true },
   scrollTop: { chat: 0, group: 0, console: 0 },
   busy: false,
@@ -380,6 +381,14 @@ function bindEvents() {
       state.memoryEditing = null;
       state.memoryWriterOpen = !state.memoryWriterOpen;
       render();
+    }
+    if (name === 'toggle-memory-tools') {
+      const hadQuery = Boolean(state.memoryQuery);
+      const open = !(state.memoryToolsOpen || state.memoryQuery || state.memoryTagFilter);
+      state.memoryToolsOpen = open;
+      // 收起时把筛选一起松开,免得东西藏起来了还在过滤、看着像丢了日记
+      if (!open) { state.memoryQuery = ''; state.memoryTagFilter = ''; }
+      if (!open && hadQuery) await loadMemories(); else render();
     }
     if (name === 'toggle-memory') {
       const id = Number(action.dataset.id);
@@ -1422,12 +1431,9 @@ function renderConsoleEvent(event) {
 }
 
 function renderMemory() {
-  const seg = `
-    <div class="memory-seg">
-      <button type="button" class="${state.memoryTab === 'diary' ? 'on' : ''}" data-action="memory-tab" data-tab="diary">日记</button>
-      <button type="button" class="${state.memoryTab === 'docs' ? 'on' : ''}" data-action="memory-tab" data-tab="docs">资料库</button>
-    </div>`;
-  if (state.memoryTab === 'docs') return renderDocs(seg);
+  // 分段控件并进副标题行当一个小链接 —— 省一整行,页面才留得出白
+  const jump = (tab, label) => `<button type="button" class="diary-jump" data-action="memory-tab" data-tab="${tab}">${label}</button>`;
+  if (state.memoryTab === 'docs') return renderDocs(jump('diary', '‹ 日记'));
   const editing = state.memoryEditing;
   const writerOpen = Boolean(editing || state.memoryWriterOpen);
   const editTags = editing && Array.isArray(editing.tags) ? editing.tags.join(', ') : '';
@@ -1437,26 +1443,36 @@ function renderMemory() {
   const tagFilter = state.memoryTagFilter || '';
   const shown = tagFilter ? all.filter((m) => (m.tags || []).some((t) => String(t) === tagFilter)) : all;
   const view = state.memoryView === 'timeline' ? 'timeline' : 'cards';
+  // 找东西的家什(搜索/标签/视图)默认收起,只在点了放大镜时落下来 —— 日记页要留白
+  const toolsOpen = Boolean(state.memoryToolsOpen || state.memoryQuery || tagFilter);
+  const sub = tagFilter
+    ? `${shown.length} / ${all.length} 篇 · 「${esc(tagFilter)}」`
+    : `${all.length} 篇 · 点标题进去看全文`;
   return `
     <div class="memory-view">
-      <div class="memory-headline">
-        <div>
-          <div class="section-kicker">记忆</div>
-          <h2>日记</h2>
+      <div class="diary-head">
+        <h2 class="diary-title">日记</h2>
+        <div class="diary-head-acts">
+          <button type="button" class="diary-tool${toolsOpen ? ' on' : ''}" data-action="toggle-memory-tools" aria-label="搜索和筛选" aria-expanded="${toolsOpen}">${ICON_SEARCH}</button>
+          <button type="button" class="diary-write" data-action="toggle-memory-writer">✎ 写日记</button>
         </div>
-        <div class="memory-count">${shown.length}${tagFilter ? ` / ${all.length}` : ''} 条</div>
       </div>
-      ${seg}
-      ${writerOpen ? renderMemoryWriter(editing, editMood, editAuthor, editTags) : renderMemoryWriterCard()}
-      <div class="search-row memory-search">
-        <input data-memory-search="1" placeholder="搜索记忆" value="${escAttr(state.memoryQuery)}">
-        ${state.memoryQuery ? '<button class="ghost" type="button" data-action="clear-memory-search">清空</button>' : ''}
-      </div>
-      ${renderMemoryTagChips(all)}
-      <div class="memory-viewtoggle">
-        <button type="button" class="${view === 'cards' ? 'on' : ''}" data-action="memory-view" data-view="cards">卡片</button>
-        <button type="button" class="${view === 'timeline' ? 'on' : ''}" data-action="memory-view" data-view="timeline">时间线</button>
-      </div>
+      <div class="diary-sub"><span>${sub}</span>${jump('docs', '资料库 ›')}</div>
+      ${writerOpen ? renderMemoryWriter(editing, editMood, editAuthor, editTags) : ''}
+      ${toolsOpen ? `
+      <div class="diary-tools">
+        <div class="search-row memory-search">
+          <input data-memory-search="1" placeholder="搜索记忆" value="${escAttr(state.memoryQuery)}">
+          ${state.memoryQuery ? '<button class="ghost" type="button" data-action="clear-memory-search">清空</button>' : ''}
+        </div>
+        <div class="diary-tools-row">
+          ${renderMemoryTagChips(all)}
+          <div class="memory-viewtoggle">
+            <button type="button" class="${view === 'cards' ? 'on' : ''}" data-action="memory-view" data-view="cards">卡片</button>
+            <button type="button" class="${view === 'timeline' ? 'on' : ''}" data-action="memory-view" data-view="timeline">时间线</button>
+          </div>
+        </div>
+      </div>` : ''}
       <div class="memory-list">
         ${shown.length
           ? (view === 'timeline' ? renderMemoryTimeline(shown) : shown.map(renderMemoryItem).join(''))
@@ -1465,18 +1481,14 @@ function renderMemory() {
     </div>`;
 }
 
-function renderDocs(seg) {
+function renderDocs(backLink) {
   const docs = Array.isArray(state.documents) ? state.documents : [];
   return `
     <div class="memory-view">
-      <div class="memory-headline">
-        <div>
-          <div class="section-kicker">记忆</div>
-          <h2>资料库</h2>
-        </div>
-        <div class="memory-count">${docs.length} 份</div>
+      <div class="diary-head">
+        <h2 class="diary-title">资料库</h2>
       </div>
-      ${seg}
+      <div class="diary-sub"><span>${docs.length} 份 · 沈屿也读得到</span>${backLink}</div>
       <div class="doc-toolbar">
         <button class="memory-writer-card doc-add" type="button" data-action="open-doc-picker">
           <span class="memory-writer-icon" aria-hidden="true">↑</span>
@@ -1599,17 +1611,6 @@ async function addDocumentFromFile(file) {
   }
 }
 
-function renderMemoryWriterCard() {
-  return `
-    <button class="memory-writer-card" type="button" data-action="toggle-memory-writer">
-      <span class="memory-writer-icon" aria-hidden="true">+</span>
-      <span>
-        <span class="memory-writer-title">写日记</span>
-        <span class="memory-writer-subtitle">新增一篇</span>
-      </span>
-    </button>`;
-}
-
 // 六个快选 + 「自己写一个」输入框 —— 沈屿的心情是自由短语,规格不对齐就一眼看得出
 // 谁是系统给的、谁是自己写的(小匠 #7023)
 const MEMORY_MOODS = ['☀ 晴', '☁ 阴', '☂ 雨天', '✿ 雀跃', '· 平静', '~ 疲惫'];
@@ -1645,6 +1646,8 @@ function renderMemoryWriter(editing, editMood, editAuthor, editTags) {
 
 // 月牙用内联 SVG,不用 emoji —— 部分安卓 WebView 没有彩色 emoji 字体会渲成豆腐块
 const MEMORY_MOON = '<svg class="memory-moon" viewBox="0 0 12 12" aria-hidden="true"><path d="M9.4 7.85A4.25 4.25 0 0 1 4.15 2.6 4.25 4.25 0 1 0 9.4 7.85Z"/></svg>';
+// 画的,不用 emoji —— 🔍 在部分 WebView 里是豆腐块
+const ICON_SEARCH = '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.25"/><path d="M10.2 10.2 13.5 13.5"/></svg>';
 
 // 卡片 = 标题(可换行) + 心情签右上 / 月牙·作者·时间 / 细线 / [编辑][删除]
 // 不放正文预览:点标题进全屏本子看全文(反馈 #7012「下面不要内容,是编辑/删除」)

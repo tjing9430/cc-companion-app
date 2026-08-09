@@ -5,3 +5,4 @@ data/uploads/
 *.log
 .DS_Store
 Thumbs.db
+data/bridge-session*.json

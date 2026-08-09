@@ -2301,6 +2301,8 @@ function contentTypeFor(filePath) {
     '.gif': 'image/gif',
     '.webp': 'image/webp',
     '.svg': 'image/svg+xml',
+    '.woff2': 'font/woff2',
+    '.woff': 'font/woff',
     '.pdf': 'application/pdf',
     '.txt': 'text/plain; charset=utf-8',
   };
