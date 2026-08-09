@@ -35,6 +35,7 @@ const state = {
   searchPool: { chat: null, group: null },
   openMsgActions: null,   // 反馈#4:每条底下 5 个按钮太重 → 收进 ⋮,这里记展开的那条 id
   topbarMenuOpen: false,  // 反馈#1:顶栏挤成一坨 → 复制全部/清空 收进 ⋯
+  renamingFile: null,     // 反馈#12:附件草稿只有「删除」没「编辑」→ {scope,index} 表示正在改名的那个
   memoryTab: 'diary',
   documents: [],
   docContent: {},
@@ -385,6 +386,30 @@ function bindEvents() {
       const index = Number(action.dataset.index);
       if (state.pending[scope]) state.pending[scope].splice(index, 1);
       updateComposerDrafts(scope);
+    }
+    if (name === 'edit-pending-file-name') {
+      state.renamingFile = { scope: action.dataset.scope, index: Number(action.dataset.index) };
+      render();
+      const input = document.querySelector('[data-rename-input]');
+      if (input) { input.focus({ preventScroll: true }); input.select(); }
+      return;
+    }
+    if (name === 'cancel-pending-file-name') {
+      state.renamingFile = null;
+      render();
+      return;
+    }
+    if (name === 'save-pending-file-name') {
+      const scope = action.dataset.scope;
+      const index = Number(action.dataset.index);
+      const input = document.querySelector('[data-rename-input]');
+      const next = input ? String(input.value || '').trim() : '';
+      const list = state.pending[scope] || [];
+      if (list[index] && next) list[index].name = next;   // 空名不接受,留原名
+      state.renamingFile = null;
+      updateComposerDrafts(scope);
+      render();
+      return;
     }
     if (name === 'edit-composer-part') {
       const scope = action.dataset.scope;
@@ -1288,7 +1313,21 @@ function renderAttachmentDraft(scope, files) {
           <div class="draft-foot">
             <span>未发送</span>
             <div class="draft-actions">
-              ${files.map((file, index) => `<button type="button" data-action="remove-pending-file" data-scope="${escAttr(scope)}" data-index="${index}">删除${files.length > 1 ? ` ${index + 1}` : ''}</button>`).join('')}
+              ${files.map((file, index) => {
+                const renaming = state.renamingFile && state.renamingFile.scope === scope && Number(state.renamingFile.index) === index;
+                const tag = files.length > 1 ? ` ${index + 1}` : '';
+                // 反馈#12:文字草稿有「编辑/删除」,附件草稿只有「删除」——补齐。文件能改的就是名字,
+                // 而文件名正是发给 agent 的那部分,所以「编辑」=改名。走内联输入框,不弹 prompt(WebView 里会卡)。
+                if (renaming) {
+                  return `<span class="rename-row">
+                    <input class="rename-input" type="text" value="${escAttr(file.name || '')}" data-rename-input aria-label="文件名">
+                    <button type="button" class="primary" data-action="save-pending-file-name" data-scope="${escAttr(scope)}" data-index="${index}">保存</button>
+                    <button type="button" data-action="cancel-pending-file-name">取消</button>
+                  </span>`;
+                }
+                return `<button type="button" data-action="edit-pending-file-name" data-scope="${escAttr(scope)}" data-index="${index}">编辑${tag}</button>`
+                  + `<button type="button" data-action="remove-pending-file" data-scope="${escAttr(scope)}" data-index="${index}">删除${tag}</button>`;
+              }).join('')}
             </div>
           </div>
         </div>

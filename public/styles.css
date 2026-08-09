@@ -662,6 +662,10 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   max-width:100%;
 }
 .draft-attachment-item .attachment-image{max-width:min(280px,58vw);max-height:34vh}
+/* 反馈#12:附件草稿内联改名 */
+.rename-row{display:inline-flex;align-items:center;gap:.3rem;flex-wrap:wrap}
+.rename-input{width:auto;min-width:7rem;max-width:11rem;padding:.22rem .45rem;font-size:.76rem}
+.rename-row button{padding:.24rem .5rem;font-size:.76rem}
 .attachment-image.is-sticker{max-width:120px;max-height:120px;border:none;background:transparent;border-radius:10px}
 .lightbox{
   position:fixed;inset:0;z-index:80;
