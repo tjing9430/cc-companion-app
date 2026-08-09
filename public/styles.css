@@ -698,32 +698,44 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   color:rgba(255,248,241,.78);
   font-size:.86rem;
 }
+/* 反馈#11:输入栏照用户自己 App 的样子——外层只是一行,不再是一个大胶囊 */
 .composer-bar{
   display:flex;
   align-items:flex-end;
-  gap:.3rem;
+  gap:.4rem;
+  background:none;
+  border:0;
+  padding:0;
+  box-shadow:none;
+}
+/* 文字胶囊:只装文字+表情,自己带边框圆角 */
+.composer-field{
+  flex:1;
+  min-width:0;
+  display:flex;
+  align-items:flex-end;
+  gap:.15rem;
   background:var(--panel);
   border:1px solid var(--line);
-  border-radius:22px;
-  padding:5px;
-  box-shadow:var(--shadow-sm);
+  border-radius:20px;
+  padding:2px 4px 2px 6px;
   transition:border-color .15s,box-shadow .15s;
 }
-.composer-bar.has-parts{background:var(--panel-soft)}
-.composer-bar:focus-within{
+.composer-field:focus-within{
   border-color:var(--accent);
-  box-shadow:0 0 0 4px var(--accent-soft);
+  box-shadow:0 0 0 3px var(--accent-soft);
 }
+.composer-bar.has-parts .composer-field{background:var(--panel-soft)}
 .composer-bar textarea{
   flex:1;
   min-width:0;
   border:0;
   background:transparent;
   resize:none;
-  padding:.55rem .4rem;
-  min-height:36px;
+  padding:.34rem .3rem;
+  min-height:32px;
   max-height:200px;
-  line-height:1.45;
+  line-height:1.4;
   outline:none;
   box-shadow:none;
   field-sizing:content;
@@ -731,7 +743,7 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 .composer-bar textarea:focus{box-shadow:none;border:0}
 .composer-btn{
   flex:0 0 auto;
-  width:36px;height:36px;
+  width:34px;height:34px;
   border-radius:50%;
   display:grid;place-items:center;
   padding:0;
@@ -743,8 +755,10 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 }
 .composer-btn:hover:not(:disabled){background:var(--panel-soft);color:var(--text)}
 .composer-btn:active:not(:disabled){transform:translateY(.5px)}
-.composer-btn svg{width:18px;height:18px;display:block}
-.composer-attach{position:relative;display:inline-grid;place-items:center}
+.composer-btn svg{width:17px;height:17px;display:block}
+.composer-field .sticker-toggle{width:28px;height:28px;margin-bottom:2px}
+.composer-field .sticker-toggle svg{width:16px;height:16px}
+.composer-attach{position:relative;display:inline-grid;place-items:center;border-color:var(--line);background:var(--panel)}
 .composer-attach input[type=file]{
   position:absolute;inset:0;
   width:100%;height:100%;
@@ -1163,7 +1177,7 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   }
   .nav button.active .nav-icon{color:var(--accent)}
 
-  .main{max-height:100dvh;padding-bottom:calc(54px + env(safe-area-inset-bottom))}  /* 反馈#9:nav 实高 50,原来预留 64 =凭空 14px 空档 */
+  .main{max-height:100dvh;padding-bottom:calc(58px + env(safe-area-inset-bottom))}  /* 反馈#9:24px 太开、6px 又太窄 → 中间值 */
   .topbar{height:54px;padding:0 1rem}
   .topbar h1{font-size:1rem}
   .topbar p{font-size:.72rem}
@@ -1182,7 +1196,7 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
 @media (max-width:480px){
   .topbar p{display:none}
   .status-pill{max-width:42vw;overflow:hidden;text-overflow:ellipsis}
-  .content{padding:.75rem .75rem .45rem}
+  .content{padding:.75rem .75rem .6rem}
   .avatar{display:none}
   .msg-col{max-width:88%;min-width:0}
   .message-row.wide .msg-col{width:88%;flex-basis:88%}

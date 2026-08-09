@@ -1244,12 +1244,17 @@ function renderComposer(scope) {
     <form class="composer" data-send-scope="${escAttr(scope)}">
       ${renderReplyBanner(scope)}
       <div class="composer-bar ${hasDrafts ? 'has-parts' : ''}">
+        <!-- 反馈#11:照用户自己 App 的输入栏改——文字胶囊自成一体(表情在胶囊里),
+             「+」和「发送」是胶囊外的独立圆键。之前是 +/☺/文字/发送 全塞进一个大胶囊,
+             那一坨就是用户说的「笨笨的」。 -->
+        <div class="composer-field">
+          <textarea name="content" rows="1" placeholder="${escAttr(placeholder)}" ${state.offline ? 'disabled' : ''}>${esc(draft)}</textarea>
+          <button class="composer-btn sticker-toggle${state.stickerOpen && state.stickerOpen[scope] ? ' on' : ''}" type="button" data-action="toggle-stickers" data-scope="${escAttr(scope)}" aria-label="表情" title="表情">${ICONS.sticker}</button>
+        </div>
         <label class="composer-btn composer-attach" aria-label="添加附件" title="添加附件">
           <input data-file-scope="${escAttr(scope)}" type="file" accept="image/*,.pdf,.txt" multiple ${state.offline ? 'disabled' : ''}>
           ${ICONS.plus}
         </label>
-        <button class="composer-btn sticker-toggle${state.stickerOpen && state.stickerOpen[scope] ? ' on' : ''}" type="button" data-action="toggle-stickers" data-scope="${escAttr(scope)}" aria-label="表情" title="表情">${ICONS.sticker}</button>
-        <textarea name="content" rows="1" placeholder="${escAttr(placeholder)}" ${state.offline ? 'disabled' : ''}>${esc(draft)}</textarea>
         <button class="composer-btn composer-send" type="submit" aria-label="${state.offline ? '离线' : '发送'}" title="${state.offline ? '离线' : '发送'}" ${sendDisabled ? 'disabled' : ''}>
           ${ICONS.send}
         </button>
