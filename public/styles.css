@@ -503,6 +503,43 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
 }
 .meta strong{font-weight:600;color:inherit}
 .body-text{white-space:pre-wrap;word-break:break-word;line-height:1.5}
+/* markdown 渲染后的气泡:结构由 <p>/<li> 负责,不能再 pre-wrap(否则空行翻倍) */
+.body-text.md{white-space:normal}
+.body-text.md>p{margin:0 0 .5em}
+.body-text.md>p:last-child{margin-bottom:0}
+.body-text.md .md-h{margin:.6em 0 .35em;font-size:1em;font-weight:700;line-height:1.35}
+.body-text.md .md-h:first-child{margin-top:0}
+.body-text.md .md-list{margin:.25em 0 .55em;padding-left:1.25em}
+.body-text.md .md-list:last-child{margin-bottom:0}
+.body-text.md .md-list li{margin:.12em 0}
+.body-text.md .md-code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.88em;
+  background:var(--panel-soft);
+  border:1px solid var(--line-soft);
+  border-radius:4px;
+  padding:.05em .3em;
+  overflow-wrap:anywhere;
+}
+.body-text.md .md-pre{
+  margin:.4em 0 .55em;
+  padding:.55rem .7rem;
+  background:var(--panel-soft);
+  border:1px solid var(--line-soft);
+  border-radius:6px;
+  overflow-x:auto;          /* 代码不折行,自己横滚,别撑破气泡 */
+  max-width:100%;
+}
+.body-text.md .md-pre:last-child{margin-bottom:0}
+.body-text.md .md-pre code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.86em;
+  white-space:pre;
+  background:none;border:none;padding:0;
+}
+.body-text.md .md-link{color:var(--accent-strong);text-decoration:underline;overflow-wrap:anywhere}
+body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
+.message-row.me .body-text.md .md-link{color:inherit}
 
 .attachments{display:grid;gap:.45rem;margin-top:.55rem}
 .attachment-image{
@@ -693,7 +730,9 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   box-shadow:var(--shadow-sm);
 }
 .panel h2{font-size:.95rem;margin:0 0 .9rem;font-weight:700;letter-spacing:0}
-.stack{display:grid;gap:.8rem}
+/* 单列 grid 必须显式 minmax(0,1fr):不写的话隐式轨道按 max-content 定宽,
+   一条长内容(中文长句/长路径)就把整列撑出容器 → 右侧被裁(用户报的「好宽」) */
+.stack{display:grid;grid-template-columns:minmax(0,1fr);gap:.8rem}
 
 .search-row{display:flex;gap:.45rem;align-items:center}
 .search-row input{min-width:0}
@@ -868,7 +907,7 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   gap:.85rem;
   max-width:900px;
 }
-.console-command{display:grid;gap:.45rem}
+.console-command{display:grid;grid-template-columns:minmax(0,1fr);gap:.45rem}
 .console-view .console-command{grid-row:2}
 .console-view .event-list{grid-row:1;min-height:0;overflow-y:auto}
 .console-shortcuts{display:flex;gap:.35rem;flex-wrap:wrap}
@@ -879,8 +918,9 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   background:var(--panel);
   font-size:.74rem;
 }
-.event-list{display:grid;gap:.38rem;max-width:900px}
+.event-list{display:grid;grid-template-columns:minmax(0,1fr);gap:.38rem;max-width:900px}
 .event{
+  min-width:0;
   background:var(--panel);
   border:1px solid var(--line-soft);
   border-left:3px solid var(--accent);
@@ -894,7 +934,7 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
 .event.reply{border-left-color:var(--accent-2)}
 .event.upload{border-left-color:var(--faint)}
 .event.command{border-left-color:var(--line)}
-.event-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem;font-weight:600}
+.event-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem;font-weight:600;min-width:0;overflow-wrap:anywhere}
 .event-title time{color:var(--muted);font-size:.72rem;font-weight:500;white-space:nowrap}
 .event-kind{
   display:inline-flex;
@@ -908,7 +948,7 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   font-weight:600;
   text-transform:uppercase;
 }
-.event-body{color:var(--muted);white-space:pre-wrap;margin-top:.3rem;font-size:.86rem;line-height:1.5}
+.event-body{color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;margin-top:.3rem;font-size:.86rem;line-height:1.5}
 
 .settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem}
 .quota-panel{
@@ -980,7 +1020,7 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   line-height:1.4;
   overflow-wrap:anywhere;
 }
-.form-row{display:grid;gap:.35rem}
+.form-row{display:grid;grid-template-columns:minmax(0,1fr);gap:.35rem}
 
 .empty{
   border:1px dashed var(--line);
