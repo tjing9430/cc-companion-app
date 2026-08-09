@@ -992,26 +992,41 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   background:var(--panel);
   font-size:.74rem;
 }
-.event-list{display:grid;grid-template-columns:minmax(0,1fr);gap:.38rem;max-width:900px}
+/* 用户选的 B 版:时间轴。去掉一格格卡片,左边一条线+彩点分类,首屏能看的条数从 8 → 14 */
+.event-list{display:grid;grid-template-columns:minmax(0,1fr);gap:0;max-width:900px;margin-left:.15rem}
+/* ⚠️ 日志条目的 kind 类一律带 k- 前缀:裸 kind 名会跟别处的类撞。
+   踩过的坑:kind='thinking' 撞上聊天气泡的 .thinking{white-space:pre-wrap},
+   模板字面量里的缩进和换行就被当成真空行渲染出来 → 那条日志凭空多出 130px 空洞。
+   这里再兜一道底,别让外面的 white-space 漏进来。 */
+.event{white-space:normal}
 .event{
   min-width:0;
-  background:var(--panel);
-  border:1px solid var(--line-soft);
-  border-left:3px solid var(--accent);
-  border-radius:3px 8px 8px 3px;
-  padding:.58rem .75rem;
-  box-shadow:var(--shadow-sm);
+  position:relative;
+  background:none;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  padding:.5rem 0 .6rem 1.15rem;
 }
-.event.error{border-left-color:var(--danger)}
-.event.thinking{border-left-color:var(--accent-2)}
-.event.system{border-left-color:var(--accent)}
-.event.reply{border-left-color:var(--accent-2)}
-.event.upload{border-left-color:var(--faint)}
-.event.command{border-left-color:var(--line)}
-.event-title{display:flex;align-items:center;justify-content:space-between;gap:.75rem;font-weight:600;min-width:0;overflow-wrap:anywhere}
-.event-title time{color:var(--muted);font-size:.72rem;font-weight:500;white-space:nowrap}
+/* 竖线和圆点都画在 event 自己盒内——画在 list 上会被滚动容器裁成半个点 */
+.event::after{content:'';position:absolute;left:.32rem;top:0;bottom:0;width:1px;background:var(--line-soft)}
+.event:first-child::after{top:.9rem}
+.event:last-child::after{bottom:auto;height:.9rem}
+.event::before{
+  content:'';position:absolute;left:.1rem;top:.82rem;z-index:1;
+  width:7px;height:7px;border-radius:50%;background:var(--accent);
+}
+.event.k-error::before{background:var(--danger)}
+.event.k-thinking::before{background:var(--accent-2)}
+.event.k-system::before{background:var(--accent)}
+.event.k-reply::before{background:var(--accent-2)}
+.event.k-upload::before{background:var(--faint)}
+.event.k-command::before{background:var(--faint)}
+.event-title{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-weight:600;font-size:.86rem;min-width:0;overflow-wrap:anywhere}
+.event-title time{color:var(--faint);font-size:.68rem;font-weight:500;white-space:nowrap}
 .event-kind{
   display:inline-flex;
+  letter-spacing:.06em;
   align-items:center;
   margin-right:.45rem;
   border-radius:var(--radius-pill);
@@ -1022,7 +1037,32 @@ body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
   font-weight:600;
   text-transform:uppercase;
 }
-.event-body{color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;margin-top:.3rem;font-size:.86rem;line-height:1.5}
+.event-body{
+  color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;
+  margin-top:.25rem;font-size:.82rem;line-height:1.5;
+  max-height:3.2em;overflow:hidden;                 /* 默认只露三行,长的点开 */
+  -webkit-mask-image:linear-gradient(180deg,#000 62%,transparent);
+          mask-image:linear-gradient(180deg,#000 62%,transparent);
+}
+.event.open .event-body{
+  max-height:46vh;overflow:auto;                    /* 展开:给全文,超长自己滚 */
+  -webkit-mask-image:none;mask-image:none;
+  color:var(--text);
+  background:var(--panel);
+  border:1px solid var(--line-soft);
+  border-radius:6px;
+  padding:.5rem .6rem;
+}
+.event-more{
+  padding:.05rem .4rem;
+  font-size:.7rem;line-height:1.45;
+  color:var(--accent-strong);
+  background:var(--bg);border:0;border-radius:5px;
+}
+/* 收起态浮在渐隐区右下角 = 不额外占一行(每条多一行会把时间轴省下的密度吃回去) */
+.event:not(.open) .event-more{position:absolute;right:0;bottom:.42rem;z-index:2}
+.event.open .event-more{position:static;margin-top:.3rem;background:none}
+.event-more:hover:not(:disabled){background:var(--accent-soft)}
 
 .settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem}
 .quota-panel{

@@ -36,6 +36,7 @@ const state = {
   openMsgActions: null,   // 反馈#4:每条底下 5 个按钮太重 → 收进 ⋮,这里记展开的那条 id
   topbarMenuOpen: false,  // 反馈#1:顶栏挤成一坨 → 复制全部/清空 收进 ⋯
   renamingFile: null,     // 反馈#12:附件草稿只有「删除」没「编辑」→ {scope,index} 表示正在改名的那个
+  openEvents: {},         // 日志页展开的条目 id→true(可同时展开多条,跟消息气泡的单开不同)
   memoryTab: 'diary',
   documents: [],
   docContent: {},
@@ -186,6 +187,13 @@ function bindEvents() {
         render();
         handleBackgroundError(err);
       }
+    }
+    if (name === 'toggle-event') {
+      const id = action.dataset.id;
+      if (!state.openEvents) state.openEvents = {};
+      if (state.openEvents[id]) delete state.openEvents[id]; else state.openEvents[id] = true;
+      render();
+      return;
     }
     if (name === 'toggle-topbar-menu') {
       state.topbarMenuOpen = !state.topbarMenuOpen;
@@ -1367,13 +1375,20 @@ function renderConsole() {
 }
 
 function renderConsoleEvent(event) {
+  const body = String(event.body || '');
+  // 「长」= 一屏放不下:超过 120 字或含换行。短条目(比如 tool 的「→ Bash」)不给展开键,
+  // 免得满屏都是点不出东西的箭头。
+  const expandable = body.length > 120 || body.includes('\n');
+  const open = !!(state.openEvents && state.openEvents[event.id]);
+  const idAttr = escAttr(String(event.id));
   return `
-    <article class="event ${escAttr(event.kind)}">
+    <article class="event k-${escAttr(event.kind)}${open ? ' open' : ''}">
       <div class="event-title">
         <span><span class="event-kind">${esc(event.kind)}</span>${esc(event.title)}</span>
         <time>${formatTime(event.created_at)}</time>
       </div>
-      ${event.body ? `<div class="event-body">${esc(event.body)}</div>` : ''}
+      ${body ? `<div class="event-body">${esc(body)}</div>` : ''}
+      ${expandable ? `<button class="event-more" type="button" data-action="toggle-event" data-id="${idAttr}" aria-expanded="${open}">${open ? '收起' : `展开全文 · ${body.length} 字`}</button>` : ''}
     </article>`;
 }
 
