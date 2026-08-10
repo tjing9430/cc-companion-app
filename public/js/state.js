@@ -83,7 +83,14 @@ const state = {
   streamStatus: 'idle',
 };
 
+// 读 state.settings 拿默认作者名 —— 它碰 state,所以不能放 util;
+// 壳和记忆页都要用,放在 state 这层两边都够得着。
+function memoryAuthor(memory) {
+  return String(memory && memory.author || state.settings.assistantName || 'AI').trim();
+}
+
 export {
+  memoryAuthor,
   CONSOLE_COMMANDS,
   MAX_ATTACHMENT_BYTES,
   SMALL_IMAGE_BYTES,
