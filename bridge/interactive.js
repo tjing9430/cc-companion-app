@@ -62,6 +62,7 @@ export function createInteractiveRunner(opts) {
     claudeBin = 'claude',
     cwd = process.cwd(),
     model = '',
+    effort = '',            // --effort:交互态拿 thinking 正文的必需项之一(另一半是 settings 的 showThinkingSummaries)
     mcpConfig = '',
     permissionMode = '',      // BRIDGE_PERMISSION_MODE → --permission-mode (empty = leave the user's config alone)
     sessionFile,              // persist the session uuid for --resume across restarts
@@ -98,6 +99,7 @@ export function createInteractiveRunner(opts) {
     const parts = [claudeBin, resuming ? '--resume' : '--session-id', uuid];
     if (permissionMode) parts.push('--permission-mode', permissionMode);
     if (model) parts.push('--model', model);
+    if (effort) parts.push('--effort', effort);
     if (mcpConfig) parts.push('--mcp-config', mcpConfig);
     // script -q -e -c "<cmd>" /dev/null : run claude in a pty so it sees a TTY → interactive → thinking exposed.
     child = spawn('script', ['-q', '-e', '-c', parts.join(' '), '/dev/null'], { cwd, stdio: ['pipe', 'pipe', 'pipe'] });

@@ -41,6 +41,12 @@ function loadDotEnv(filePath) {
     let value = trimmed.slice(index + 1).trim();
     if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
       value = value.slice(1, -1);
+    } else {
+      // Strip an unquoted trailing comment: `KEY=value   # why`. Without this the comment
+      // becomes part of the value and the setting silently misbehaves — which is worse than
+      // failing, because the config *looks* right. Quote the value if you need a literal '#'.
+      const hash = value.search(/\s#/);
+      if (hash >= 0) value = value.slice(0, hash).trim();
     }
     if (key && !(key in process.env)) process.env[key] = value;
   }
@@ -54,6 +60,11 @@ const APP_URL = String(process.env.APP_URL || 'http://127.0.0.1:8787').replace(/
 const APP_AUTH_TOKEN = String(process.env.APP_AUTH_TOKEN || '').trim();
 const CLAUDE_BIN = process.env.CLAUDE_BIN || 'claude';
 const CLAUDE_MODEL = String(process.env.CLAUDE_MODEL || '').trim();
+// --effort:交互态想拿到 thinking 正文,这个是必需项之一(实测 2026-08-10,claude-opus-4-8)。
+// 不设的话 transcript 里的 thinking 块只有 signature、正文是空字符串。
+// 另一半在 <HOME>/.claude/settings.json 的 showThinkingSummaries:true —— 两个缺一个都拿不到明文,
+// 单开任一个实测都是 0 字,是拆开验过的,不是推的。
+const CLAUDE_EFFORT = String(process.env.CLAUDE_EFFORT || '').trim();
 const CLAUDE_MCP_CONFIG = String(process.env.CLAUDE_MCP_CONFIG || '').trim();
 const ASSISTANT_NAME = String(process.env.ASSISTANT_NAME || 'Claude Code').trim() || 'Claude Code';
 const DATA_DIR = path.resolve(REPO_ROOT, process.env.DATA_DIR || 'data');
@@ -126,6 +137,7 @@ function runClaudeTurn(prompt, resume) {
     const args = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose'];
     if (resume) args.push('--resume', resume);
     if (CLAUDE_MODEL) args.push('--model', CLAUDE_MODEL);
+    if (CLAUDE_EFFORT) args.push('--effort', CLAUDE_EFFORT);
     if (CLAUDE_MCP_CONFIG) args.push('--mcp-config', CLAUDE_MCP_CONFIG);
 
     // shell:false + prompt via stdin — never interpolate user text into a shell.
@@ -257,7 +269,7 @@ function enqueue(fn) {
 
 // v1.1 interactive runner (restores thinking) — a singleton long-lived session.
 const interactiveRunner = BRIDGE_MODE === 'interactive' ? createInteractiveRunner({
-  claudeBin: CLAUDE_BIN, cwd: process.cwd(), model: CLAUDE_MODEL, mcpConfig: CLAUDE_MCP_CONFIG,
+  claudeBin: CLAUDE_BIN, cwd: process.cwd(), model: CLAUDE_MODEL, effort: CLAUDE_EFFORT, mcpConfig: CLAUDE_MCP_CONFIG,
   permissionMode: BRIDGE_PERMISSION_MODE, sessionFile: INTERACTIVE_SESSION_FILE,
   turnTimeoutMs: RUN_TIMEOUT_MS, log, postConsole, assistantName: ASSISTANT_NAME,
 }) : null;
