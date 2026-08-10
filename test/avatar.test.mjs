@@ -61,3 +61,38 @@ test('结构守卫:自改窄口只写 assistant_avatar,不复用 /api/settings',
   assert.ok(!block.includes('normalizeSettings('), '★ 窄口不许调 normalizeSettings —— 那就等于把整份设置的写权限交出去了');
   assert.ok(block.includes('addConsoleEvent'), '★ 每次自改必须留一条 console 事件(被看见 + 可审计)');
 });
+
+test('★ 能力门:后端还不认头像字段时,设置页不许把控件摆出来', async () => {
+  // 这条是拿真事故换来的。头像的前端和后端是同一刀里推的,但用户的服务是**长驻进程**:
+  // public/ 是每次请求现读磁盘的,lib/ 是启动时就装进内存的。
+  // 于是「推完到重启之间」必然存在一个窗口——前端已经新了、后端还是旧的。
+  // 那个窗口里她会看到头像控件、点了、上传成功、然后设置被后端静默丢掉,
+  // 看起来就像功能坏了。实际发生过,17 分钟。
+  //
+  // 判据用「后端发下来的 settings 里有没有这个键」——有能力才给入口,
+  // 而不是靠人记得"先重启再推前端"。重启后自动恢复,不需要二次改代码。
+  globalThis.localStorage ||= { getItem: () => '', setItem: () => {}, removeItem: () => {} };
+  globalThis.window ||= globalThis;
+  globalThis.matchMedia ||= () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  globalThis.document ||= { querySelector: () => null, querySelectorAll: () => [], body: {} };
+  const { renderSettings } = await import('../public/js/settings-view.js');
+  const { state } = await import('../public/js/state.js');
+  const base = {
+    appName: 'CC', userName: '我', assistantName: 'AI', groupName: '群', agentMention: 'assistant',
+    autoReplyGroup: false, theme: 'starry', featureCopyAll: true, featureRecall: true,
+    featureDelete: true, featureAutoExtract: true, featureSemanticSearch: true,
+    agent: { model: 'mock', configured: false, provider: 'mock' },
+  };
+  const deps = { notifySupported: () => false, notifyEnabled: () => false };
+  const render = (settings) => {
+    state.settings = settings;
+    state.quota = { loading: false, data: null, error: '', fetched_at: '' };
+    state.session = { current_id: 's', forge_count: 0 };
+    return renderSettings(deps);
+  };
+  const old = render({ ...base });
+  assert.ok(!old.includes('data-action="pick-avatar"'), '旧后端下不该出现头像控件(点了也存不下)');
+  assert.ok(old.includes('主题'), '其余设置项要照常渲染 —— 门只关头像那一块,不能把整页带下水');
+  const fresh = render({ ...base, user_avatar: '', assistant_avatar: '' });
+  assert.ok(fresh.includes('data-action="pick-avatar"'), '新后端下必须出现头像控件');
+});

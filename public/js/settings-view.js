@@ -24,6 +24,7 @@ function renderSettings({ notifySupported, notifyEnabled }) {
             <option value="starry" ${s.theme === 'starry' ? 'selected' : ''}>星空</option>
           </select>
         </div>
+        ${Object.prototype.hasOwnProperty.call(s, 'user_avatar') ? `
         <div class="form-row avatar-row">
           <label>头像</label>
           <div class="avatar-picks">
@@ -37,7 +38,7 @@ function renderSettings({ notifySupported, notifyEnabled }) {
                 ${s[f] ? `<button type="button" class="avatar-pick-clear" data-action="clear-avatar" data-field="${f}">默认</button>` : ''}
               </div>`).join('')}
           </div>
-        </div>
+        </div>` : ''}
       </div>
       <label class="chip"><input name="autoReplyGroup" type="checkbox" ${s.autoReplyGroup ? 'checked' : ''}> 群聊里不提到唤起词也自动回复</label>
       <div class="setting-group">
