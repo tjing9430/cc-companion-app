@@ -65,6 +65,10 @@ const CLAUDE_MODEL = String(process.env.CLAUDE_MODEL || '').trim();
 // 另一半在 <HOME>/.claude/settings.json 的 showThinkingSummaries:true —— 两个缺一个都拿不到明文,
 // 单开任一个实测都是 0 字,是拆开验过的,不是推的。
 const CLAUDE_EFFORT = String(process.env.CLAUDE_EFFORT || '').trim();
+// 可选:凭证过期时从哪儿重新取一份。留空 = 不自愈(默认行为不变)。
+// 用在「claude 的登录态放在另一个 HOME、桥用的是它的副本」这种部署里 ——
+// 主 HOME 一刷新 token,副本就作废,症状是聊天框里冒出一句英文 401。
+const CLAUDE_CREDENTIALS_SOURCE = String(process.env.CLAUDE_CREDENTIALS_SOURCE || '').trim();
 const CLAUDE_MCP_CONFIG = String(process.env.CLAUDE_MCP_CONFIG || '').trim();
 const ASSISTANT_NAME = String(process.env.ASSISTANT_NAME || 'Claude Code').trim() || 'Claude Code';
 const DATA_DIR = path.resolve(REPO_ROOT, process.env.DATA_DIR || 'data');
@@ -274,10 +278,47 @@ const interactiveRunner = BRIDGE_MODE === 'interactive' ? createInteractiveRunne
   turnTimeoutMs: RUN_TIMEOUT_MS, log, postConsole, assistantName: ASSISTANT_NAME,
 }) : null;
 
+// ★ 认出"登录态失效"。这东西的阴险之处:claude 把它当成**正常回复文本**吐出来
+//   (result 事件里就是一句 "Failed to authenticate. API Error: 401 ..."),
+//   于是桥原样当回答塞给用户 —— 用户看到的不是"出错了",是 AI 突然说英文。
+const AUTH_FAILURE_RE = /(OAuth (?:access )?token (?:has been revoked|has expired)|Failed to authenticate|API Error: 401|invalid[_ ]api[_ ]key)/i;
+
+// 从配置的源头重新取一份凭证。成功返回 true —— 只有这时才值得重试。
+function resyncCredentials() {
+  if (!CLAUDE_CREDENTIALS_SOURCE) return false;
+  try {
+    const home = process.env.HOME || process.env.USERPROFILE;
+    if (!home) return false;
+    const target = path.join(home, '.claude', '.credentials.json');
+    if (path.resolve(target) === path.resolve(CLAUDE_CREDENTIALS_SOURCE)) return false;  // 同一个文件,重拷没意义
+    const fresh = fs.readFileSync(CLAUDE_CREDENTIALS_SOURCE, 'utf8');
+    if (!fresh.trim()) return false;
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, fresh, { mode: 0o600 });
+    log('info', 'credentials resynced from CLAUDE_CREDENTIALS_SOURCE');
+    return true;
+  } catch (err) {
+    log('warn', `credentials resync failed: ${err.message}`);
+    return false;
+  }
+}
+
 // Dispatch a turn to the configured runner (interactive by default; print as fallback).
-function runTurn(prompt) {
-  if (interactiveRunner) return enqueue(() => interactiveRunner.runTurn(prompt));
-  return runPrintTurn(prompt);
+async function runTurn(prompt) {
+  const once = () => (interactiveRunner ? enqueue(() => interactiveRunner.runTurn(prompt)) : runPrintTurn(prompt));
+  const out = await once();
+  // 登录态失效走的是"正常回复"这条路,不是异常路 —— 所以得看回复内容才认得出来。
+  if (!AUTH_FAILURE_RE.test(String((out && out.content) || ''))) return out;
+  if (resyncCredentials()) {
+    log('warn', 'auth failed; credentials resynced, retrying this turn once');
+    const retry = await once();
+    if (!AUTH_FAILURE_RE.test(String((retry && retry.content) || ''))) return retry;
+  }
+  // 重同步没配、或者拿到的还是过期的 —— 别把英文 401 当回复递给用户。
+  await postConsole('error', ASSISTANT_NAME,
+    '登录态失效了:Claude Code 的凭证过期或被吊销。到跑 bridge 的机器上重新 `claude login`;'
+    + '若凭证是从别处拷来的,设 CLAUDE_CREDENTIALS_SOURCE 指向源文件即可自动重取。');
+  throw new Error('claude: authentication failed (token expired or revoked)');
 }
 
 // v1 print-mode runner (headless `claude -p`; thinking redacted) — kept as a fallback.
