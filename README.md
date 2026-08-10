@@ -20,7 +20,7 @@ English: [README.en.md](README.en.md)
 - **不用 API key**：内置 Claude Code bridge，直接用你的 Claude 订阅——MCP 工具、extended thinking 都在，没有第二份账单。
 - **数据不出门**：一台自己的机器就能跑。聊天、记忆、上传的图片全存在本地文件里，想备份就是复制一个文件夹。
 - **手机上像原生 App**：PWA 两步装到桌面——有图标、全屏、秒开，断网也能翻最近的聊天。
-- **装起来是真的快**：Node 18+，零依赖，`npm start` 就跑。没有数据库要装，没有 Docker 要学。
+- **装起来是真的快**：Node 22.13+，零依赖，`npm start` 就跑。没有数据库要装，没有 Docker 要学。
 
 ## 快速开始（3 分钟）
 
@@ -31,9 +31,35 @@ cp .env.example .env
 npm start
 ```
 
+> **需要 Node 22.13+**（或 23.4+ / 24+）。为什么卡这个版本，见下面一节。
+
 浏览器打开 `http://localhost:8787`。不填任何 key 也能跑——内置了一个本地 mock 助手，先把界面玩起来，再决定接哪个模型。
 
 **嫌读文档麻烦？让 AI 带你装。** 把 [`docs/AI_GUIDED_SETUP.md`](docs/AI_GUIDED_SETUP.md) 整篇粘给任意 AI（Claude / ChatGPT / Gemini），加一句「请按下面这份 spec 一步一步引导我安装 CC Companion」。它会一步一验地把你带到装好为止。
+
+## 为什么要求 Node 22.13+
+
+存储层用 SQLite，而我们**不想为此引入任何依赖**——零依赖是这个项目的硬承诺（`npm install` 装不上原生模块，是自部署最常见的劝退点）。
+
+Node 从 **v22.13.0** 起自带 `node:sqlite`，免编译、免 flag。所以我们不装 `better-sqlite3`，改为把引擎门槛提到 22.13。顺带一提：Node 18 和 20 都已经 EOL，守着它们并不是在照顾谁。
+
+**⚠️ 有一个版本空洞：23.0 – 23.3 不行。** `node:sqlite` 的解除 flag 是在 22 线和 23 线上**分别**落地的（[nodejs/node#55890](https://github.com/nodejs/node/pull/55890)），所以 23.0–23.3 虽然版本号更高，反而拿不到。装了这几个版本会看到：
+
+```
+Error [ERR_UNKNOWN_BUILTIN_MODULE]: No such built-in module: node:sqlite
+```
+
+**遇到这个报错就是撞了这个洞，升到 23.4+ 或换 22.13+ 即可。**（临时救急也可以加 `--experimental-sqlite`，但不建议长期这么跑。）
+
+各版本实测（下的官方二进制，不是查文档抄的）：
+
+| Node | 免 flag 可用 |
+|---|---|
+| 22.12.0 及以下 | ❌ |
+| **22.13.0 +** | ✅ |
+| 23.0 – 23.3 | ❌ ← 空洞 |
+| **23.4.0 +** | ✅ |
+| 24 / 25 | ✅ |
 
 ## 接模型的两种方式
 

@@ -12,7 +12,7 @@
     "check": "node scripts/check.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": "^22.13.0 || >=23.4.0"
   },
   "license": "MIT"
 }
