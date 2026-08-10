@@ -74,6 +74,25 @@ function bindEvents() {
       render();
       await refreshCurrent().catch(handleBackgroundError);
     }
+    if (name === 'pick-avatar' || name === 'clear-avatar') {
+      const field = action.dataset.field === 'assistant_avatar' ? 'assistant_avatar' : 'user_avatar';
+      let url = '';
+      if (name === 'pick-avatar') {
+        // 走和贴纸/附件同一条上传链:先落成 /uploads/ 资源,再把**引用**写进设置。
+        // 不把图片本身塞进 settings —— 那会让 store 里躺着 base64,也和自改窄口
+        // 「只收已上传引用」的口径对不上(见 server.js 的 /api/agent/avatar)。
+        const file = await pickOneImage();
+        if (!file) return;
+        try {
+          const uploaded = await api('/api/uploads', { method: 'POST', body: await prepareUpload(file) });
+          url = uploaded && uploaded.url ? uploaded.url : '';
+        } catch (err) { handleBackgroundError(err); return; }
+        if (!url) return;
+      }
+      state.settings = await api('/api/settings', { method: 'POST', body: { ...state.settings, [field]: url } });
+      cacheBootstrap();
+      render();
+    }
     if (name === 'copy-message') {
       const row = action.closest('.message-row');
       const body = row && row.querySelector('.body-text');
@@ -1072,6 +1091,23 @@ function openStickerPicker(scope) {
   // `change` never fired; if it never appears, the tap didn't route.
   state.stickerStatus[scope] = '已打开选择器，选张图…';
   render();
+}
+
+// 弹一次系统选图,返回 File 或 null。隐藏 input 的写法照抄贴纸那条已经跑通的路径 ——
+// 尤其 `cancel` 事件:有些 webview 取消时只发 cancel 不发 change,不收就会一直等下去。
+function pickOneImage() {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.setAttribute('aria-hidden', 'true');
+    input.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0';
+    const done = (file) => { try { input.remove(); } catch (e) {} resolve(file); };
+    input.addEventListener('change', () => done((input.files || [])[0] || null));
+    input.addEventListener('cancel', () => done(null));
+    document.body.appendChild(input);
+    input.click();
+  });
 }
 
 async function addStickerFromFile(scope, file) {

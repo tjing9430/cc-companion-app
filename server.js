@@ -23,7 +23,7 @@ import {
   QUOTA_ADAPTER_URL, QUOTA_ADAPTER_TOKEN, QUOTA_ADAPTER_TIMEOUT_MS,
   HEARTBEAT_ENABLED, HEARTBEAT_INTERVAL_MINUTES, HEARTBEAT_MIN_IDLE_MINUTES,
   HEARTBEAT_QUIET_START, HEARTBEAT_QUIET_END,
-  store, saveStore, nextId, newSessionId, normalizeSession, normalizeSettings,
+  store, saveStore, nextId, newSessionId, normalizeSession, normalizeSettings, normalizeAvatar,
   publicSettings, publicSession, applySettingsRename, agentStatus,
 } from './lib/state.js';
 import { sseClients, handleSseStream, streamScopeForRoute, broadcastSse, writeSse, setSnapshotProvider } from './lib/sse.js';
@@ -167,6 +167,34 @@ async function handleRequest(req, res) {
   if (req.method === 'GET' && route === '/api/quota') {
     const result = await queryQuota({ recordEvent: false });
     return sendJson(res, 200, { ok: true, quota: result.quota });
+  }
+
+  // AI 自己换自己的头像。**专门开一个只认一个字段的窄口,不复用 /api/settings。**
+  //
+  // 为什么不复用大口:桥用的 token 就是 app token。让 agent 走 /api/settings,
+  // 等于把「整份设置可写」交出去 —— 它能改群聊唤起词、能关掉功能开关、能改主题。
+  // 一个字段的需求就开一个字段的口子,这是权限最小化,不是洁癖。
+  //
+  // 三条约束(逐条对应实现):
+  //   ① 只接 assistant_avatar,其余字段**静默忽略**不报错 —— 报错会变成探测器,
+  //      告诉调用方"这个字段名存在/不存在"。
+  //   ② 值只接已上传资源引用,normalizeAvatar 是白名单形状(见 lib/state.js)。
+  //      拿不认识的值进来就落成空串,不是原样存下去。
+  //   ③ 每次自改落一条 console 事件 —— 「被看见」是这个产品点的一半,
+  //      同时也是审计线:谁在什么时候把自己换成了什么。
+  if (req.method === 'POST' && route === '/api/agent/avatar') {
+    const body = await readJson(req);
+    const next = normalizeAvatar(body && body.assistant_avatar);
+    if (!next) {
+      return sendJson(res, 400, { error: 'invalid_avatar',
+        message: '头像只接受本机已上传的资源引用(/uploads/…),不接受外链或 data URL' });
+    }
+    store.settings = { ...store.settings, assistant_avatar: next };
+    saveStore();
+    addConsoleEvent('avatar', 'AI 换了头像', next);
+    const settings = publicSettings();
+    broadcastSse('settings', { settings });
+    return sendJson(res, 200, { ok: true, assistant_avatar: next });
   }
 
   if (req.method === 'POST' && route === '/api/settings') {

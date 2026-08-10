@@ -1693,3 +1693,32 @@ body[data-theme="starry"] .mem-home{
   --paper-bg2:#0B1020;
   --paper-shadow:rgba(0,0,0,.5);
 }
+
+/* --- 头像 --- */
+/* 首字母垫在底下,图盖在上面:图挂了 onerror 把 img 摘掉,露出首字母,
+   不会留一个碎图标。所以 .avatar 原有的居中文字样式一行都不用改。 */
+.avatar.has-img{position:relative;overflow:hidden}
+.avatar.has-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+
+.avatar-picks{display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap}
+.avatar-pick{display:flex;flex-direction:column;align-items:center;gap:.3rem;min-width:64px}
+.avatar-pick-btn{
+  width:52px;height:52px;padding:0;border-radius:50%;overflow:hidden;
+  border:1px solid var(--line);background:var(--panel-soft);cursor:pointer;
+}
+.avatar-pick-btn img{width:100%;height:100%;object-fit:cover;display:block}
+.avatar-pick-btn:hover{border-color:var(--accent)}
+.avatar-pick-who{font-size:.72rem;color:var(--muted);max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avatar-pick-clear{font-size:.68rem;padding:.1rem .4rem;border-radius:var(--radius-pill);
+  border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+body[data-theme="starry"] .avatar-pick-btn{box-shadow:0 0 10px rgba(231,196,122,.18)}
+
+/* 移动端把头像放出来。
+   ★ 上面 @media(max-width:1100px) 里原本有一句 `.avatar{display:none}` —— 那是头像还只是
+   「首字母灰圆片」时的合理取舍:占宽度、又没信息量。现在头像是真图了,而这个 App 主要就在
+   手机上用,藏起来等于这个功能没做。所以这里**覆盖**而不是删掉原来那行:原始取舍留在代码里
+   看得见,改动也看得见。
+   尺寸压到 26px(桌面 30px),让出来的横向空间还给气泡。 */
+@media (max-width:1100px){
+  .message-row .avatar{display:grid;width:26px;height:26px;font-size:.6rem}
+}

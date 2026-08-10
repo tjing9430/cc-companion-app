@@ -15,6 +15,19 @@ let shell = {
 };
 function setChatShellDeps(deps) { shell = { ...shell, ...deps }; }
 
+// 头像:先看用户设过没有,没设就用成套的星星默认图,再兜底首字母圆片。
+// 判据用 role 不用发言人名字 —— 群里 sender 是自定义的,靠名字匹配会在改名那天全错。
+function avatarHtml(message) {
+  const s = state.settings || {};
+  const isAssistant = message && message.role === 'assistant';
+  const custom = isAssistant ? s.assistant_avatar : s.user_avatar;
+  const fallbackStar = isAssistant ? '/assets/stars/star-private-core.webp' : '/assets/stars/star-group.webp';
+  const src = custom || fallbackStar;
+  const who = (message && message.sender) || (isAssistant ? s.assistantName : s.userName) || '';
+  // 图挂了就把 img 摘掉,露出底下的首字母 —— 不要一个碎图标杵在那儿
+  return `<div class="avatar has-img">${esc(initials(who))}<img src="${escAttr(src)}" alt="" loading="lazy" onerror="this.remove()"></div>`;
+}
+
 function renderChat(scope, rows) {
   const searchOpen = !!(state.chatSearchOpen && state.chatSearchOpen[scope]);
   return `
@@ -101,7 +114,7 @@ function renderMessage(message, opts = {}) {
     : `${message.thinking ? `<div class="thinking">💭 ${esc(message.thinking)}</div>` : ''}${renderQuotedParent(message)}${text ? `<div class="body-text md">${renderMarkdown(text)}</div>` : ''}${attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : ''}`;
   return `
     <article class="${classes}" id="msg-${idAttr}">
-      <div class="avatar">${esc(initials(message.sender))}</div>
+      ${avatarHtml(message)}
       <div class="msg-col">
         <div class="msg-sender">${esc(message.sender)}</div>
         <div class="bubble">
@@ -203,7 +216,7 @@ function renderComposerDraft(scope, part, index) {
   ].filter(Boolean).join(' ');
   return `
     <article class="${classes}">
-      <div class="avatar">${esc(initials(state.settings.userName))}</div>
+      ${avatarHtml({ role: 'user', sender: state.settings.userName })}
       <div class="msg-col">
         <div class="msg-sender">${esc(state.settings.userName)}</div>
         <div class="bubble">
@@ -229,7 +242,7 @@ function renderAttachmentDraft(scope, files) {
   ].join(' ');
   return `
     <article class="${classes}">
-      <div class="avatar">${esc(initials(state.settings.userName))}</div>
+      ${avatarHtml({ role: 'user', sender: state.settings.userName })}
       <div class="msg-col">
         <div class="msg-sender">${esc(state.settings.userName)}</div>
         <div class="bubble">
