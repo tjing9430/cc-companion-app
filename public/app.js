@@ -15,6 +15,7 @@ import {
   memoryMood,
 } from './js/util.js';
 import { renderMarkdown, mdInline, mdSafeUrl } from './js/markdown.js';
+import { orbMarkup, hydrateStarry } from './js/starry.js';
 import {
   CONSOLE_COMMANDS,
   MAX_ATTACHMENT_BYTES,
@@ -811,6 +812,9 @@ function render() {
     ${renderMemoryReader()}
     ${renderLightbox()}`;
   scrollLists();
+  // 星空主题的动态零件(背景星野 / 页头主星的环和珠子)要在 DOM 落地之后挂。
+  // 非 starry 主题时它自己会把东西收干净,不用在这儿判断。
+  hydrateStarry(root);
 }
 
 function renderLightbox() {
@@ -878,6 +882,7 @@ function renderTopbar() {
     <header class="topbar${mem ? ' topbar-paper' : ''}">
       <div class="topbar-title">
         ${mem && mem.back ? '<button type="button" class="topbar-back" data-action="memory-tab" data-tab="home" aria-label="回记忆">‹</button>' : ''}
+        ${orbMarkup(state.tab)}
         <div class="topbar-title-text"><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>
       </div>
       <div class="topbar-actions">
@@ -1682,7 +1687,10 @@ function scrollLists() {
 
 
 function applyTheme() {
-  document.body.dataset.theme = state.settings && state.settings.theme === 'light' ? 'light' : 'dark';
+  const t = state.settings && state.settings.theme;
+  document.body.dataset.theme = ['light', 'starry'].includes(t) ? t : 'dark';
+  // 这里不水合:applyTheme 是 render() 开头调的,那会儿 root 还是上一帧的 DOM。
+  // 水合统一放在 render() 结尾(DOM 已就位),切主题也是走 render,不会漏。
 }
 
 

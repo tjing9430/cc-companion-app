@@ -520,7 +520,9 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
 .message-row.me .msg-sender,
 .message-row.me .msg-time{color:rgba(74,44,31,.65)}
 body[data-theme="dark"] .message-row.me .msg-sender,
-body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
+body[data-theme="dark"] .message-row.me .msg-time,
+body[data-theme="starry"] .message-row.me .msg-sender,
+body[data-theme="starry"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
 
 .bubble{
   min-width:0;
@@ -592,7 +594,8 @@ body[data-theme="dark"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   background:none;border:none;padding:0;
 }
 .body-text.md .md-link{color:var(--accent-strong);text-decoration:underline;overflow-wrap:anywhere}
-body[data-theme="dark"] .body-text.md .md-link{color:var(--accent)}
+body[data-theme="dark"] .body-text.md .md-link,
+body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
 .message-row.me .body-text.md .md-link{color:inherit}
 
 .attachments{display:grid;gap:.45rem;margin-top:.55rem}
@@ -1470,7 +1473,8 @@ body[data-theme="dark"] .mem-home{
   border-bottom:1px solid rgba(190,175,155,.28);
   box-shadow:0 1px 3px rgba(90,70,50,.13);
 }
-body[data-theme="dark"] .mem-note-tape{
+body[data-theme="dark"] .mem-note-tape,
+body[data-theme="starry"] .mem-note-tape{
   background:linear-gradient(180deg, rgba(240,235,225,.30), rgba(240,235,225,.16));
   border-top-color:rgba(255,255,255,.28);
 }
@@ -1537,3 +1541,150 @@ body[data-theme="dark"] .mem-note-tape{
 }
 .memory-stale-tag{background:var(--line-soft);color:var(--muted)}
 .memory-key-tag{background:var(--accent-soft);color:var(--accent-strong,var(--accent))}
+
+/* ============================================================
+   星空主题 starry —— 图纸 Phase 2。
+   light/dark 一个字节没动:这里只加一个 body[data-theme="starry"] 分支,
+   靠的还是原来那套变量。换皮不改结构。
+   ============================================================ */
+body[data-theme="starry"]{
+  color-scheme:dark;
+  --bg:#0B1020;
+  --bg-soft:#111832;
+  --panel:rgba(24,32,60,.72);
+  --panel-2:rgba(30,40,72,.85);
+  --panel-soft:rgba(28,36,66,.6);
+  --text:#F6F7FB;
+  --muted:#9BA6C8;
+  --faint:#6F7A9E;
+  --line:rgba(150,170,220,.16);
+  --line-soft:rgba(150,170,220,.10);
+  --accent:#E7C47A;              /* 描金 */
+  --accent-strong:#F3D89A;
+  --accent-soft:rgba(231,196,122,.18);
+  --accent-ink:#1A1428;
+  --accent-2:#8DAFF8;            /* 星云蓝 */
+  --me-bubble:rgba(231,196,122,.16);
+  --me-bubble-ink:#FDF3DC;
+  --them-bubble:rgba(30,40,74,.78);
+  --them-bubble-ink:#EDF0FA;
+  --danger:#E98B7F;
+  --danger-soft:rgba(233,139,127,.16);
+  --pending-bubble:rgba(120,132,175,.5);
+  --pending-bubble-ink:#E8ECF8;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.3);
+  --shadow-md:0 6px 20px rgba(0,0,0,.38);
+  --shadow-lg:0 18px 44px rgba(0,0,0,.5);
+  /* 深空底:demo 里那条,原样 */
+  background:radial-gradient(120% 80% at 75% -10%, #1C2440 0%, #141B2D 40%, #0E1220 75%, #0B1020 100%) fixed;
+}
+/* 底色已经画在 body 上,里层容器就别再糊一层不透明底把它盖掉 */
+body[data-theme="starry"] .layout,
+body[data-theme="starry"] .main,
+body[data-theme="starry"] .content,
+body[data-theme="starry"] .message-list{background:transparent}
+
+/* --- 背景星野(JS 造点,动画交给 CSS 走合成层) --- */
+.starfield{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.starfield i{position:absolute;border-radius:50%;background:#fff;opacity:var(--o);
+  animation:cc-twinkle var(--dur) ease-in-out var(--delay) infinite}
+@keyframes cc-twinkle{0%,100%{opacity:var(--o)}50%{opacity:calc(var(--o)*.25)}}
+/* 星野在最底层,内容照常在上面 */
+body[data-theme="starry"] .layout{position:relative;z-index:1}
+
+/* --- 玻璃拟态:只给顶栏、输入栏、侧栏/底栏 三处。
+       定稿如此,别扩大到每条气泡 —— backdrop-filter 一多,低端机就顶不住了。 --- */
+body[data-theme="starry"] .topbar,
+body[data-theme="starry"] .sidebar,
+body[data-theme="starry"] .composer{
+  background:rgba(16,22,44,.62);
+  backdrop-filter:blur(14px) saturate(1.2);
+  -webkit-backdrop-filter:blur(14px) saturate(1.2);
+}
+
+/* --- 页头主星 --- */
+.orb{position:relative;width:var(--orb-size,56px);height:calc(var(--orb-size,56px) * 1.5);
+  flex:0 0 auto;display:none;align-self:center;margin-inline-end:.1rem}
+body[data-theme="starry"] .orb{display:block}
+.orb img{display:block;width:100%;height:auto;position:relative;z-index:2}
+.orb svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.orb .orb-back{z-index:1}
+.orb .orb-front{z-index:3}
+/* 摇曳 + 呼吸(demo 原参数:sway ±2° 9s、breath 2.06s) */
+body[data-theme="starry"] .orb{
+  animation:cc-sway 9s ease-in-out infinite alternate, cc-breath 2.06s ease-in-out infinite;
+}
+@keyframes cc-sway{from{transform:rotate(-2deg) translateY(-2px)}to{transform:rotate(2deg) translateY(2px)}}
+@keyframes cc-breath{0%,100%{filter:drop-shadow(0 0 8px rgba(231,196,122,.35))}
+  50%{filter:drop-shadow(0 0 15px rgba(231,196,122,.6))}}
+
+/* --- 空状态:弯月 --- */
+body[data-theme="starry"] .empty{position:relative;padding-top:calc(84px + .8rem)}
+body[data-theme="starry"] .empty::before{
+  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:56px;height:84px;opacity:.9;
+  background:url('/assets/stars/star-moon.webp') center/contain no-repeat;
+}
+
+/* --- 加载:彗星掠过 --- */
+body[data-theme="starry"] .loading-comet{
+  display:block;width:72px;height:48px;margin:.6rem auto;
+  background:url('/assets/stars/star-comet.webp') center/contain no-repeat;
+  animation:cc-comet 1.9s ease-in-out infinite;
+}
+@keyframes cc-comet{0%{transform:translateX(-40%) scale(.9);opacity:0}
+  35%{opacity:1}70%{opacity:1}100%{transform:translateX(40%) scale(1.05);opacity:0}}
+
+/* --- 底部不做卡面,改成一条星河 --- */
+body[data-theme="starry"] .sidebar{
+  border-top-color:rgba(231,196,122,.22);
+  box-shadow:0 -10px 30px rgba(6,10,26,.55);
+}
+body[data-theme="starry"] .sidebar::before{
+  content:'';position:absolute;left:0;right:0;top:0;height:1px;pointer-events:none;
+  background:linear-gradient(90deg,transparent 0%,rgba(141,175,248,.5) 18%,rgba(231,196,122,.85) 50%,rgba(141,175,248,.5) 82%,transparent 100%);
+}
+body[data-theme="starry"] .sidebar::after{
+  content:'';position:absolute;left:0;right:0;top:0;height:26px;pointer-events:none;opacity:.5;
+  background:
+    radial-gradient(1.4px 1.4px at 12% 40%,#fff,transparent),
+    radial-gradient(1px 1px at 28% 22%,#cfe0ff,transparent),
+    radial-gradient(1.6px 1.6px at 44% 55%,#fff2cf,transparent),
+    radial-gradient(1px 1px at 61% 28%,#fff,transparent),
+    radial-gradient(1.3px 1.3px at 77% 48%,#cfe0ff,transparent),
+    radial-gradient(1px 1px at 90% 26%,#fff2cf,transparent);
+}
+body[data-theme="starry"] .nav button.active{
+  background:rgba(231,196,122,.12);
+  color:var(--accent-strong);
+  box-shadow:0 0 14px rgba(231,196,122,.18) inset;
+}
+body[data-theme="starry"] .nav button.active .nav-icon{
+  filter:drop-shadow(0 0 5px rgba(231,196,122,.7));
+  transform:scale(1.08);
+}
+body[data-theme="starry"] .nav .nav-icon{transition:transform .18s ease}
+
+@media (prefers-reduced-motion:reduce){
+  .starfield i,
+  body[data-theme="starry"] .orb,
+  body[data-theme="starry"] .loading-comet{animation:none!important}
+}
+
+/* 记忆页的纸在 starry 下的取值。
+   ★ 红线是「记忆页 UI 一根手指都不要动」—— 这里没动结构、没动版式,只补上第三个主题的
+   纸色变量:dark 有这一组、starry 没有,所以之前整页掉回浅色纸,在深空底上白得刺眼。
+   ★ 颜色不是我调的审美,是**从 starry 已有的调色板机械推出来的**(底色取 --bg-soft 一系、
+   墨色取 --text、点缀取描金),避免自创一套没人拍过的配色。
+   想换成另一种「星光下的纸」,这块整个替掉就行,不牵动别处。 */
+body[data-theme="starry"] .mem-home{
+  --paper:#151C36;
+  --paper-line:rgba(141,175,248,.14);
+  --paper-grid:rgba(150,170,220,.09);
+  --paper-ink:#EDF0FA;
+  --paper-kicker:#E7C47A;
+  --paper-muted:#9BA6C8;
+  --paper-bg1:#0F1528;
+  --paper-bg2:#0B1020;
+  --paper-shadow:rgba(0,0,0,.5);
+}

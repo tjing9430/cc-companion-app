@@ -21,6 +21,7 @@ function renderSettings({ notifySupported, notifyEnabled }) {
           <select name="theme">
             <option value="dark" ${s.theme === 'dark' ? 'selected' : ''}>暖深色</option>
             <option value="light" ${s.theme === 'light' ? 'selected' : ''}>奶油白</option>
+            <option value="starry" ${s.theme === 'starry' ? 'selected' : ''}>星空</option>
           </select>
         </div>
       </div>
