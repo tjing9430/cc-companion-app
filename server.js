@@ -1745,7 +1745,9 @@ function publicDocument(doc, options = {}) {
     created_at: cleanString(doc && doc.created_at, ''),
     updated_at: cleanString(doc && doc.updated_at, ''),
   };
-  if (options.full) output.content = cleanString(doc && doc.content, '');
+  // 全文按原样返回:cleanString 会 trim,而文档正文的首尾空白是内容的一部分
+  // (缩进敏感的文件被削掉就不是原文了)。
+  if (options.full) output.content = String((doc && doc.content) || '');
   return output;
 }
 

@@ -24,6 +24,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInteractiveRunner } from './interactive.js';
 import { buildPrompt } from './prompt.js';
+import { syncLibrary } from './library.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..');
@@ -317,8 +318,12 @@ const server = http.createServer(async (req, res) => {
     const body = await readJson(req);
     const prompt = buildPrompt(body.messages).trim();
     if (!prompt) return sendJson(res, 400, { error: { message: 'no user message in request' } });
+    // Put the 资料库 on disk where the agent can actually open it (retrieval only ever
+    // sends a few chunks). Failure here is non-fatal — the turn goes ahead without it.
+    const manifest = await syncLibrary({ appUrl: APP_URL, token: APP_AUTH_TOKEN, cwd: process.cwd(), log });
+    const fullPrompt = manifest ? `${manifest}\n\n---\n\n${prompt}` : prompt;
     try {
-      const { content, thinking } = await runTurn(prompt);
+      const { content, thinking } = await runTurn(fullPrompt);
       const now = Math.floor(Date.now() / 1000);
       return sendJson(res, 200, {
         id: `chatcmpl-bridge-${now}`,
