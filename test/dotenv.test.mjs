@@ -6,9 +6,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-const REPO = path.resolve(import.meta.dirname, '..');
+// import.meta.dirname 要 Node 20.11+,引擎下限是 18,走 fileURLToPath 老路
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // 两份实现(server.js 和 bridge/index.js)是孪生的,一起验,免得只修一边。
 function parseWith(file, envText) {

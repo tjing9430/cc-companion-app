@@ -6,9 +6,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import net from 'node:net';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
-const REPO = path.resolve(import.meta.dirname, '..');
+// import.meta.dirname 要 Node 20.11+,引擎下限是 18,走 fileURLToPath 老路
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 async function freePort() {
   return new Promise((resolve) => {
