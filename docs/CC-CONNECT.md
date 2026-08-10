@@ -59,16 +59,48 @@ CLI but not by headless `-p` — a platform behavior, not a bridge choice. Inter
 works around it by reading the transcript. `node-pty` for macOS/Windows interactive support
 is on the [roadmap](../README.md#roadmap) (v1.2); until then, non-Linux users can use `print` mode.
 
-### Tool permissions (interactive mode)
+### Tool permissions (interactive mode) — read this before you file a bug
 
-The interactive CLI asks for confirmation before running tools that aren't pre-approved.
-The bridge does **not** bypass this (it never enables `--dangerously-skip-permissions`).
-Pre-approve your tools by running `claude` once in the same directory and accepting the
-allowlist, or set `BRIDGE_PERMISSION_MODE` (passed through as `claude --permission-mode`,
-e.g. `plan` / `acceptEdits` / `default`). If a turn stalls waiting for an unapproved tool,
-the bridge posts a Console note ("possibly waiting for a permission prompt — check the
-terminal") instead of hanging silently, and the turn eventually times out (the session
-stays alive for the next turn).
+**Symptom you are probably here for:** you send a normal message, nothing comes back, and
+the Console shows
+
+```
+possibly waiting for a permission prompt — check the terminal running the bridge
+Agent API timed out after 120000 ms
+```
+
+**Cause.** The interactive CLI asks for confirmation before running a tool that isn't
+pre-approved. That prompt appears **in the terminal**, and the bridge is deliberately
+write-only — it never reads the terminal (that's the design rule that keeps it from
+screen-scraping). So nobody presses anything, and the turn dies on the timeout. Nothing is
+broken; the agent is standing at a door waiting for you to open it.
+
+**Three ways to fix it, in the order we'd pick them:**
+
+1. **Pre-approve once, interactively (recommended).** Run `claude` yourself in the same
+   directory the bridge uses, do something that touches the tools you care about, accept the
+   prompts. The allowlist is saved to that HOME's config and the bridge inherits it.
+2. **Set an allowlist in `<HOME>/.claude/settings.json`** — `permissions.allow` for the tools
+   you want silent, `permissions.deny` for the ones you never want (deny wins). Pair it with
+   `"defaultMode": "acceptEdits"` so file edits don't prompt.
+3. **`BRIDGE_PERMISSION_MODE=bypassPermissions`** — nothing ever prompts. Only do this if the
+   bridge runs in a sandbox/VM you can throw away: it means the agent can run anything.
+   ⚠️ In interactive mode this mode also shows a **one-time confirmation dialog whose default
+   is "No, exit"**, so a fresh HOME will refuse to start until you either accept it once by
+   hand or set `"skipDangerousModePermissionPrompt": true` in that HOME's `settings.json`.
+
+**A fresh HOME has more gates than you'd expect.** Running the bridge under a HOME that has
+never run `claude` interactively will stall on the first-run wizard, then on
+*"Is this a project you trust?"*, then (if you enabled bypass) on the danger warning —
+all of them invisible, because the bridge doesn't read the terminal. If you're scripting a
+fresh HOME, the corresponding config keys are `hasCompletedOnboarding` and
+`projects["<cwd>"].hasTrustDialogAccepted` in `<HOME>/.claude.json`.
+
+**Print mode has none of this** (`BRIDGE_MODE=print`): headless `claude -p` never prompts.
+It's the safe fallback if you just want it to work — you lose the extended-thinking display.
+
+If a turn does stall, the bridge posts the Console note above instead of hanging silently,
+and the turn times out with the session left alive for the next one.
 
 ## Prerequisites
 

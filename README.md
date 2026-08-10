@@ -56,6 +56,13 @@ npm start          # 终端 1：应用
 npm run bridge     # 终端 2：bridge
 ```
 
+> **发消息没回音、控制台说 `possibly waiting for a permission prompt`?**
+> 那是交互模式下 Claude 在**终端里**等你确认某个工具的权限,而 bridge 按设计不读终端 ——
+> 没人按,两分钟后超时。不是坏了,是它在门口等你开门。
+> 三种解法 + 「全新 HOME 会连撞三道对话框」的坑,见
+> [docs/CC-CONNECT.md](docs/CC-CONNECT.md#tool-permissions-interactive-mode--read-this-before-you-file-a-bug)。
+> 只想先用起来:`BRIDGE_MODE=print`,它不弹任何东西(代价是看不到思考过程)。
+
 bridge 只绑 `127.0.0.1`，不要裸暴露到公网。默认 `interactive` 模式能显示 extended thinking（需 Linux/WSL）；跨平台可用 `BRIDGE_MODE=print`。人格设定写在 Claude Code 自己的 `CLAUDE.md` 里，不在 App 的设置里。
 
 > **bridge 会在自己的工作目录下建一个 `资料库/`**，把你在 App「记忆 → 资料库」里上传的文件写成真文件，这样 agent 能用自己的文件工具直接翻全文——检索一次只给几个片段，不够用。这个目录由 bridge 全权同步（App 里删掉的文件，盘上也会删），**别往里放你自己的东西**。想要它出现在别处，就从那个目录启动 bridge。详细配置、会话管理、架构说明见 [docs/CC-CONNECT.md](docs/CC-CONNECT.md)。
