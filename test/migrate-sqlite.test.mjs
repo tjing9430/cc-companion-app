@@ -259,3 +259,76 @@ test('空库也能迁(第一次装的人手上就是这个)', gate, async () => 
   assert.equal(r.stats.messages, 0);
   assert.equal(r.stats.memories, 0);
 });
+
+// ---------- 负向测试:证明 count 断言真的会咬人 ----------
+//
+// 为什么单独用这种打法:count 断言在**测试环境里杀不掉** —— 测试自己也硬编了预期条数,
+// 所以任何真丢行都会先被测试本身抓到,变异碰不到那条断言。可它恰恰是**真实数据迁移时
+// 唯一有牙的闸**(真数据那边没有第二把尺子)。所以"它会咬人"必须在实弹前被证明一次。
+//
+// ★ 做法:把**真脚本**复制一份到临时目录、在副本上动刀、**当成真进程跑**,验退出码。
+//   不在生产路径上留任何测试专用的钩子 —— 钩子以上的代码等于没跑过,
+//   那样测到的就不是真正会运行的那条控制流。
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const REAL_SCRIPT = fileURLToPath(new URL('../scripts/migrate-to-sqlite.mjs', import.meta.url));
+
+// 在真脚本的副本上做一处外科手术,返回改好的临时脚本路径。
+function mutatedScript(dir, from, to) {
+  const src = fs.readFileSync(REAL_SCRIPT, 'utf8');
+  // 锚点没命中要立刻炸,而不是"没改成功但测试照样绿" —— 那是最坏的一种假通过。
+  assert.ok(src.includes(from), `变异锚点在真脚本里找不到:${from}\n(脚本被重构了?这条测试必须跟着更新,不能静默失效)`);
+  const out = path.join(dir, 'migrate-mutated.mjs');
+  fs.writeFileSync(out, src.replace(from, to));
+  return out;
+}
+
+test('★★ 负向:迁移中途丢一行 → 脚本非零退出,报错带表名和差额', gate, async () => {
+  await withSeed(seed(), async ({ dir, storePath, dbPath }) => {
+    // 动刀点:写消息的那个循环少写最后一条。这是"迁移过程中静默丢行"的真实形态。
+    const script = mutatedScript(dir, 'for (const m of src.messages) {', 'for (const m of src.messages.slice(0, -1)) {');
+
+    const r = spawnSync(process.execPath, [script, '--write'], {
+      env: { ...process.env, DATA_DIR: dir }, encoding: 'utf8',
+    });
+    const output = `${r.stdout || ''}${r.stderr || ''}`;
+
+    // ① 必须非零退出 —— 这是给 CI 和给人的那道闸。打印得再好看,退出码是 0 就等于没拦。
+    assert.notEqual(r.status, 0, `丢了一行却退出码 0 —— 闸没关上。输出:\n${output}`);
+
+    // ② 报错要说清是哪张表、差了几条
+    assert.match(output, /messages/, '报错要带表名');
+    assert.match(output, /源 4 条/, '要给出源里的条数');
+    assert.match(output, /库里 3 条/, '要给出库里的条数');
+    assert.match(output, /少了 1 条/, '要直接把差额算出来,别让人自己减');
+
+    // ③ 失败就得干净回滚:不留半个库让人以为迁成了
+    assert.ok(!fs.existsSync(dbPath), '断言不过还留着 .db —— 下次跑会被"已存在"挡住,更糊涂');
+    // ④ 原文件一个字节没动
+    assert.equal(JSON.parse(fs.readFileSync(storePath, 'utf8')).chat_messages.length, 3);
+  });
+});
+
+test('★★ 负向对照:同一个真脚本不动刀,同样的种子必须成功 —— 证明上一条红是因为动了刀,不是因为跑法有问题', gate, async () => {
+  await withSeed(seed(), async ({ dir, dbPath }) => {
+    const r = spawnSync(process.execPath, [REAL_SCRIPT, '--write'], {
+      env: { ...process.env, DATA_DIR: dir }, encoding: 'utf8',
+    });
+    assert.equal(r.status, 0, `没动刀却失败了:\n${r.stdout}${r.stderr}`);
+    assert.ok(fs.existsSync(dbPath));
+  });
+});
+
+test('★★ 负向:标签表丢行也照样咬(证明这条闸覆盖每张表,不只是 messages)', gate, async () => {
+  await withSeed(seed(), async ({ dir }) => {
+    const script = mutatedScript(dir,
+      'for (const t of Array.isArray(m.tags) ? m.tags : []) putTag.run(int(m.id), str(t));',
+      'for (const t of (Array.isArray(m.tags) ? m.tags : []).slice(0, -1)) putTag.run(int(m.id), str(t));');
+    const r = spawnSync(process.execPath, [script, '--write'], { env: { ...process.env, DATA_DIR: dir }, encoding: 'utf8' });
+    const output = `${r.stdout || ''}${r.stderr || ''}`;
+    assert.notEqual(r.status, 0);
+    assert.match(output, /memory_tags/, '要指到 memory_tags 这张表');
+    assert.match(output, /少了 2 条/, '两条记忆各丢一个标签 = 少 2');
+  });
+});

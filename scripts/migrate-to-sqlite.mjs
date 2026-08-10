@@ -312,7 +312,11 @@ export async function migrate({ storePath, dbPath, write = false, allowRepairs =
       + repairs.slice(0, 5).map((r) => `      · ${r}`).join('\n')
       + `\n    确认可以就加 --allow-repairs 再跑。`);
 
-    // 断言 1:逐表 count 对齐
+    // 断言 1:逐表 count 对齐。
+    // ★ 这条是**真实数据那边唯一有牙的闸** —— 测试环境还有第二把尺子(测试自己硬编了
+    //   预期条数),真数据这里没有,只有它自己。所以报错必须带**表名和差额**,
+    //   让人一眼看出是哪张表丢了几条,而不是只知道「不对」。
+    //   「它会咬人」由 test 里的负向测试证明:变异真脚本、跑真进程、验退出码。
     const countOf = (t) => db.prepare(`SELECT COUNT(*) AS c FROM ${t}`).get().c;
     for (const [table, expected] of [
       ['messages', src.messages.length], ['memories', src.memories.length],
@@ -322,7 +326,10 @@ export async function migrate({ storePath, dbPath, write = false, allowRepairs =
       ['memory_tags', new Set(src.memories.flatMap((m) => (Array.isArray(m.tags) ? m.tags : []).map((t) => JSON.stringify([m.id, t])))).size],
     ]) {
       const got = countOf(table);
-      must(got === expected, `${table} 条数对不上:源 ${expected} 库 ${got}`);
+      const delta = got - expected;
+      must(got === expected,
+        `${table} 条数对不上:源 ${expected} 条,库里 ${got} 条,`
+        + `${delta < 0 ? `少了 ${-delta} 条` : `多了 ${delta} 条`}`);
     }
 
     // 断言 2:抽样内容逐字段比对(count 对不代表内容对)
