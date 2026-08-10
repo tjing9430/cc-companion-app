@@ -9,7 +9,7 @@
     "start": "node server.js",
     "bridge": "node bridge/index.js",
     "test": "node --test",
-    "check": "node --check server.js && node --check public/app.js && node --check public/sw.js && node --check adapters/openai-compatible.template.js && node --check adapters/local-cli.template.js && node --check bridge/index.js && node --check bridge/interactive.js"
+    "check": "node --check server.js && node --check lib/env.js && node --check lib/util.js && node --check lib/http-util.js && node --check lib/state.js && node --check lib/scope-fifo.js && node --check public/app.js && node --check public/sw.js && node --check adapters/openai-compatible.template.js && node --check adapters/local-cli.template.js && node --check bridge/index.js && node --check bridge/interactive.js"
   },
   "engines": {
     "node": ">=18"

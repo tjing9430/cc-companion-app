@@ -32,7 +32,7 @@ function parseWith(file, envText) {
   return JSON.parse(out.stdout);
 }
 
-for (const file of ['server.js', 'bridge/index.js']) {
+for (const file of ['lib/env.js', 'bridge/index.js']) {
   test(`${file}: 行尾注释不进值里`, () => {
     const env = parseWith(file, 'CLAUDE_EFFORT=xhigh   # 拿 thinking 的必需项\n');
     assert.equal(env.CLAUDE_EFFORT, 'xhigh');
