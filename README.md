@@ -2,6 +2,7 @@
 
 **把你的 AI 伴侣装进手机。** 自托管的双人聊天 App：私聊、群聊、记忆、控制台，跑在你自己的电脑或服务器上——聊天记录和记忆全存本地，不经过任何第三方服务器。
 
+[![CI](https://github.com/tjing9430/cc-companion-app/actions/workflows/ci.yml/badge.svg)](https://github.com/tjing9430/cc-companion-app/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/tjing9430/cc-companion-app?style=social)](https://github.com/tjing9430/cc-companion-app/stargazers)
 [![Featured in awesome-ai-companion](https://img.shields.io/badge/Featured%20in-awesome--ai--companion-9cf)](https://github.com/DasterProkio/awesome-ai-companion)

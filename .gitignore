@@ -6,3 +6,4 @@ data/uploads/
 .DS_Store
 Thumbs.db
 data/bridge-session*.json
+.env.bak*
