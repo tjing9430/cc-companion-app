@@ -46,6 +46,8 @@ const state = {
   events: [],
   memories: [],
   session: null,
+  // 桥的档位/用量快照。available:false = 这个部署没有桥,控制台不摆那块面板。
+  bridge: { available: false },
   quota: { loading: false, data: null, error: '', fetched_at: '' },
   pending: { chat: [], group: [] },
   composerParts: { chat: [], group: [] },

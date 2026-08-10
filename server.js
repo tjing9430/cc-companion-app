@@ -164,6 +164,33 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, publicSettings());
   }
 
+  // 档位面板:把桥的 /control/config 透过来。
+  //
+  // 为什么要代理而不让前端直连桥:①桥是**无鉴权**的本机口,不该暴露给浏览器
+  // ②浏览器直连要跨源 ③桥的地址是部署配置,前端不该知道。
+  // 走这条路,前端拿到的和别的 API 一样都过 app token 那道门。
+  //
+  // 桥没配 / 没起 / 不是我们这个桥 → 一律回 { available:false },前端据此**不摆控件**
+  // (同 7d26f83 那道能力门:后端给不出的能力,前端不给入口)。
+  if (route === '/api/bridge/config' && (req.method === 'GET' || req.method === 'POST')) {
+    const base = String(process.env.OPENAI_BASE_URL || '').replace(/\/+$/, '');
+    // /v1 结尾的是 OpenAI 兼容前缀,控制口在它的同级根上
+    const root = base.replace(/\/v1$/, '');
+    if (!root || !/^https?:\/\//.test(root)) return sendJson(res, 200, { available: false, reason: 'no_bridge' });
+    const init = { method: req.method, headers: { 'content-type': 'application/json' } };
+    if (req.method === 'POST') init.body = JSON.stringify(await readJson(req));
+    try {
+      const upstream = await fetch(`${root}/control/config`, { ...init, signal: AbortSignal.timeout(5000) });
+      const data = await upstream.json().catch(() => null);
+      if (!upstream.ok) return sendJson(res, upstream.status, data || { error: 'bridge_error' });
+      if (!data || !Array.isArray(data.efforts)) return sendJson(res, 200, { available: false, reason: 'not_our_bridge' });
+      return sendJson(res, 200, { available: true, ...data });
+    } catch (err) {
+      // 桥没起不是错误,是"这个部署没有桥"。回 available:false 让前端安静地不显示。
+      return sendJson(res, 200, { available: false, reason: 'unreachable' });
+    }
+  }
+
   if (req.method === 'GET' && route === '/api/quota') {
     const result = await queryQuota({ recordEvent: false });
     return sendJson(res, 200, { ok: true, quota: result.quota });

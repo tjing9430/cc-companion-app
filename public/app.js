@@ -74,6 +74,7 @@ function bindEvents() {
       render();
       await refreshCurrent().catch(handleBackgroundError);
     }
+    if (name === 'bridge-dial') return;   // select 走 change 事件,不在 click 里处理
     if (name === 'pick-avatar' || name === 'clear-avatar') {
       const field = action.dataset.field === 'assistant_avatar' ? 'assistant_avatar' : 'user_avatar';
       let url = '';
@@ -502,6 +503,14 @@ function bindEvents() {
   document.addEventListener('change', async (event) => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement)) return;
+    if (input.dataset.action === 'bridge-dial') {
+      const field = input.dataset.field === 'model' ? 'model' : 'effort';
+      try {
+        state.bridge = await api('/api/bridge/config', { method: 'POST', body: { [field]: input.value } });
+      } catch (err) { handleBackgroundError(err); }
+      render();
+      return;
+    }
     if (input.dataset.fileScope) await uploadFiles(input.dataset.fileScope, Array.from(input.files || []));
     if (input.dataset.stickerScope) {
       const scope = input.dataset.stickerScope;
@@ -602,7 +611,7 @@ async function refreshCurrent() {
   try {
     if (state.tab === 'chat') await loadMessages('chat');
     else if (state.tab === 'group') await loadMessages('group');
-    else if (state.tab === 'console') await loadConsole();
+    else if (state.tab === 'console') { await loadConsole(); await loadBridgeConfig(); }
     else if (state.tab === 'memory') await loadMemories();
     else if (state.tab === 'settings') await loadQuota();
   } catch (err) {
@@ -617,6 +626,16 @@ async function loadMessages(scope) {
   state.error = '';
   cacheBootstrap();
   renderMessages(scope);
+}
+
+// 桥的档位/用量。取不到不是错 —— 这个部署可能压根没有桥,
+// 所以失败就把 available 归 false 让面板消失,而不是弹错误给用户。
+async function loadBridgeConfig() {
+  try {
+    state.bridge = await api('/api/bridge/config');
+  } catch {
+    state.bridge = { available: false };
+  }
 }
 
 async function loadConsole() {

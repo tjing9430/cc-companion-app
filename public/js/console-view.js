@@ -9,6 +9,7 @@ function renderConsole() {
   return `
     <div class="console-view">
       <form class="console-command" data-console-command="1">
+        ${renderDialPanel()}
         <div class="console-shortcuts">
           ${CONSOLE_COMMANDS.map(([cmd, label]) => `<button type="button" data-action="console-shortcut" data-cmd="${escAttr(cmd)}">${esc(label)}</button>`).join('')}
         </div>
@@ -21,6 +22,37 @@ function renderConsole() {
       </form>
       <div class="event-list" data-scroll-list data-scroll-scope="console">
         ${state.events.length ? state.events.map((event) => renderConsoleEvent(event)).join('') : '<div class="empty">还没有控制台事件。</div>'}
+      </div>
+    </div>`;
+}
+
+// 「额度仪表盘」:模型定单价、effort 定用量,两个钮相邻摆;下面一条本会话用量。
+// ★ 桥给不出这些能力时(没配桥 / 桥没起 / 不是我们这个桥),整块不渲染 ——
+//   和头像那道门同一个判据:后端给不出的能力,前端不给入口。
+function renderDialPanel() {
+  const b = state.bridge;
+  if (!b || !b.available) return '';
+  const u = b.usage || {};
+  const prompt = Number(u.last_turn_prompt) || 0;
+  const win = Number(b.context_window) || 200000;   // 没报窗口就按 200k 画,并在文案里说明是估的
+  const pct = win > 0 ? Math.min(100, Math.round((prompt / win) * 100)) : 0;
+  const kk = (n) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
+  const sel = (name, cur, opts, label) => (opts && opts.length ? `
+    <label class="dial">
+      <span class="dial-label">${esc(label)}</span>
+      <select data-action="bridge-dial" data-field="${name}" ${state.offline ? 'disabled' : ''}>
+        ${opts.map((o) => `<option value="${escAttr(o)}" ${String(cur) === String(o) ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+      </select>
+    </label>` : '');
+  return `
+    <div class="dial-panel">
+      <div class="dial-row">
+        ${sel('model', b.model, b.models, '模型')}
+        ${sel('effort', b.effort, b.efforts, '思考档')}
+      </div>
+      <div class="usage-bar" title="上一轮送进模型的 token / 上下文窗口">
+        <div class="usage-fill" style="width:${pct}%"></div>
+        <span class="usage-text">${kk(prompt)} / ${kk(win)}${b.context_window ? '' : '(估)'} · 本会话 ${u.turns || 0} 轮 · 出 ${kk(Number(u.output_tokens) || 0)}</span>
       </div>
     </div>`;
 }
@@ -43,4 +75,4 @@ function renderConsoleEvent(event) {
     </article>`;
 }
 
-export { renderConsole, renderConsoleEvent };
+export { renderConsole, renderConsoleEvent, renderDialPanel };

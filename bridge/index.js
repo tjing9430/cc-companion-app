@@ -65,6 +65,40 @@ const CLAUDE_MODEL = String(process.env.CLAUDE_MODEL || '').trim();
 // 另一半在 <HOME>/.claude/settings.json 的 showThinkingSummaries:true —— 两个缺一个都拿不到明文,
 // 单开任一个实测都是 0 字,是拆开验过的,不是推的。
 const CLAUDE_EFFORT = String(process.env.CLAUDE_EFFORT || '').trim();
+
+// ---- 运行时可调的档位(App 控制台上那两个钮打到这里)----
+//
+// 为什么要有这一层:CLAUDE_MODEL / CLAUDE_EFFORT 是启动时从 env 读一次的常量,
+// 想在 App 里点一下就换,只有两条路 —— 重启桥,或者让它们变成可写的运行时状态。
+// 重启桥会打断正在进行的会话,所以走后者。下一轮 turn 生效,不影响手上这轮。
+//
+// ★ 白名单是**必须**的,不是洁癖:这两个值会被 push 进 spawn 的 args 数组。
+//   shell:false 挡住了 shell 注入,但挡不住**参数注入** —— 传一个以 `--` 开头的值
+//   进去,CLI 的参数解析器会把它当成新开关。所以只认列表里的字面量,别的一律拒。
+const EFFORT_CHOICES = ['low', 'medium', 'high', 'xhigh'];
+// 模型列表不写死在代码里(图纸要求「按 bridge 实际支持列表读」)——
+// 但也没法向 CLI 问出一份可靠清单,所以做成部署方声明:CLAUDE_MODELS=a,b,c。
+// 没声明就退回「只有当前这一个」,宁可少给选项,也不谎报支持。
+const MODEL_CHOICES = String(process.env.CLAUDE_MODELS || '')
+  .split(',').map((x) => x.trim()).filter(Boolean);
+
+let runtimeModel = CLAUDE_MODEL;
+let runtimeEffort = CLAUDE_EFFORT;
+
+// 本次进程存活期内的累计用量。桥重启就归零 —— 它衡量的是「这个会话烧了多少」,
+// 不是账单,所以不落盘(落盘就得考虑并发写、轮转、清理,不值当)。
+const usageTotals = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, turns: 0 };
+function addUsage(u) {
+  if (!u || typeof u !== 'object') return;
+  for (const k of ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) {
+    const v = Number(u[k]);
+    if (Number.isFinite(v) && v > 0) usageTotals[k] += v;
+  }
+  usageTotals.turns += 1;
+}
+// 「这一轮往模型里塞了多少」= 新输入 + 缓存命中 + 建缓存。用来对着上下文窗口看。
+let lastTurnPrompt = 0;
+let lastTurnOutput = 0;
 // 可选:凭证过期时从哪儿重新取一份。留空 = 不自愈(默认行为不变)。
 // 用在「claude 的登录态放在另一个 HOME、桥用的是它的副本」这种部署里 ——
 // 主 HOME 一刷新 token,副本就作废,症状是聊天框里冒出一句英文 401。
@@ -140,8 +174,8 @@ function runClaudeTurn(prompt, resume) {
   return new Promise((resolve, reject) => {
     const args = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose'];
     if (resume) args.push('--resume', resume);
-    if (CLAUDE_MODEL) args.push('--model', CLAUDE_MODEL);
-    if (CLAUDE_EFFORT) args.push('--effort', CLAUDE_EFFORT);
+    if (runtimeModel) args.push('--model', runtimeModel);
+    if (runtimeEffort) args.push('--effort', runtimeEffort);
     if (CLAUDE_MCP_CONFIG) args.push('--mcp-config', CLAUDE_MCP_CONFIG);
 
     // shell:false + prompt via stdin — never interpolate user text into a shell.
@@ -217,6 +251,15 @@ function runClaudeTurn(prompt, resume) {
       if (j.type === 'result') {
         if (j.session_id) newSessionId = j.session_id;
         if (typeof j.result === 'string') finalText = j.result;
+        // CLI 在 result 事件里给了真实用量,原来这里整段扔掉、对外报 0。
+        // 字段名是从真实 transcript 里核出来的,不是照 OpenAI 的形状猜的。
+        if (j.usage) {
+          addUsage(j.usage);
+          lastTurnPrompt = (Number(j.usage.input_tokens) || 0)
+            + (Number(j.usage.cache_read_input_tokens) || 0)
+            + (Number(j.usage.cache_creation_input_tokens) || 0);
+          lastTurnOutput = Number(j.usage.output_tokens) || 0;
+        }
         if (j.is_error || (j.subtype && j.subtype !== 'success')) {
           resultError = String(j.subtype || 'error');
         }
@@ -364,6 +407,40 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && (route === '/health' || route === '/v1/health')) {
     return sendJson(res, 200, { ok: true, bridge: 'cc-companion', session_id: sessionId || null });
   }
+  // 档位读写 + 用量快照。和 /v1/chat/completions 同一个监听器(仅本机),
+  // 所以没有引入新的信任边界:能打这个口的人本来就能打那个口花掉整份订阅。
+  if (route === '/control/config' && (req.method === 'GET' || req.method === 'POST')) {
+    if (req.method === 'POST') {
+      let body = {};
+      try { body = await readJson(req); } catch { body = {}; }
+      // 只认白名单里的字面量。传别的进来直接 400,不静默忽略 ——
+      // 这个口是给人点的,点了没反应比报错更难查。
+      if (body.effort !== undefined) {
+        const e = String(body.effort || '');
+        if (e && !EFFORT_CHOICES.includes(e)) {
+          return sendJson(res, 400, { error: { message: `effort 只能是 ${EFFORT_CHOICES.join('/')}` } });
+        }
+        runtimeEffort = e;
+      }
+      if (body.model !== undefined) {
+        const m = String(body.model || '');
+        const allowed = MODEL_CHOICES.length ? MODEL_CHOICES : [CLAUDE_MODEL].filter(Boolean);
+        if (m && !allowed.includes(m)) {
+          return sendJson(res, 400, { error: { message: `model 不在允许列表里(${allowed.join('/') || '未声明 CLAUDE_MODELS'})` } });
+        }
+        runtimeModel = m;
+      }
+      log('info', `档位已改 model=${runtimeModel || '(默认)'} effort=${runtimeEffort || '(默认)'}`);
+    }
+    return sendJson(res, 200, {
+      model: runtimeModel,
+      effort: runtimeEffort,
+      models: MODEL_CHOICES.length ? MODEL_CHOICES : [CLAUDE_MODEL].filter(Boolean),
+      efforts: EFFORT_CHOICES,
+      usage: { ...usageTotals, last_turn_prompt: lastTurnPrompt, last_turn_output: lastTurnOutput },
+    });
+  }
+
   if (req.method === 'GET' && route === '/v1/models') {
     return sendJson(res, 200, { object: 'list', data: [{ id: 'claude-code', object: 'model', owned_by: 'anthropic' }] });
   }
@@ -389,7 +466,7 @@ const server = http.createServer(async (req, res) => {
           message: { role: 'assistant', content, reasoning_content: thinking || undefined },
           finish_reason: 'stop',
         }],
-        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        usage: { prompt_tokens: lastTurnPrompt, completion_tokens: lastTurnOutput, total_tokens: lastTurnPrompt + lastTurnOutput },
       });
     } catch (err) {
       log('error', `turn failed: ${err.message}`);

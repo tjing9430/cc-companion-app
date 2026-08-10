@@ -1722,3 +1722,19 @@ body[data-theme="starry"] .avatar-pick-btn{box-shadow:0 0 10px rgba(231,196,122,
 @media (max-width:1100px){
   .message-row .avatar{display:grid;width:26px;height:26px;font-size:.6rem}
 }
+
+/* --- 额度仪表盘(控制台输入框上方):模型定单价、effort 定用量,两钮相邻 --- */
+.dial-panel{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.5rem}
+.dial-row{display:flex;gap:.6rem;flex-wrap:wrap}
+.dial{display:flex;align-items:center;gap:.35rem}
+.dial-label{font-size:.72rem;color:var(--muted);white-space:nowrap}
+.dial select{
+  font-size:.75rem;padding:.2rem 1.4rem .2rem .5rem;border-radius:var(--radius-pill);
+  border:1px solid var(--line);background:var(--panel-soft);color:var(--text);
+}
+.usage-bar{position:relative;height:20px;border-radius:var(--radius-pill);overflow:hidden;
+  background:var(--panel-soft);border:1px solid var(--line-soft)}
+.usage-fill{position:absolute;inset:0 auto 0 0;background:var(--accent);opacity:.28;transition:width .3s ease}
+.usage-text{position:relative;display:block;line-height:20px;text-align:center;
+  font-size:.66rem;color:var(--muted);letter-spacing:0}
+body[data-theme="starry"] .usage-fill{opacity:.4}
