@@ -1,41 +1,11 @@
 // renderMarkdown 单测:功能 + XSS。
-// 载入真 public/app.js(浏览器脚本)到 vm——函数声明会在任何顶层语句执行前提升,
-// 所以即使顶层 DOM 语句抛错,renderMarkdown/esc 仍然拿得到(别抄函数体测副本)。
-import fs from 'node:fs';
-import vm from 'node:vm';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+// 它已经拆成 public/js/markdown.js 这个真模块 → 直接 import,不再走
+// 「整个 app.js 塞进 vm、靠函数提升取函数」那套。app.js 一有 import 语句
+// 那套就整个崩,而且崩得静默(函数取不到,测试自己 exit 1)。拆分把这层耦合
+// 顶到台面上了,顺手换成正路。
+import { renderMarkdown } from '../public/js/markdown.js';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const src = fs.readFileSync(path.join(here, '..', 'public', 'app.js'), 'utf8');
-
-const noop = () => {};
-const elStub = () => new Proxy({}, {
-  get: (t, k) => (k === 'style' || k === 'classList' || k === 'dataset' ? elStub() : (k in t ? t[k] : noop)),
-  set: () => true,
-});
-const ctx = vm.createContext({
-  console,
-  window: { addEventListener: noop, location: { href: '', search: '' }, matchMedia: () => ({ matches: false, addEventListener: noop }) },
-  document: new Proxy({}, {
-    get: (t, k) => {
-      if (k === 'querySelectorAll') return () => [];
-      if (k === 'querySelector' || k === 'getElementById' || k === 'createElement') return () => elStub();
-      if (k === 'addEventListener') return noop;
-      if (k === 'body' || k === 'documentElement') return elStub();
-      return noop;
-    },
-  }),
-  localStorage: { getItem: () => null, setItem: noop, removeItem: noop },
-  navigator: { userAgent: 'node' },
-  fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }),
-  setTimeout, clearTimeout, setInterval, clearInterval,
-  EventSource: function () { return elStub(); },
-  requestAnimationFrame: noop,
-});
-try { vm.runInContext(src, ctx, { filename: 'app.js' }); } catch (e) { /* 顶层 DOM 语句报错无所谓,函数已提升 */ }
-
-const md = ctx.renderMarkdown;
+const md = renderMarkdown;
 if (typeof md !== 'function') { console.error('FATAL: renderMarkdown 没拿到'); process.exit(1); }
 
 let pass = 0, fail = 0;

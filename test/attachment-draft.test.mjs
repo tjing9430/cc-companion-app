@@ -7,11 +7,19 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const src = fs.readFileSync(path.join(here, '..', 'public', 'app.js'), 'utf8');
+// app.js 现在是 ES module(顶上有 import),vm 跑不了 import 语句 —— 会整个崩,
+// 而且崩得静默:函数一个都取不到,测试自己 exit 1。
+// 做法:剥掉顶部 import 块,把那些模块的真实导出注入 vm context 里当全局。
+// 仍然跑的是真 app.js 源码、依赖也是真模块,只是换了个喂进去的方式。
+// 等这些被测函数也拆成模块,这段就可以删掉、改成直接 import。
+const rawSrc = fs.readFileSync(path.join(here, '..', 'public', 'app.js'), 'utf8');
+const src = rawSrc.replace(/^import[\s\S]*?from\s+'[^']+';\s*$/gm, '');
+const deps = { ...(await import('../public/js/util.js')), ...(await import('../public/js/markdown.js')) };
 
 const noop = () => {};
 const elStub = () => new Proxy({}, { get: (t, k) => (k === 'style' || k === 'classList' ? elStub() : noop), set: () => true });
 const ctx = vm.createContext({
+  ...deps,
   console,
   window: { addEventListener: noop, location: { href: '', search: '' }, matchMedia: () => ({ matches: false, addEventListener: noop }) },
   document: new Proxy({}, {

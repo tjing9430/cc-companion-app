@@ -1,3 +1,20 @@
+import {
+  esc,
+  escAttr,
+  pad2,
+  debounce,
+  formatTime,
+  formatDateTime,
+  initials,
+  isWideMessage,
+  isNearBottom,
+  autosizeTextarea,
+  formatDocSize,
+  memoryTime,
+  memoryMonthLabel,
+  memoryMood,
+} from './js/util.js';
+import { renderMarkdown, mdInline, mdSafeUrl } from './js/markdown.js';
 const root = document.getElementById('app');
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const SMALL_IMAGE_BYTES = 280 * 1024;
@@ -1638,12 +1655,6 @@ function renderDocItem(doc) {
     </article>`;
 }
 
-function formatDocSize(size) {
-  const n = Number(size) || 0;
-  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
-  return `${n} 字`;
-}
 
 async function submitDocument(form) {
   const name = String(form.elements.name.value || '').trim();
@@ -1822,19 +1833,7 @@ function renderMemoryTimeline(memories) {
     </div>`).join('');
 }
 
-function memoryTime(memory) {
-  const ts = memory && (memory.updated_at || memory.created_at);
-  const t = ts ? new Date(ts).getTime() : 0;
-  return Number.isNaN(t) ? 0 : t;
-}
 
-function memoryMonthLabel(memory) {
-  const ts = memory && (memory.updated_at || memory.created_at);
-  if (!ts) return '未知时间';
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return '未知时间';
-  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月`;
-}
 
 function renderSettings() {
   const s = state.settings;
@@ -2365,15 +2364,7 @@ function updateComposerDrafts(scope) {
   if (state.stickToBottom[scope] !== false) list.scrollTop = list.scrollHeight;
 }
 
-function isWideMessage(text, attachments = []) {
-  if ((attachments || []).length) return true;
-  const value = String(text || '');
-  return value.includes('\n') || Array.from(value).length > 18;
-}
 
-function isNearBottom(node) {
-  return node.scrollHeight - node.scrollTop - node.clientHeight < 32;
-}
 
 function readCachedBootstrap() {
   try {
@@ -2525,69 +2516,22 @@ function scrollLists() {
   });
 }
 
-function autosizeTextarea(node) {
-  if (!node) return;
-  node.style.height = 'auto';
-  const next = Math.min(node.scrollHeight, 200);
-  node.style.height = next + 'px';
-}
 
 function applyTheme() {
   document.body.dataset.theme = state.settings && state.settings.theme === 'light' ? 'light' : 'dark';
 }
 
-function initials(name) {
-  return String(name || '?').trim().slice(0, 2).toUpperCase();
-}
 
-function formatTime(value) {
-  if (!value) return '';
-  return new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
-}
 
-function formatDateTime(value) {
-  if (!value) return '';
-  const date = new Date(value);
-  const parts = [
-    date.getFullYear(),
-    pad2(date.getMonth() + 1),
-    pad2(date.getDate()),
-  ].join('-');
-  return `${parts} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-}
 
-function memoryMood(memory) {
-  return String(memory && memory.mood || '平静').trim();
-}
 
 function memoryAuthor(memory) {
   return String(memory && memory.author || state.settings.assistantName || 'AI').trim();
 }
 
-function pad2(value) {
-  return String(value).padStart(2, '0');
-}
 
-function debounce(fn, delay) {
-  let timer = null;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  };
-}
 
-function esc(value) {
-  return String(value == null ? '' : value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
-function escAttr(value) {
-  return esc(value).replaceAll('`', '&#96;');
-}
 
 /* Markdown light renderer (bao #2: AI replies showed raw **bold** / - list / # heading)
    Safety model: esc() the whole string FIRST, then run regexes over the escaped text.
@@ -2596,78 +2540,9 @@ function escAttr(value) {
    Scope kept narrow (shenyu: don't do the full spec): bold / italic / inline code /
    code fence / links, plus the "- list" and "# heading" bao named. No tables,
    blockquotes, images, or nested lists. */
-const MD_MARK = '\u0001';
-const MD_URL_OK = /^(https?:\/\/|mailto:)/i;
 
-function mdSafeUrl(escapedUrl) {
-  const u = String(escapedUrl || '').trim();
-  return MD_URL_OK.test(u) ? u : '';
-}
 
-function mdInline(s) {
-  let out = s;
-  out = out.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (m, text, url) => {
-    const safe = mdSafeUrl(url);
-    return safe
-      ? '<a class="md-link" href="' + safe + '" target="_blank" rel="noopener noreferrer">' + text + '</a>'
-      : m;
-  });
-  out = out.replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, '<strong>$1</strong>');
-  out = out.replace(/(^|[^*\w])\*(?=\S)([^*\n]*?\S)\*(?![*\w])/g, '$1<em>$2</em>');
-  out = out.replace(/(^|[^_\w])_(?=\S)([^_\n]*?\S)_(?![_\w])/g, '$1<em>$2</em>');
-  return out;
-}
 
-function renderMarkdown(value) {
-  const src = String(value == null ? '' : value).split(MD_MARK).join('');
-  let s = esc(src);
-  const slots = [];
-  const stash = (html) => MD_MARK + 'B' + (slots.push(html) - 1) + MD_MARK;
-
-  s = s.replace(/```([a-zA-Z0-9_+-]*)\r?\n?([\s\S]*?)```/g, (m, lang, code) =>
-    stash('<pre class="md-pre"><code>' + code.replace(/\n$/, '') + '</code></pre>'));
-  s = s.replace(/`([^`\n]+)`/g, (m, code) => stash('<code class="md-code">' + code + '</code>'));
-
-  const html = [];
-  let para = [];
-  let list = null;
-  const flushPara = () => {
-    if (!para.length) return;
-    html.push('<p>' + mdInline(para.join('\n')).replace(/\n/g, '<br>') + '</p>');
-    para = [];
-  };
-  const flushList = () => {
-    if (!list) return;
-    html.push('<' + list.type + ' class="md-list">'
-      + list.items.map((it) => '<li>' + mdInline(it) + '</li>').join('')
-      + '</' + list.type + '>');
-    list = null;
-  };
-
-  for (const line of s.split('\n')) {
-    const heading = /^(#{1,3})\s+(.*)$/.exec(line);
-    const bullet = /^\s*[-*+]\s+(.*)$/.exec(line);
-    const ordered = /^\s*\d+[.)]\s+(.*)$/.exec(line);
-    if (heading) {
-      flushPara(); flushList();
-      const lv = heading[1].length + 2;
-      html.push('<h' + lv + ' class="md-h">' + mdInline(heading[2]) + '</h' + lv + '>');
-    } else if (bullet || ordered) {
-      flushPara();
-      const type = bullet ? 'ul' : 'ol';
-      if (!list || list.type !== type) { flushList(); list = { type: type, items: [] }; }
-      list.items.push(bullet ? bullet[1] : ordered[1]);
-    } else if (!line.trim()) {
-      flushPara(); flushList();
-    } else {
-      flushList(); para.push(line);
-    }
-  }
-  flushPara(); flushList();
-
-  const re = new RegExp(MD_MARK + 'B(\\d+)' + MD_MARK, 'g');
-  return html.join('').replace(re, (m, i) => slots[Number(i)] || '');
-}
 
 function protectedAssetUrl(url) {
   const value = String(url || '');
