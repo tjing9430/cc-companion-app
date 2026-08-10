@@ -87,6 +87,29 @@ bridge 只绑 `127.0.0.1`，不要裸暴露到公网。默认 `interactive` 模�
 - `APP_AUTH_TOKEN` 访问口令：不设时读消息 / 发消息任何人都能用（适合纯本机）；**删除单条、清空聊天记录这类破坏性操作在未设 token 时一律拒绝（403）**——公网部署务必设置，否则拿到链接的人能读你全部消息、用你的 AI（未设 token 时删除 / 清空按钮不显示）
 - 存储就是两个路径：`data/app-data.json` + `data/uploads/`，备份 = 复制
 
+## 代码结构
+
+```
+server.js          组合层:HTTP 路由、静态服务、启动引导(~420 行)
+lib/
+  state.js         配置常量 + store 生命周期(装载/落盘/归一化/设置)
+  env.js           .env 装载(行尾注释剥离)
+  util.js          纯函数工具箱(字符串/文件名/MIME/消息公共形状)
+  http-util.js     HTTP 边界(错误类型/JSON 读写/鉴权/路由归一)
+  sse.js           SSE 客户端集合与广播(快照由 server 启动时注入)
+  console.js       控制台事件流
+  messages.js      消息与表情包 CRUD
+  embedding.js     向量基建(embedding 调用/编解码/后台回填调度)
+  memory.js        记忆域(词法+语义召回/事实键顶替/CRUD/自动提取)
+  docs.js          资料库域(分块/CRUD/chunk 语义召回)
+  forge.js         无缝续接与配额 adapter
+  chat.js          聊天管线(FIFO 收发/召回拼 prompt/agent 调用)
+  heartbeat.js     心跳(静默时段/闲置判断/主动开口)
+  scope-fifo.js    per-scope FIFO 与延迟埋点
+```
+
+依赖单向:`util/env → state → 各域 → server.js`,域与域之间不互相乱穿。
+
 ## 进阶文档
 
 | 文档 | 内容 |
