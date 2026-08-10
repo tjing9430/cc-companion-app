@@ -23,6 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInteractiveRunner } from './interactive.js';
+import { buildPrompt } from './prompt.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..');
@@ -288,21 +289,6 @@ async function runPrintTurn(prompt) {
   }
 }
 
-// -------------------- extract the latest user text from an OpenAI messages array
-function latestUserText(messages) {
-  if (!Array.isArray(messages)) return '';
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m && m.role === 'user') {
-      if (typeof m.content === 'string') return m.content;
-      if (Array.isArray(m.content)) {
-        return m.content.map((p) => (typeof p === 'string' ? p : (p && p.text) || '')).join('');
-      }
-    }
-  }
-  return '';
-}
-
 // -------------------------------------------------- HTTP (OpenAI-compatible surface)
 function sendJson(res, status, obj) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
@@ -329,7 +315,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === 'POST' && route === '/v1/chat/completions') {
     const body = await readJson(req);
-    const prompt = latestUserText(body.messages).trim();
+    const prompt = buildPrompt(body.messages).trim();
     if (!prompt) return sendJson(res, 400, { error: { message: 'no user message in request' } });
     try {
       const { content, thinking } = await runTurn(prompt);
