@@ -62,11 +62,16 @@ body[data-theme="dark"]{
 
 *{box-sizing:border-box}
 html,body,#app{height:100%}
+/* 正文基准上调一档(原来偏小)。
+   ★ 杠杆必须落在 html 上不是 body:全站尺寸几乎都写成 rem,而 rem 认的是 **html**
+   的字号(默认 16px),body 那个 15px 只管「直接继承下来的文字」。
+   只改 body 等于绝大部分字号纹丝不动 —— 这一脚要踩在 html。 */
+html{font-size:17px}
 body{
   margin:0;
   background:var(--bg);
   color:var(--text);
-  font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Arial,sans-serif;
+  font:1rem/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Arial,sans-serif;
   letter-spacing:0;
   -webkit-font-smoothing:antialiased;
   text-rendering:optimizeLegibility;
