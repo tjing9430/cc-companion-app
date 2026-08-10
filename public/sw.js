@@ -1,8 +1,13 @@
-// ⚠️ 改了 app.js / styles.css 就要 bump 这个版本号(等价于主站的 ?v= 缓存串)。
-// 2026-08-09 踩过:没 bump + 下面 fetch 是 stale-while-revalidate(先给缓存、新的只存下次用)
-// → 用户永远慢一个刷新,把我已经修好的东西当成「你忘记做了」。现在核心资源改成 network-first。
-const CACHE_VERSION = 'cc-companion-static-v14-20260810-factkey';
-// 这两个是会天天改的代码,必须每次拿最新的;其余(图标/manifest)继续走缓存优先
+// 缓存版本号**不再靠人手改**。服务端在发 sw.js 时按被缓存文件的内容算一个哈希,
+// 塞成 self.__CC_CACHE_VERSION__ 前置一行 —— 文件内容一变,版本号自动变,旧 cache
+// 在 activate 时被清掉。
+// 2026-08-09 踩过:忘了 bump + fetch 是 stale-while-revalidate → 用户永远慢一个刷新,
+// 把已经修好的东西当成「你忘记做了」。2026-08-10 又踩过一次变体:手动 sed 改版本号,
+// 日期写错导致**静默不匹配、退出码还是 0**,差点当它改成功了。
+// 所以这里的原则是:能自动算出来的东西,不留给人记得。
+// (回落值只在「不经本项目服务端、直接静态托管 public/」时用到,那种部署本来就得自己管缓存。)
+const CACHE_VERSION = self.__CC_CACHE_VERSION__ || 'cc-companion-static-dev';
+// 会天天改的代码必须每次拿最新的;其余(图标/manifest)继续走缓存优先
 const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/js/state.js', '/styles.css', '/index.html'];
 const STATIC_ASSETS = [
   '/',

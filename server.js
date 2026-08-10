@@ -407,6 +407,25 @@ function serveUpload(res, route) {
   fs.createReadStream(filePath).pipe(res);
 }
 
+// Service worker 的缓存版本号:按被缓存文件的内容算哈希,发的时候注进去。
+// 手改版本号这件事已经咬过两次(忘了改 → 用户永远慢一个刷新;sed 改错 →
+// 静默不匹配、退出码还是 0)。能自动算出来的东西,别留给人记得。
+let swVersionCache = null;
+function serviceWorkerVersion() {
+  if (swVersionCache) return swVersionCache;
+  const hash = crypto.createHash('sha256');
+  // 只哈希真正会被缓存的那些文件;顺序固定,免得目录遍历顺序变了版本号跟着跳。
+  const tracked = ['index.html', 'app.js', 'styles.css', 'sw.js', 'manifest.json'];
+  try {
+    for (const f of fs.readdirSync(path.join(PUBLIC_DIR, 'js')).sort()) tracked.push(`js/${f}`);
+  } catch { /* 还没有 js/ 目录 */ }
+  for (const rel of tracked) {
+    try { hash.update(rel).update(fs.readFileSync(path.join(PUBLIC_DIR, rel))); } catch { /* 缺文件就跳过 */ }
+  }
+  swVersionCache = `cc-companion-${hash.digest('hex').slice(0, 12)}`;
+  return swVersionCache;
+}
+
 function serveStatic(res, route) {
   const requested = route === '/' ? '/index.html' : route;
   const filePath = path.resolve(PUBLIC_DIR, `.${requested}`);
@@ -415,6 +434,13 @@ function serveStatic(res, route) {
     const fallback = path.join(PUBLIC_DIR, 'index.html');
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
     return fs.createReadStream(fallback).pipe(res);
+  }
+  if (requested === '/sw.js') {
+    // 前置一行注入版本号;sw.js 里读 self.__CC_CACHE_VERSION__,读不到才用回落值。
+    const body = `self.__CC_CACHE_VERSION__=${JSON.stringify(serviceWorkerVersion())};\n`
+      + fs.readFileSync(filePath, 'utf8');
+    res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' });
+    return res.end(body);
   }
   res.writeHead(200, { 'content-type': contentTypeFor(filePath), 'cache-control': 'no-cache' });
   fs.createReadStream(filePath).pipe(res);
