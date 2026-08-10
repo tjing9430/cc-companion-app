@@ -1,56 +1,15 @@
 // 反馈#12:附件草稿要跟文字草稿一样有「编辑/删除」。
-// 渲染级单测——state 是顶层 const(既不是 window.state 也不是 ctx.state),
-// 得在同一个 vm context 里求值才拿得到引用,拿到后照常改字段再调渲染函数。
-import fs from 'node:fs';
-import vm from 'node:vm';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+//
+// ★ 这份原来是「把整个 app.js 塞进 vm、靠函数提升取函数」那套,当时留了日落条款:
+//   「等这些被测函数也拆成模块,这段就可以删掉、改成直接 import」。
+//   renderAttachmentDraft 已经进 js/chat-view.js 了,所以现在就是那一天 —— 加载器退役。
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-// app.js 现在是 ES module(顶上有 import),vm 跑不了 import 语句 —— 会整个崩,
-// 而且崩得静默:函数一个都取不到,测试自己 exit 1。
-// 做法:剥掉顶部 import 块,把那些模块的真实导出注入 vm context 里当全局。
-// 仍然跑的是真 app.js 源码、依赖也是真模块,只是换了个喂进去的方式。
-// 等这些被测函数也拆成模块,这段就可以删掉、改成直接 import。
-const rawSrc = fs.readFileSync(path.join(here, '..', 'public', 'app.js'), 'utf8');
-const src = rawSrc.replace(/^import[\s\S]*?from\s+'[^']+';\s*$/gm, '');
-// state.js 在模块顶层就读 localStorage(浏览器模块,本来就该这样)。
-// Node 里没有,import 会直接炸 —— 给个最小 stub,不为测试改生产代码。
+// state.js 在模块顶层读 localStorage(浏览器模块本该如此),Node 里得先垫一下
 globalThis.localStorage = globalThis.localStorage || { getItem: () => null, setItem() {}, removeItem() {} };
-const deps = {
-  ...(await import('../public/js/util.js')),
-  ...(await import('../public/js/markdown.js')),
-  ...(await import('../public/js/state.js')),   // state 已经拆进模块,vm 里取不到顶层 const 了
-};
-
-const noop = () => {};
-const elStub = () => new Proxy({}, { get: (t, k) => (k === 'style' || k === 'classList' ? elStub() : noop), set: () => true });
-const ctx = vm.createContext({
-  ...deps,
-  console,
-  window: { addEventListener: noop, location: { href: '', search: '' }, matchMedia: () => ({ matches: false, addEventListener: noop }) },
-  document: new Proxy({}, {
-    get: (t, k) => {
-      if (k === 'querySelectorAll') return () => [];
-      if (k === 'querySelector' || k === 'getElementById' || k === 'createElement') return () => elStub();
-      if (k === 'body' || k === 'documentElement') return elStub();
-      return noop;
-    },
-  }),
-  localStorage: { getItem: () => null, setItem: noop, removeItem: noop },
-  navigator: { userAgent: 'node' },
-  fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }),
-  setTimeout, clearTimeout, setInterval, clearInterval,
-  EventSource: function () { return elStub(); },
-  requestAnimationFrame: noop,
-});
-try { vm.runInContext(src, ctx, { filename: 'app.js' }); } catch (e) {}
-
-// 顶层 const/let 进的是 context 的全局词法环境,不是 context 属性 → 得在同一 context 里求值才拿得到
-const render = vm.runInContext('typeof renderAttachmentDraft === "function" ? renderAttachmentDraft : null', ctx);
-const S = deps.state;   // 从真模块拿同一个对象引用(和浏览器里跑的是同一份)
-if (typeof render !== 'function') { console.error('FATAL: renderAttachmentDraft 没拿到'); process.exit(1); }
-if (!S) { console.error('FATAL: state 没拿到'); process.exit(1); }
+const { state: S } = await import('../public/js/state.js');
+const { renderAttachmentDraft: render } = await import('../public/js/chat-view.js');
 
 S.settings = S.settings || { userName: '我' };
 S.uploading = S.uploading || {};
