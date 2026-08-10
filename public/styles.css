@@ -1529,3 +1529,11 @@ body[data-theme="dark"] .mem-note-tape{
 }
 .mem-lib .memory-tag-chip.on{background:var(--accent);border-color:var(--accent);color:#fff8f0}
 .mem-lib .memory-tag-chip.on .memory-tag-count{color:#fff8f0;opacity:.75}
+
+/* 事实键:同键只有最新一条参与召回,旧的留档但标出来 —— 样式做轻,等 UI 大改重画 */
+.memory-card-stale{opacity:.55}
+.memory-stale-tag,.memory-key-tag{
+  font-size:.66rem;padding:.08rem .4rem;border-radius:999px;white-space:nowrap;
+}
+.memory-stale-tag{background:var(--line-soft);color:var(--muted)}
+.memory-key-tag{background:var(--accent-soft);color:var(--accent-strong,var(--accent))}

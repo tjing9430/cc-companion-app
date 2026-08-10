@@ -747,12 +747,14 @@ async function submitMemory(form) {
   const mood = form.elements.mood.value.trim();
   const author = form.elements.author.value.trim();
   const tags = form.elements.tags.value.trim();
+  // 事实键:填了同一个键,新的会顶掉旧的(旧的留档,只是不再喂给 AI)
+  const fact_key = form.elements.fact_key ? form.elements.fact_key.value.trim() : '';
   if (!title && !content) return;
   if (state.memoryEditing && state.memoryEditing.id != null) {
-    await api(`/api/memory/${state.memoryEditing.id}`, { method: 'PATCH', body: { title, content, mood, author, tags } });
+    await api(`/api/memory/${state.memoryEditing.id}`, { method: 'PATCH', body: { title, content, mood, author, tags, fact_key } });
     state.memoryEditing = null;
   } else {
-    await api('/api/memory', { method: 'POST', body: { title, content, mood, author, tags } });
+    await api('/api/memory', { method: 'POST', body: { title, content, mood, author, tags, fact_key } });
   }
   state.memoryWriterOpen = false;
   form.reset();
@@ -1716,6 +1718,7 @@ function renderMemoryWriter(editing, editMood, editAuthor, editTags) {
           </div>
           <div class="form-row"><label>作者</label><input name="author" maxlength="80" value="${escAttr(editAuthor)}"></div>
           <div class="form-row"><label>标签</label><input name="tags" placeholder="日记, 偏好" value="${escAttr(editTags)}"></div>
+          <div class="form-row"><label>事实键</label><input name="fact_key" maxlength="60" placeholder="选填,例:住处 / 生日" value="${escAttr(editing && editing.fact_key || '')}"></div>
         </div>
         <div class="form-row"><label>内容</label><textarea name="content">${esc(editing && editing.content || '')}</textarea></div>
         <div class="composer-actions">
@@ -1737,8 +1740,10 @@ function renderMemoryItem(memory) {
   const mood = memoryMood(memory);
   const author = memoryAuthor(memory);
   const time = formatDateTime(memory.updated_at || memory.created_at);
+  // 被同一事实键的新记忆顶替了:留在列表里可回溯,但已经不喂给 AI 了,得让人一眼看出来。
+  const stale = Boolean(memory.superseded_by);
   return `
-    <article class="memory-card">
+    <article class="memory-card${stale ? ' memory-card-stale' : ''}">
       <button class="memory-card-top" type="button" data-action="open-memory-reader" data-id="${memory.id}">
         <span class="memory-card-title">${memory.pinned ? '<span class="memory-pin" title="已置顶：永远带给 agent">📌</span>' : ''}${esc(memory.title)}</span>
         ${mood ? `<span class="memory-mood">${esc(mood)}</span>` : ''}
@@ -1746,6 +1751,8 @@ function renderMemoryItem(memory) {
       <div class="memory-card-meta">
         ${MEMORY_MOON}<span class="memory-card-who">${esc(author)}</span>
         <span class="memory-card-time">· ${esc(time)}</span>
+        ${stale ? '<span class="memory-stale-tag" title="同一件事有更新的说法了,这条不再讲给 AI 听">已被顶替</span>' : ''}
+        ${!stale && memory.fact_key ? `<span class="memory-key-tag" title="事实键:同键只有最新一条会讲给 AI 听">${esc(memory.fact_key)}</span>` : ''}
       </div>
       <div class="memory-card-foot">
         <button class="memory-act" data-action="edit-memory" data-id="${memory.id}" type="button">编辑</button>

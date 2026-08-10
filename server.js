@@ -590,7 +590,8 @@ function memorySimilarity(textA, textB) {
 function findSimilarMemory(text) {
   let best = 0;
   let hit = null;
-  for (const memory of store.memories) {
+  // 只跟还在生效的比:拿一条已被顶替的旧事实去挡新记忆,等于让过时的内容继续说话。
+  for (const memory of activeMemories(store.memories)) {
     const score = memorySimilarity(text, `${memory.title || ''} ${memory.content || ''}`);
     if (score > best) {
       best = score;
@@ -807,7 +808,8 @@ async function semanticRecall(queryText, limit = MEMORY_RECALL_LIMIT, sharedQuer
     // backfilled. On a partial set we'd silently drop every not-yet-embedded memory, so fall open to
     // lexical (which sees all of them) until backfill catches up.
     if (!memoryCorpusReady()) return null;
-    const embedded = store.memories.filter((m) => m.embedding_tag === EMBEDDING_TAG && m.embedding_b64);
+    // 同样挡掉被顶替的。两条召回路都要挡,漏一条这功能就等于没做。
+    const embedded = activeMemories(store.memories).filter((m) => m.embedding_tag === EMBEDDING_TAG && m.embedding_b64);
     // Single-flight: reuse the shared query vector when provided (explicit null = embed already tried
     // and failed → fall open to lexical); only embed here on a direct call (sharedQueryVec undefined).
     const queryVec = (sharedQueryVec !== undefined) ? sharedQueryVec : await embedQueryVec(query);
@@ -849,7 +851,8 @@ async function semanticSearchMemories(q, opts = {}) {
 }
 
 function selectRelevantMemories(queryText, limit = MEMORY_RECALL_LIMIT) {
-  const memories = Array.isArray(store.memories) ? store.memories : [];
+  // 被顶替的不参与召回 —— 它们留在库里可回溯,但不能再跟新事实抢话。
+  const memories = activeMemories(store.memories);
   if (!memories.length) return [];
   const cap = Math.max(1, Number(limit) || MEMORY_RECALL_LIMIT);
   const pinned = memories.filter((m) => m && m.pinned);
@@ -1217,6 +1220,12 @@ function publicMemory(memory) {
     author: cleanString(memory && memory.author, store.settings.assistantName || 'AI'),
     tags,
     pinned: Boolean(memory && memory.pinned),
+    // 事实键:同键只有最新那条参与召回,旧的标 superseded 留档(不删,能回溯)。
+    fact_key: cleanString(memory && memory.fact_key, ''),
+    superseded_by: Number(memory && memory.superseded_by) || null,
+    superseded_at: cleanString(memory && memory.superseded_at, ''),
+    // strength 先占位进形状,排序逻辑等 fact_key 真机跑几天再决定接不接(沈屿 #7152)。
+    strength: Number.isFinite(Number(memory && memory.strength)) ? Number(memory.strength) : 50,
     created_at: cleanString(memory && memory.created_at, new Date().toISOString()),
     updated_at: cleanString(memory && memory.updated_at, memory && memory.created_at || new Date().toISOString()),
   };
@@ -1604,6 +1613,34 @@ function isNoiseMessage(message) {
   return false;
 }
 
+// 事实会变:「住长沙」→「搬到湘潭」。同一个事实键上只让最新那条参与召回,旧的标记为
+// 已被顶替(留档、UI 里还看得到、能回溯),而不是删掉、也不是两条一起塞进 prompt 让模型自己蒙。
+//
+// ★ 键只认显式填写的,绝不自动推断。自动推断事实键出过事故:把「北京时间」误判成城市冲突,
+//   于是给真实记忆建了假冲突。宁可漏顶替,不可错顶替 —— 漏了只是没优化,错了是损坏记忆。
+function supersedeSameFactKey(winner) {
+  const key = cleanString(winner && winner.fact_key, '');
+  if (!key) return 0;
+  const now = new Date().toISOString();
+  let n = 0;
+  for (const m of store.memories) {
+    if (!m || m.id === winner.id) continue;
+    if (cleanString(m.fact_key, '') !== key) continue;
+    if (Number(m.superseded_by) === Number(winner.id)) continue;   // 已经让过位了
+    m.superseded_by = winner.id;
+    m.superseded_at = now;
+    n += 1;
+  }
+  // 赢家自己若曾被顶替过,现在它是最新的,恢复它。
+  if (winner.superseded_by) { winner.superseded_by = null; winner.superseded_at = ''; }
+  return n;
+}
+
+// 召回只看还在生效的那些(被顶替的留在库里,但不再抢话)。
+function activeMemories(list) {
+  return (Array.isArray(list) ? list : []).filter((m) => m && !m.superseded_by);
+}
+
 function createMemory(input) {
   const now = new Date().toISOString();
   const memory = {
@@ -1614,12 +1651,17 @@ function createMemory(input) {
     author: cleanString(input.author, store.settings.assistantName || 'AI'),
     tags: normalizeTags(input.tags),
     pinned: input.pinned === true,
+    fact_key: cleanString(input.fact_key, ''),
+    superseded_by: null,
+    superseded_at: '',
+    strength: Number.isFinite(Number(input.strength)) ? Number(input.strength) : 50,
     created_at: now,
     updated_at: now,
   };
   store.memories.push(memory);
+  const superseded = supersedeSameFactKey(memory);
   saveStore();
-  addConsoleEvent('memory', '记忆已创建', memory.title);
+  addConsoleEvent('memory', '记忆已创建', superseded ? `${memory.title}(顶替了 ${superseded} 条旧的)` : memory.title);
   const output = publicMemory(memory);
   broadcastSse('memory', { action: 'created', memory: output });
   scheduleBackfill(); // embed the new memory in the background (no-op without a model)
@@ -1636,6 +1678,10 @@ function updateMemory(id, input) {
   if ('author' in input) memory.author = cleanString(input.author, memory.author || store.settings.assistantName || 'AI');
   if ('tags' in input) memory.tags = normalizeTags(input.tags);
   if ('pinned' in input) memory.pinned = input.pinned === true;
+  if ('fact_key' in input) memory.fact_key = cleanString(input.fact_key, '');
+  if ('strength' in input) memory.strength = Number.isFinite(Number(input.strength)) ? Number(input.strength) : memory.strength;
+  // 编辑过的这条就是用户最新的意思 → 它成为该键的在效条目,同键其余的让位。
+  if ('fact_key' in input) supersedeSameFactKey(memory);
   // Title+content feed the embedding vector; if either changed, the stored vector no longer matches the
   // text. Drop it so semantic recall can never score a stale vector against new content, and let backfill
   // recompute. (Also fixes a pre-existing bug: the old tag-match filter never re-embedded edited memories.)
