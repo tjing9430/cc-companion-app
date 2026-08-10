@@ -7,3 +7,4 @@ data/uploads/
 Thumbs.db
 data/bridge-session*.json
 .env.bak*
+*.bak
