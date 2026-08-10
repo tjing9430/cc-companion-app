@@ -146,6 +146,21 @@ API 路由总表、控制台命令的适配器 JSON 协议等长内容都在上�
 
 本项目与 Anthropic 无关。"Claude" 与 "Claude Code" 是 Anthropic PBC 的商标。本项目不内置任何模型服务，所有 LLM 调用走你自己的 API key 或订阅。
 
+## 改前端之前
+
+后端有测试网,前端没有。动 `public/` 之前先截一份结构基线,改完再截一份比对:
+
+```bash
+node scripts/ui-baseline.mjs before.json     # 改之前
+# ...改代码...
+node scripts/ui-baseline.mjs after.json      # 改之后
+node scripts/ui-baseline.mjs --diff before.json after.json
+```
+
+它在**临时目录 + 固定种子数据**上起一个独立实例,抓十个页面/状态的可见结构
+(能点的动作、渲染出的组件类、表单字段、元素计数),所以你的真实聊天内容不会进快照,
+两次跑的差异也只可能来自代码。需要 `puppeteer-core` 和本地 Chrome,没有就自动跳过。
+
 ## 开源卫生
 
 发布 fork 或衍生版本前：

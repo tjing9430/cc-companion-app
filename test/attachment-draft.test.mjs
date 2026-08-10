@@ -14,7 +14,14 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // 等这些被测函数也拆成模块,这段就可以删掉、改成直接 import。
 const rawSrc = fs.readFileSync(path.join(here, '..', 'public', 'app.js'), 'utf8');
 const src = rawSrc.replace(/^import[\s\S]*?from\s+'[^']+';\s*$/gm, '');
-const deps = { ...(await import('../public/js/util.js')), ...(await import('../public/js/markdown.js')) };
+// state.js 在模块顶层就读 localStorage(浏览器模块,本来就该这样)。
+// Node 里没有,import 会直接炸 —— 给个最小 stub,不为测试改生产代码。
+globalThis.localStorage = globalThis.localStorage || { getItem: () => null, setItem() {}, removeItem() {} };
+const deps = {
+  ...(await import('../public/js/util.js')),
+  ...(await import('../public/js/markdown.js')),
+  ...(await import('../public/js/state.js')),   // state 已经拆进模块,vm 里取不到顶层 const 了
+};
 
 const noop = () => {};
 const elStub = () => new Proxy({}, { get: (t, k) => (k === 'style' || k === 'classList' ? elStub() : noop), set: () => true });
@@ -41,7 +48,7 @@ try { vm.runInContext(src, ctx, { filename: 'app.js' }); } catch (e) {}
 
 // 顶层 const/let 进的是 context 的全局词法环境,不是 context 属性 → 得在同一 context 里求值才拿得到
 const render = vm.runInContext('typeof renderAttachmentDraft === "function" ? renderAttachmentDraft : null', ctx);
-const S = vm.runInContext('typeof state !== "undefined" ? state : null', ctx);
+const S = deps.state;   // 从真模块拿同一个对象引用(和浏览器里跑的是同一份)
 if (typeof render !== 'function') { console.error('FATAL: renderAttachmentDraft 没拿到'); process.exit(1); }
 if (!S) { console.error('FATAL: state 没拿到'); process.exit(1); }
 

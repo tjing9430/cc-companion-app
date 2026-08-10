@@ -3,7 +3,7 @@
 // → 用户永远慢一个刷新,把我已经修好的东西当成「你忘记做了」。现在核心资源改成 network-first。
 const CACHE_VERSION = 'cc-companion-static-v14-20260810-factkey';
 // 这两个是会天天改的代码,必须每次拿最新的;其余(图标/manifest)继续走缓存优先
-const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/styles.css', '/index.html'];
+const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/js/state.js', '/styles.css', '/index.html'];
 const STATIC_ASSETS = [
   '/',
   '/index.html',
