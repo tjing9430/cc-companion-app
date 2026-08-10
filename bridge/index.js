@@ -75,10 +75,16 @@ const CLAUDE_EFFORT = String(process.env.CLAUDE_EFFORT || '').trim();
 // ★ 白名单是**必须**的,不是洁癖:这两个值会被 push 进 spawn 的 args 数组。
 //   shell:false 挡住了 shell 注入,但挡不住**参数注入** —— 传一个以 `--` 开头的值
 //   进去,CLI 的参数解析器会把它当成新开关。所以只认列表里的字面量,别的一律拒。
-const EFFORT_CHOICES = ['low', 'medium', 'high', 'xhigh'];
+// 取值来自 `claude --help`(low, medium, high, xhigh, max)——**实读的,不是照文档抄的**。
+// 第一版只写了前四个,漏了 max;而她的部署恰好用的就是 max,白名单会把合法值挡在门外。
+// 「宁可少给选项也不谎报支持」是对的,但那说的是**不确定的**,不是把已知合法的漏掉。
+const EFFORT_CHOICES = ['low', 'medium', 'high', 'xhigh', 'max'];
 // 模型列表不写死在代码里(图纸要求「按 bridge 实际支持列表读」)——
 // 但也没法向 CLI 问出一份可靠清单,所以做成部署方声明:CLAUDE_MODELS=a,b,c。
 // 没声明就退回「只有当前这一个」,宁可少给选项,也不谎报支持。
+// 上下文窗口:桥问不出来,只能由部署方声明。没声明就不报 —— 前端会自己标「(估)」,
+// 相对刻度诚实标注,好过假装精确。
+const CONTEXT_WINDOW = Number(process.env.CLAUDE_CONTEXT_WINDOW) || 0;
 const MODEL_CHOICES = String(process.env.CLAUDE_MODELS || '')
   .split(',').map((x) => x.trim()).filter(Boolean);
 
@@ -88,13 +94,16 @@ let runtimeEffort = CLAUDE_EFFORT;
 // 本次进程存活期内的累计用量。桥重启就归零 —— 它衡量的是「这个会话烧了多少」,
 // 不是账单,所以不落盘(落盘就得考虑并发写、轮转、清理,不值当)。
 const usageTotals = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, turns: 0 };
-function addUsage(u) {
+function addUsage(u, ok) {
   if (!u || typeof u !== 'object') return;
+  // token 无论成败都记 —— 失败的那次钱是真花了,瞒着它等于把账做小。
   for (const k of ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) {
     const v = Number(u[k]);
     if (Number.isFinite(v) && v > 0) usageTotals[k] += v;
   }
-  usageTotals.turns += 1;
+  // 但「轮数」只在成功时 +1。★ 实测逮到的:凭证过期会触发一次自愈重试,
+  //   一问一答走了两个 result 事件,turns 就变成 2 —— 用户看到的是一轮,数字说两轮。
+  if (ok) usageTotals.turns += 1;
 }
 // 「这一轮往模型里塞了多少」= 新输入 + 缓存命中 + 建缓存。用来对着上下文窗口看。
 let lastTurnPrompt = 0;
@@ -254,7 +263,7 @@ function runClaudeTurn(prompt, resume) {
         // CLI 在 result 事件里给了真实用量,原来这里整段扔掉、对外报 0。
         // 字段名是从真实 transcript 里核出来的,不是照 OpenAI 的形状猜的。
         if (j.usage) {
-          addUsage(j.usage);
+          addUsage(j.usage, !(j.is_error || (j.subtype && j.subtype !== 'success')));
           lastTurnPrompt = (Number(j.usage.input_tokens) || 0)
             + (Number(j.usage.cache_read_input_tokens) || 0)
             + (Number(j.usage.cache_creation_input_tokens) || 0);
@@ -432,11 +441,15 @@ const server = http.createServer(async (req, res) => {
       }
       log('info', `档位已改 model=${runtimeModel || '(默认)'} effort=${runtimeEffort || '(默认)'}`);
     }
+    // ★ 当前值必须出现在选项里。否则界面上那个下拉显示不出当前档,
+    //   而且一旦切走就再也切不回来 —— 部署方用了个白名单外的值时会出这事。
+    const withCurrent = (list, cur) => (cur && !list.includes(cur) ? [cur, ...list] : list);
     return sendJson(res, 200, {
       model: runtimeModel,
       effort: runtimeEffort,
-      models: MODEL_CHOICES.length ? MODEL_CHOICES : [CLAUDE_MODEL].filter(Boolean),
-      efforts: EFFORT_CHOICES,
+      context_window: CONTEXT_WINDOW || undefined,
+      models: withCurrent(MODEL_CHOICES.length ? MODEL_CHOICES : [CLAUDE_MODEL].filter(Boolean), runtimeModel),
+      efforts: withCurrent(EFFORT_CHOICES, runtimeEffort),
       usage: { ...usageTotals, last_turn_prompt: lastTurnPrompt, last_turn_output: lastTurnOutput },
     });
   }
