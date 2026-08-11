@@ -493,6 +493,19 @@ function serviceWorkerVersion() {
   try {
     for (const f of fs.readdirSync(path.join(PUBLIC_DIR, 'js')).sort()) tracked.push(`js/${f}`);
   } catch { /* 还没有 js/ 目录 */ }
+  // ★ assets/ 也要算进来。sw 对图片是**缓存优先**,而换一张背景图不改任何 js/css ——
+  //   哈希不覆盖 assets 的话,版本号不变、旧图永远从 cache 出,用户看不到新素材。
+  //   2026-08-11 换银河底图时发现:那次碰巧同时改了 home-view.js 才 bump 上,
+  //   **是运气不是设计** —— 只换图的那次就会静默失效。
+  const walk = (rel) => {
+    let ents = [];
+    try { ents = fs.readdirSync(path.join(PUBLIC_DIR, rel), { withFileTypes: true }); } catch { return; }
+    for (const e of ents.sort((x, y) => x.name.localeCompare(y.name))) {
+      if (e.isDirectory()) walk(`${rel}/${e.name}`);
+      else tracked.push(`${rel}/${e.name}`);
+    }
+  };
+  walk('assets');
   for (const rel of tracked) {
     try { hash.update(rel).update(fs.readFileSync(path.join(PUBLIC_DIR, rel))); } catch { /* 缺文件就跳过 */ }
   }

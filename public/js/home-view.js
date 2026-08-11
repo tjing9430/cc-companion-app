@@ -67,7 +67,36 @@ const GATES = [
 // ★ side:'right' —— 它在左边那块空地上,文字必须朝**屏幕中心**展开,朝左会被裁掉。
 //   (第一版没给 side,于是 .sg-text 没有任何定位规则,文字直接飘出左边界。)
 // ★ hint 也短了:原来写「还没挂上来的都在这儿」十个字,在 24% 这个位置放不下。
-const DIPPER = { tab: 'settings', title: '更多', hint: '其它都在这儿', x: 24, y: 29, size: 13, side: 'right' };
+// ★ 位置与尺寸按设计定稿更新:x 24→30、y 29→56、宽 150px、**副标题去掉**。
+//   size 是「占容器高的百分比」,而定稿给的是**宽度** 150px ——
+//   新素材宽高比 2.894,所以 150/2.894 = 51.8px 高,占 844 高的 6.14%。
+//   ★ 换素材必须重算这个数:同样的 size 换个宽高比就是另一个宽度。
+// 图标两套,由 settings.skyIcons 选:'star'(手绘尖角星 SVG)/ 'badge'(徽章 PNG→webp)。
+// ★ 做成**独立字段**而不是第四个主题值:主题多一个值意味着 styles.css 里 46 条
+//   `[data-theme="starry"]` 选择器每条都要再匹配一次,漏一条就是某档样式静默塌掉。
+//   独立字段只碰这几行,那 46 条一条都不用动。
+// ★ 徽章**等比缩 12%**;星星那套原样不动 —— 两套的视觉重量不同,
+//   星星版偏细,缩了会更难辨认。**别"顺手统一"成一个系数。**
+// ★★ 这个缩放量**不是自由参数**,改它要重跑一次验证。结论是有边界的:
+//    「在缩放量 12% 这一档下,两套图标的落点差 4~11px,且不改变任何一档的
+//      出屏 / 翻面 / 文字截断判定(拿 12 字的名字压过)。」
+//    ★ 不是「尺寸与落点无关」—— 落点会被可见区 clamp 夹,而 clamp 边界是
+//      `VISIBLE[1] - starHalf`,**starHalf 随尺寸变,所以夹的位置随尺寸变**:
+//      被夹的那两颗实测差 0.3% / 1.2%,小图标能往外多站一点。
+//    ⇒ 缩放量若改动(比如 12% → 30%),上面那句结论作废,要重新量。
+//    写成「12% 这一档」而不是「无关」,是为了让改这个数的人知道他得回来重跑 ——
+//    写「无关」他就不会回来了。
+const BADGE_SCALE = 0.88;
+function starSrc(s, g) {
+  return s.skyIcons === 'badge'
+    ? `/assets/badges/${g.tab === 'chat' ? 'private' : g.tab}.webp`
+    : `/assets/stars3/${g.star}`;
+}
+function dipperSrc(s) {
+  return s.skyIcons === 'badge' ? '/assets/badges/bigdipper.webp' : '/assets/stars3/bigdipper3.svg';
+}
+
+const DIPPER = { tab: 'settings', title: '更多', hint: '', x: 30, y: 56, size: 6.14, side: 'right' };
 
 // side 现在是**算出来并写死在表里**的,不再由 x 现推。
 // 原因是判据变了:以前只要"不溢出",现在还要满足左右交错的节奏,
@@ -137,9 +166,9 @@ function renderHome() {
            它不放在 .home-sky 里面,是因为那层 aria-hidden 且不接事件。 -->
       <ul class="sky-gates">
         ${layoutGates(onRiver.map((g) => ({ ...g, hintText: g.hint(s) }))).map((g) => `
-          <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${g.size}%">
+          <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${(g.size * (s.skyIcons === 'badge' ? BADGE_SCALE : 1)).toFixed(2)}%">
             <button type="button" data-action="tab" data-tab="${g.tab}">
-              <span class="sg-star"><img src="/assets/stars3/${g.star}" alt=""></span>
+              <span class="sg-star"><img src="${starSrc(s, g)}" alt=""></span>
               <span class="sg-text">
                 <span class="sg-title">${esc(g.title)}</span>
                 <span class="sg-hint">${esc(g.hintText)}</span>
@@ -148,10 +177,10 @@ function renderHome() {
           </li>`).join('')}
         <li class="sky-gate sky-dipper sg-${DIPPER.side}" style="--x:${DIPPER.x}%;--y:${DIPPER.y}%;--size:${DIPPER.size}%">
           <button type="button" data-action="tab" data-tab="${DIPPER.tab}">
-            <span class="sg-star"><img src="/assets/stars3/bigdipper3.svg" alt=""></span>
+            <span class="sg-star"><img src="${dipperSrc(s)}" alt=""></span>
             <span class="sg-text">
               <span class="sg-title">${esc(DIPPER.title)}</span>
-              <span class="sg-hint">${esc(overflow.length ? `还有 ${overflow.length} 个` : DIPPER.hint)}</span>
+              ${overflow.length ? `<span class="sg-hint">还有 ${overflow.length} 个</span>` : ''}
             </span>
           </button>
         </li>

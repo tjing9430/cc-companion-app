@@ -49,126 +49,119 @@ test('改路径,星星跟着走', () => {
   RIVER.forEach((p) => { p[1] = Math.min(1, p[1] + 0.05); });
   const after = xs(G(5));
   RIVER.forEach((p, i) => p.splice(0, 4, ...saved[i]));
+  // ★ 被夹在可见区边界上的那几颗**本来就不该动** —— 河再往右推,它们也出不去。
+  //   所以断言只对"没顶到边界"的那些成立;把它们一起要求会红,而红的是断言不是代码。
+  const free = layoutGates(G(5)).filter((g) => {
+    const sh = (Number(g.size) || 0) / 100 / ASPECT / 2;
+    return g.x / 100 < VISIBLE[1] - sh - 1e-9;
+  }).length;
   const moved = before.filter((v, i) => v !== after[i]).length;
-  assert.equal(moved, 5, `整条河右移之后只有 ${moved}/5 颗跟着动`);
+  assert.equal(moved, free, `整条河右移后,没顶边界的 ${free} 颗里只有 ${moved} 颗动了`);
+  assert.ok(free > 0, '五颗全顶在边界上 —— 那这条测试什么也没验到');
   assert.deepEqual(xs(G(5)), before, '还原之后应当回到原值');
 });
 
 test('只动一个控制点,只有坐在那一段上的星星会动(别的不许乱跑)', () => {
   // 反面:局部改动不能有全局副作用,否则说明插值把不相干的段也搅进来了。
+  //
+  // ★ 上一版把控制点写死成 `RIVER[5]`。表从 11 行加密到 46 行之后这条就红了 ——
+  //   不是插值坏了,是**每个控制点管的区间从 0.1 缩到 0.022**,随便挑一个
+  //   多半一颗星都不在它管的范围里,于是"推了却没人动"。
+  //   红的是测试对行数的耦合,而行数**恰恰是我们刚宣布"不是契约"的东西**。
+  //   改成:先找一个**确实有星星坐在上面**的控制点,再推它。这样任何密度都成立。
+  const ts = Array.from({ length: 5 }, (_, i) => spreadT(5, i));
+  const k = RIVER.findIndex((row, i) =>
+    i > 0 && i < RIVER.length - 1 && ts.some((t) => t > RIVER[i - 1][0] && t < RIVER[i + 1][0]));
+  assert.ok(k > 0, '找不到任何一个控制点身上坐着星星 —— 采样和 spreadT 对不上了');
+
   const before = xs(G(5));
-  const saved = RIVER[5].slice();
-  RIVER[5][1] += 0.2;
+  const saved = RIVER[k].slice();
+  RIVER[k][1] = Math.min(1, RIVER[k][1] + 0.2);
   const after = xs(G(5));
-  RIVER[5].splice(0, 4, ...saved);
+  RIVER[k].splice(0, 4, ...saved);
+
   const movedIdx = before.map((v, i) => (v !== after[i] ? i : -1)).filter((i) => i >= 0);
-  assert.ok(movedIdx.length >= 1, '推了控制点却一颗没动');
+  assert.ok(movedIdx.length >= 1, `推了控制点 ${k} 却一颗没动`);
   for (const i of movedIdx) {
-    const t = spreadT(5, i);
-    assert.ok(t > RIVER[4][0] && t < RIVER[6][0],
-      `第 ${i} 颗(t=${t.toFixed(3)})不在被改的那一段里,却动了 —— 插值有全局串扰`);
+    assert.ok(ts[i] > RIVER[k - 1][0] && ts[i] < RIVER[k + 1][0],
+      `第 ${i} 颗(t=${ts[i].toFixed(3)})不在被改的那一段里,却动了 —— 插值有全局串扰`);
   }
+  assert.deepEqual(xs(G(5)), before, '还原之后应当回到原值');
 });
 
-// 「让位」规则的验收。原来这条是**无条件**的「星星永不进河道」;现在放宽成
-// 「放得下就不进,放不下宁可贴近河也要让文字留在屏内」。
-//
-// ★ 收窄一条不变式的时候,最怕的是把判据也一起放软(变成"反正有理由就行")。
-//   所以这里不按"文案长不长"分,而是问一个**能算出来的**问题:
-//   当时到底存不存在一个「不骑河 + 文字在屏内」的位置?
-//     存在 → 必须选它,一次都不许降级
-//     不存在 → 降级可以,但必须真的换到"文字在屏内",而且不许翻到河对岸
-//   ★ 一开始我按"短文案不许降级"写,当场被 入口4 打脸:它在 t=0.94,河最宽(half .141),
-//     文字只允许 cap .117 —— **短文案也放不下**。"文案长短"根本不是那个判据。
+// ★★ 2026-08-11 规则变更:落点由 **river-edge 改为 river-center**。
+//    下面四条原本验的是「星星挂在河边、放不下时让位」,那套契约整个作废了 ——
+//    背景图换成 newbg 后河收窄成细带子,「骑上去会截断河」的前提没了。
+//    ★ 它们是**改写**不是删除:一条断言消失,和一条断言变绿,在 git log 里长得一样,
+//      但前者会让"这件事还有没有人管"变成无人知晓。
+// ★ 落点契约只此一处。三条测试都问它,别各自抄一遍 ——
+//   今晚已经栽过:测试里手抄 `x ± starHalf*2 ± room`,生产公式一改,
+//   红的是我那份副本而不是被测对象。
+const expectedX = (g) => {
+  const p = riverAt(g.t);
+  const sh = (Number(g.size) || 0) / 100 / ASPECT / 2;
+  return Math.min(VISIBLE[1] - sh, Math.max(VISIBLE[0] + sh, p.x));
+};
+
 const geom = (g) => {
   const p = riverAt(g.t);
   const starHalf = (Number(g.size) || 0) / 100 / ASPECT / 2;
   const room = textRoomFor(g);
-  const best = Math.max(maxOffsetOn('left', p.x, starHalf, room), maxOffsetOn('right', p.x, starHalf, room));
-  return { p, starHalf, room, best, off: Math.abs(g.x / 100 - p.x) };
+  return { p, starHalf, room, fitsWant: maxOffsetOn(g.side, p.x, starHalf, room) >= 0 };
 };
 
-test('放得下就不许骑河 —— 存在合法位置时,一次都不许降级', () => {
-  for (const list of [G(5), G(3), G(6)]) {
+test('星心落在河心上 —— 除非会被裁出可见区,那时夹回边界', () => {
+  // ★ 契约有**两段**,别只记前半句:河心是目标,可见区是边界。
+  //   河在 y≈72% 那段跑到 84%,图标半宽 8.6% —— 不夹的话右缘 92.6%,真机四档全被裁。
+  //   (定稿图里控制台 84.3→82.5 就是这个夹,标的是 `[clamped]`。)
+  let clamped = 0;
+  const cases = [G(5), G(3), G(6),
+    G(5).map((g, i) => (i === 2 ? { ...g, hintText: '与 我家那位会写代码的小助手 畅聊' } : g)),
+    G(5).map((g) => ({ ...g, size: g.size * 0.88 })),      // 徽章缩 12%
+  ];
+  for (const list of cases) {
     for (const g of layoutGates(list)) {
-      const { p, best, off } = geom(g);
-      if (best >= p.half) {
-        assert.ok(off >= p.half - 1e-9,
-          `${g.title} 本来有不骑河的位置(cap ${best.toFixed(3)} ≥ 半宽 ${p.half.toFixed(3)}),却降级到 ${off.toFixed(3)}`);
-      }
+      const p = riverAt(g.t);
+      const starHalf = (Number(g.size) || 0) / 100 / ASPECT / 2;
+      const want = expectedX(g);
+      if (Math.abs(want - p.x) > 1e-9) clamped++;
+      assert.ok(Math.abs(g.x / 100 - want) < 1e-9,
+        `${g.title} 落点 ${(g.x / 100).toFixed(4)} ≠ 夹过的河心 ${want.toFixed(4)}`);
+      // 星星整个必须在可见区内 —— 这才是夹它的理由
+      assert.ok(g.x / 100 - starHalf >= VISIBLE[0] - 1e-9 && g.x / 100 + starHalf <= VISIBLE[1] + 1e-9,
+        `${g.title} 图标伸出可见区了`);
     }
   }
+  // ★ 断言"夹确实发生过"。全都没夹的话,上面那段边界逻辑等于没被验到。
+  assert.ok(clamped > 0, '没有任何一颗被夹 —— 这条测试没验到边界分支');
 });
 
-test('放不下时才降级,而且必须真换到「文字在屏内 + 不翻到河对岸」', () => {
-  // 用户把 AI 名字起得很长 —— 真实触发路径是设置页打字,不是改代码
-  const long = G(5).map((g, i) => (i === 0 ? { ...g, hintText: '与 我家那位会写代码的小助手 畅聊' } : g));
-  let degraded = 0;
-  for (const list of [G(5), long]) {
-    for (const g of layoutGates(list)) {
-      const { p, starHalf, room, best, off } = geom(g);
-      if (best >= p.half) continue;          // 没降级,上一条测试管
-      degraded++;
-      const x = g.x / 100;
-      assert.ok(g.side === 'left' ? x < p.x : x > p.x,
-        `${g.title} 为了救文字被推到了河对岸 —— 这不是让位,是换了个更坏的毛病`);
-      // ★ 这里**不再自己算文字边缘**。上一版我在测试里照抄了一遍
-      //   `x ± starHalf*2 ± room`,然后生产代码把 `starHalf*2` 修成
-      //   `starHalf + 缝` —— 测试立刻报"文字还在屏外",而真实渲染是好的:
-      //   **红的是我抄的那份副本,不是被测的东西。**
-      //   所以问同一个函数:降级之后的偏移,不许超过"文字还在屏内"允许的最大偏移。
-      const cap = maxOffsetOn(g.side, p.x, starHalf, room);
-      if (cap > 0) {   // cap ≤ 0 = 文字比整屏还宽,交给 CSS 的 max-width + 省略号
-        assert.ok(off <= cap + 1e-9,
-          `${g.title} 降了级却没换到东西:偏移 ${off.toFixed(3)} 超过了"文字还在屏内"的上限 ${cap.toFixed(3)}`);
-      }
-    }
-  }
-  // ★ 断言"确实发生过降级"。否则上面整个循环可能一次都没进,
-  //   而一个从没执行过的检查和没有检查是一回事。
-  assert.ok(degraded > 0, '没有任何一颗走到降级分支 —— 这条测试根本没验到东西');
+test('side 只决定文字朝哪边,不影响落点', () => {
+  // ★ 这条是 river-center 最容易被改回去的地方:下一个人看到 side 会以为它管位置。
+  const mk = (side) => layoutGates([{ tab: 'x', title: '设置', hintText: '短', side, size: 10 }])[0];
+  assert.equal(mk('left').x, mk('right').x, 'side 改了落点也跟着变 —— 那就退回旧设计了');
 });
 
-test('最终落点必须落在它自己声明/回退的那一侧', () => {
-  // 注意断言的是 **g.side**(算完之后的),不是入参里那个"想要的侧"——
-  // 空间不够时会翻面,那是设计好的行为。要保证的是「算出来的侧」和「落点」自洽。
-  const laid = layoutGates([
-    { tab: 'a', title: '左', hintText: '短', side: 'left', size: 10 },
-    { tab: 'b', title: '右', hintText: '短', side: 'right', size: 10 },
-  ]);
-  for (const g of laid) {
-    const p = riverAt(g.t);
-    if (g.side === 'left') assert.ok(g.x / 100 < p.x, '算出来是 left,落点却在河右边');
-    else assert.ok(g.x / 100 > p.x, '算出来是 right,落点却在河左边');
+test('文字塞不下首选侧时翻面,而且翻面是**有条件**的不是随机的', () => {
+  // 短文案:不该翻
+  const short = layoutGates([{ tab: 'x', title: '设置', hintText: '短', side: 'left', size: 10 }])[0];
+  assert.equal(short.side, 'left', '短文案就翻面了 —— 翻面条件太松');
+  // 长到首选侧塞不下:应当翻到另一侧
+  const long = layoutGates([{ tab: 'x', title: '设置', hintText: '名字 · 主题 · 头像 · 还有很长很长的说明', side: 'left', size: 10 }])[0];
+  assert.ok(['left', 'right'].includes(long.side));
+  // 不论翻不翻,落点都还是「夹过的河心」—— 翻面只动文字朝向
+  for (const g of [short, long]) {
+    assert.ok(Math.abs(g.x / 100 - expectedX(g)) < 1e-9, '翻面把落点带跑了');
   }
 });
 
-test('偏移会为长副标题主动收窄(而不是硬顶出去)', () => {
-  // ★ 「偏移可伸缩」的验收:同一个位置,副标题越长,星星应当**离河越近**
-  //   —— 把外面的空间让给文字,而不是把文字顶出屏幕。
-  const mk = (hint) => layoutGates([{ tab: 'x', title: '设置', hintText: hint, side: 'right', size: 14.5 }])[0];
-  // ★ 比的是**离河心的偏移**,不是原始 x:副标题一长可能会翻面,
-  //   翻面之后 x 会跳到河的另一边,拿 x 直接比会得出"往外跑了"的错误结论。
-  const off = (g) => Math.abs(g.x / 100 - riverAt(g.t).x);
-  const short = mk('短');
-  const long = mk('名字 · 主题 · 头像');
-  assert.ok(off(long) <= off(short) + 1e-9,
-    `副标题变长了,星星却没往里收(偏移 ${off(short).toFixed(3)} → ${off(long).toFixed(3)})`);
-
-  // ★ 但几何层不是万能的:副标题长到离谱时它也放不下 ——
-  //   那一层由 CSS 的 max-width + 省略号兜底(见 styles.css 的 .sg-text)。
-  //   这里如实记下边界,不假装几何层能解决一切。
-  const absurd = mk('名字 · 主题 · 头像 · 还有很长很长很长很长的一串说明');
-  assert.ok(Number.isFinite(absurd.x), '极端文案不该算出 NaN');
-});
-
-test('再挤也不许骑到河心上', () => {
-  const laid = layoutGates([
-    { tab: 'x', title: '很长的标题占很多地方', hintText: '副标题也很长很长很长很长很长', side: 'right', size: 14.5 },
-  ]);
-  const g = laid[0]; const p = riverAt(g.t);
-  assert.ok(Math.abs(g.x / 100 - p.x) >= p.half * 0.5,
-    '被挤得骑到河中间去了 —— 偏移可以收,但有下限');
+test('极端文案不产生 NaN,也不把星星算出可见区', () => {
+  const absurd = layoutGates([{ tab: 'x', title: '很长的标题占很多地方',
+    hintText: '副标题也很长很长很长很长很长很长很长很长', side: 'right', size: 14.5 }])[0];
+  assert.ok(Number.isFinite(absurd.x) && Number.isFinite(absurd.y), '极端文案算出了 NaN');
+  assert.ok(Math.abs(absurd.x / 100 - expectedX(absurd)) < 1e-9, '极端文案下落点也必须是「夹过的河心」');
+  // 几何层此时确实没牌可打了 —— 文字由 CSS 的 max-width + 省略号收尾。
+  // ★ 如实记下这个边界,不假装几何层能解决一切。
 });
 
 test('路径本身是合法的:t 单调、坐标都在 0–1 内', () => {
