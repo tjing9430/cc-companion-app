@@ -24,7 +24,7 @@ import {
   HEARTBEAT_ENABLED, HEARTBEAT_INTERVAL_MINUTES, HEARTBEAT_MIN_IDLE_MINUTES,
   HEARTBEAT_QUIET_START, HEARTBEAT_QUIET_END,
   store, saveStore, nextId, newSessionId, normalizeSession, normalizeSettings, normalizeAvatar,
-  publicSettings, publicSession, applySettingsRename, agentStatus,
+  publicSettings, publicSession, applySettingsRename, agentStatus, flushStore,
 } from './lib/state.js';
 import { sseClients, handleSseStream, streamScopeForRoute, broadcastSse, writeSse, setSnapshotProvider } from './lib/sse.js';
 import { addConsoleEvent, latestConsoleEvents } from './lib/console.js';
@@ -73,6 +73,15 @@ server.on('error', (err) => {
   console.error(`Unable to start CC Companion: ${err.message}`);
   process.exitCode = 1;
 });
+
+// ★ 退出前把 sqlite 的 WAL 折回主库。
+//
+// 为什么挂 'exit' 而不是直接挂 SIGTERM:下面 startQuickTunnel() 里那两个信号处理器
+// 会 process.exit(0),而 process.exit 会**跳过同信号剩下的监听器** —— 挂在 SIGTERM 上
+// 就可能永远不执行。'exit' 则是 process.exit() 也一定会走的那条路。
+// 信号本身默认不触发 'exit',所以还要把信号显式转成 exit。
+process.on('exit', () => { try { flushStore(); } catch { /* 退出路径上不许再抛 */ } });
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
 
 server.listen(PORT, () => {
   addConsoleEvent('system', '服务已启动', `正在监听 http://localhost:${PORT}`);
@@ -297,7 +306,7 @@ async function handleRequest(req, res) {
   }
 
   // 真 console 的原始流入口。**只广播,不落库** —— 这是验收项不是风格:
-  // 一轮 ~510 行 / ~120KB,灌进 store 的话她 148KB 的库一轮就翻倍。
+  // 一轮 ~510 行 / ~120KB,灌进 store 的话,一个 148KB 的库一轮就翻倍。
   // 所以这里既不 addConsoleEvent 也不 saveStore,连 store 都不碰。
   if (req.method === 'POST' && route === '/api/console/stream') {
     const body = await readJson(req);
