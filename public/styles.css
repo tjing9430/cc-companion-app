@@ -2015,3 +2015,30 @@ body:has(.home-view) .home-view{padding-bottom:calc(1.5rem + env(safe-area-inset
 @media (max-width:1100px){
   body:not(:has(.home-view)) .content{padding-bottom:calc(.5rem + env(safe-area-inset-bottom))}
 }
+
+/* ============ 私聊/群聊的背景图 ============
+   ★ 机制先落地,图后到 —— 这是首屏那一轮换来的经验:
+     先把坐标参数化、再换素材,于是素材被推翻三次也没白算。这里同理:
+     背景层和可读性处理跟**具体哪张图**无关,先做好,图一到只是丢个文件。
+
+   ★ 默认关闭:没有 `--chat-bg` 这个变量时,整段不生效,聊天页和现在**一模一样**。
+     换句话说,这次改动在图到之前是**零行为变化** —— 可验证,而不是"应该没影响"。
+
+   用法:在主题里(或 body 上)设 `--chat-bg:url("/assets/chat-bg.webp")` 即可。 */
+.chat-view{position:relative}
+.chat-view::before{
+  content:"";
+  position:absolute;inset:0;z-index:0;pointer-events:none;
+  background-image:var(--chat-bg, none);
+  background-size:cover;background-position:center;
+  /* 压到很淡:它是**底**,不是内容。太实会跟气泡抢注意力 */
+  opacity:var(--chat-bg-strength, .38);
+}
+/* 内容必须在背景之上,否则消息会被盖住 */
+.chat-view > *{position:relative;z-index:1}
+
+/* 可读性:**不在气泡下垫暗块**(首屏那一轮的教训 —— 垫暗块会把通透感抹掉),
+   靠气泡自身的底色 + 文字描边阴影把字压住。 */
+body[data-theme="starry"] .chat-view:where([style*="--chat-bg"], .has-chat-bg) .bubble{
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+}
