@@ -188,7 +188,7 @@ test('退出:真服务器吃 SIGTERM,WAL 折回主库', async () => {
   child.stderr.on('data', (d) => { out += d; });
 
   const started = await new Promise((res) => {
-    const t = setTimeout(() => res(false), 15000);
+    const t = setTimeout(() => res(false), 60000);   // 负载敏感型:起真 server + 轮询,放宽上限
     const iv = setInterval(() => {
       if (/listening on/i.test(out)) { clearTimeout(t); clearInterval(iv); res(true); }
     }, 50);

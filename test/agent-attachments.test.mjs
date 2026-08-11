@@ -60,7 +60,12 @@ async function startApp(env = {}) {
   srv.stdout.on('data', (d) => { out += d; });
   srv.stderr.on('data', (d) => { out += d; });
   const up = await new Promise((r) => {
-    const t = setTimeout(() => r(false), 15000);
+    // ★ 上限放宽到 60s。这类测试要 spawn 真 server + 起假上游 + 轮询端口,
+    //   是典型的**负载敏感型**:机器一忙就可能超时,在 CI 上表现为随机红 ——
+    //   而随机红最坏的地方是**没人分得清是真坏了还是机器忙**。
+    //   放宽没有代价:真挂住的话测试框架自己的超时会兜住;
+    //   正常情况下它 1 秒内就绪,根本走不到这个上限。
+    const t = setTimeout(() => r(false), 60000);
     const iv = setInterval(() => { if (/listening on/i.test(out)) { clearTimeout(t); clearInterval(iv); r(true); } }, 40);
   });
   const base = `http://127.0.0.1:${port}`;
@@ -94,7 +99,7 @@ async function sendWith(app, attachments, content = '') {
 
 const lastUser = (req) => req.messages[req.messages.length - 1];
 
-async function waitFor(fn, ms = 8000) {
+async function waitFor(fn, ms = 30000) {   // 同上:等的是真 HTTP 往返,负载高时会慢很多
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
     const v = await fn();
