@@ -49,9 +49,9 @@ import { layoutGates, splitGates } from './river.js';
 //   实测右侧外缘会越界 10%/32%/10%/42%(只有「设置」那颗放得下)。
 //   所以交错让位给了「放得下」。换素材后如果河居中,交错会自己回来。
 const GATES = [
-  { tab: 'chat',     star: 'star3-private.svg',  title: '私密聊天', hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`,   side: 'left', size: 13   },
-  { tab: 'group',    star: 'star3-group.svg',    title: '群聊空间', hint: (s) => `${s.groupName || '小群'}，提到就唤起`, side: 'left', size: 10.5 },
-  { tab: 'memory',   star: 'star3-memory.svg',   title: '记忆库',   hint: () => '珍藏回忆',                              side: 'left', size: 8.5  },
+  { tab: 'chat',     star: 'star3-private.svg',  title: '私聊'    , hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`,   side: 'left', size: 13   },
+  { tab: 'group',    star: 'star3-group.svg',    title: '群聊'    , hint: (s) => `${s.groupName || '小群'}，提到就唤起`, side: 'left', size: 10.5 },
+  { tab: 'memory',   star: 'star3-memory.svg',   title: '记忆库',   hint: () => '珍藏回忆',                              side: 'right', size: 8.5  },
   { tab: 'console',  star: 'star3-console.svg',  title: '控制台',   hint: () => '看它怎么干活',                          side: 'left', size: 11   },
   { tab: 'settings', star: 'star3-settings.svg', title: '设置',     hint: () => '名字 · 主题',                           side: 'left', size: 8    },
 ];
@@ -96,7 +96,11 @@ function dipperSrc(s) {
   return s.skyIcons === 'badge' ? '/assets/badges/bigdipper.webp' : '/assets/stars3/bigdipper3.svg';
 }
 
-const DIPPER = { tab: 'settings', title: '更多', hint: '', x: 30, y: 56, size: 6.14, side: 'right' };
+// ★ side:'below' —— 「更多」的字排在北斗**正下方**,不再排在右边。
+//   排右边时它会横着长进「记忆库」那一片,两组标签读起来连成一坨
+//   (盒子不相交,但眼睛分不开 —— 同一个毛病上一版在「群聊」身上犯过一次)。
+//   北斗底下是整屏最空的一块,字放那儿谁也不挨着。
+const DIPPER = { tab: 'settings', title: '更多', hint: '', x: 30, y: 56, size: 6.14, side: 'below' };
 
 // side 现在是**算出来并写死在表里**的,不再由 x 现推。
 // 原因是判据变了:以前只要"不溢出",现在还要满足左右交错的节奏,
@@ -146,7 +150,6 @@ function renderHome() {
       </div>
 
       <div class="home-hero">
-        <div class="home-brand">${esc(s.appName || 'CC Companion')}</div>
         <div class="home-who">
           <div class="home-avatar">${s.assistant_avatar
             ? `<img src="${escAttr(s.assistant_avatar)}" alt="">`

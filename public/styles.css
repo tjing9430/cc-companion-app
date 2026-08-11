@@ -1939,6 +1939,12 @@ body[data-theme="starry"] .sg-star{
    **同一侧的一律同向对齐** —— 否则每组各飞各的,眼睛没有落点。 */
 .sg-right .sg-text{left:calc(100% + .3rem);text-align:left;align-items:flex-start}
 .sg-left .sg-text{right:calc(100% + .3rem);text-align:right;align-items:flex-end}
+/* ★ 第三种:字排在图标**正下方**(北斗用)。
+   左右两种都是把字横着甩出去,而北斗坐在左边那片空地上,横着甩会长进
+   「记忆库」那一组里 —— 盒子不相交,眼睛却把两组读成一坨。下方是整屏最空的一块。
+   ★ `top` 要盖掉上面 `.sg-text` 的 `top:50%`,`transform` 也要重写(那边是 translateY(-50%))。 */
+.sg-below .sg-text{top:calc(100% + .25rem);left:50%;transform:translateX(-50%);
+  text-align:center;align-items:center}
 .sg-title{font-size:.92rem;font-weight:600;letter-spacing:.03em;color:var(--text)}
 .sg-hint{font-size:.68rem;color:var(--muted);letter-spacing:.01em}
 /* ④ 铺满之后文字会压在亮部上。**不压暗整张图** —— 那会把刚做出来的通透感又抹掉;
