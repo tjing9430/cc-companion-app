@@ -11,11 +11,16 @@ import { esc, escAttr } from './util.js';
 import { state, ICONS } from './state.js';
 
 // 入口。图标复用已入库的星星素材,和顶栏主星成套。
+// ★ 五颗齐 = 底栏可以整个拆掉。少一颗就会有一个「只能绕路到达」的页面,
+//   而绕路的那一下就是用户困住的地方。所以宁可挤一点,也要五颗全在河上。
+// ★ 控制台那颗的副标题原来写「个性化设置」—— 它干的根本不是这个(它是看 AI 干活的地方),
+//   而且会和真·设置那颗撞名。名不副实的标签比没标签更误导。
 const GATES = [
-  { tab: 'chat', star: 'star-private-core.webp', title: '私密聊天', hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`, size: 92 },
-  { tab: 'group', star: 'star-group.webp', title: '群聊空间', hint: (s) => `${s.groupName || '小群'}，提到就唤起`, size: 66 },
-  { tab: 'memory', star: 'star-flower-spare.webp', title: '记忆库', hint: () => '珍藏回忆', size: 58 },
-  { tab: 'console', star: 'star-console.webp', title: '控制台', hint: () => '个性化设置', size: 58 },
+  { tab: 'chat', star: 'star-private-core.webp', title: '私密聊天', hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`, size: 86 },
+  { tab: 'group', star: 'star-group.webp', title: '群聊空间', hint: (s) => `${s.groupName || '小群'}，提到就唤起`, size: 62 },
+  { tab: 'memory', star: 'star-flower-spare.webp', title: '记忆库', hint: () => '珍藏回忆', size: 56 },
+  { tab: 'console', star: 'star-console.webp', title: '控制台', hint: () => '看它怎么干活', size: 54 },
+  { tab: 'settings', star: 'star-moon.webp', title: '设置', hint: () => '名字 · 主题 · 头像', size: 50 },
 ];
 
 // 「晚上好」跟着本地时间走。用本地小时不是 UTC —— 这句话是说给坐在屏幕前的人听的。

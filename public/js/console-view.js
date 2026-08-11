@@ -49,7 +49,10 @@ function renderDialPanel() {
   const sel = (name, cur, opts, label) => {
     if (!opts || !opts.length) return '';
     const has = String(cur || '') !== '';
-    const items = (has ? '' : '<option value="" selected>跟随默认</option>')
+    // 没显式指定模型时,如果桥报了「实际在跑的那个」,就照实说是它 ——
+    // 「跟随默认」是不撒谎,写出真名才是说真话。两者都不许摆一个没人设过的名字。
+    const eff = name === 'model' && !has ? String(b.effective_model || '') : '';
+    const items = (has ? '' : `<option value="" selected>${eff ? `${esc(eff)}（当前生效）` : '跟随默认'}</option>`)
       + opts.map((o) => `<option value="${escAttr(o)}"${has && String(cur) === String(o) ? ' selected' : ''}>${esc(o)}</option>`).join('');
     // 压成一枚胶囊:下拉自己就是胶囊,不再另起一行标签
     return `<label class="cv-pill cv-dial" title="${escAttr(label)}">

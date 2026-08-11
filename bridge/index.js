@@ -89,6 +89,12 @@ const MODEL_CHOICES = String(process.env.CLAUDE_MODELS || '')
   .split(',').map((x) => x.trim()).filter(Boolean);
 
 let runtimeModel = CLAUDE_MODEL;
+// ★ 真正在跑的是哪个模型 —— 从流里接,不是猜。
+//   部署方常常不设 CLAUDE_MODEL(吃 CLI 默认),这时 runtimeModel 是空串。
+//   界面拿不到值就只能显示「跟随默认」—— 那**不撒谎,但也没说真话**。
+//   而 CLI 每条 assistant 事件里都带着 message.model,接住它就能如实说
+//   「当前是 claude-opus-4-8」。**不撒谎只是及格,报真话才是对的。**
+let effectiveModel = '';
 let runtimeEffort = CLAUDE_EFFORT;
 
 // 本次进程存活期内的累计用量。桥重启就归零 —— 它衡量的是「这个会话烧了多少」,
@@ -292,6 +298,10 @@ function runClaudeTurn(prompt, resume) {
         }
         return;
       }
+      if (j.type === 'assistant' && j.message) {
+        // 顺手记下真正在服务这一轮的模型(和 usage 一样,本来就在解析这条流)
+        if (typeof j.message.model === 'string' && j.message.model) effectiveModel = j.message.model;
+      }
       if (j.type === 'assistant' && j.message && Array.isArray(j.message.content)) {
         // surface tool calls (incl. MCP) to the live console feed
         for (const block of j.message.content) {
@@ -488,6 +498,9 @@ const server = http.createServer(async (req, res) => {
     const withCurrent = (list, cur) => (cur && !list.includes(cur) ? [cur, ...list] : list);
     return sendJson(res, 200, {
       model: runtimeModel,
+      // 没显式设过模型时,把「实际在跑的那个」报出去,让界面能说真话。
+      // 仍然分得清两者:model 是「我们指定的」,effective_model 是「实际生效的」。
+      effective_model: effectiveModel || undefined,
       effort: runtimeEffort,
       context_window: CONTEXT_WINDOW || undefined,
       models: withCurrent(MODEL_CHOICES.length ? MODEL_CHOICES : [CLAUDE_MODEL].filter(Boolean), runtimeModel),
