@@ -16,7 +16,10 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'sqlstore-'));
 
 // 尽量像真数据:该有的边角都摆上(撤回痕、附件、顶替、chunk 向量、留白正文)
 const SEED = {
-  counters: { message: 9, memory: 5, console: 3, document: 2, sticker: 1 },
+  // ★ counters 必须**大于**各表最大 id —— 等于就意味着下一号会重发一个用过的号。
+  //   第一版这里写了 sticker:1 而种子里就有 id=1 的贴纸,是我自己破了这条不变式;
+  //   读侧保险带把它抬到 2 之后,这条往返断言才炸出来。保险带是对的,种子是错的。
+  counters: { message: 9, memory: 5, console: 3, document: 2, sticker: 2 },
   session: { current_id: 'session-abc', forge_count: 2 },
   settings: { appName: 'CC', userName: '我', assistantName: 'AI', theme: 'starry', companion_since: '2026-03-16' },
   context_anchor: { chat: 3, group: 0 },
@@ -60,8 +63,12 @@ test('★★ 往返:源里每个字段都在、每个值都没变', async () => 
         }
       }
     }
-    for (const k of ['settings', 'session', 'counters', 'context_anchor', 'memory_extract_cursor']) {
+    for (const k of ['settings', 'session', 'context_anchor', 'memory_extract_cursor']) {
       assert.deepEqual(back[k], SEED[k], `${k} 没原样回来`);
+    }
+    // counters 单独判:读侧有保险带,**只许抬高不许降低**(抬高=挡住重发用过的号)
+    for (const [kind, v] of Object.entries(SEED.counters)) {
+      assert.ok(back.counters[kind] >= v, `counters.${kind} 被降低了 —— 保险带只该往上抬`);
     }
   });
 });

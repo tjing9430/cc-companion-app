@@ -520,6 +520,20 @@ function bindEvents() {
 
   document.addEventListener('change', async (event) => {
     const input = event.target;
+    // ★ 下拉必须先接住,再进那道 HTMLInputElement 守卫。
+    //   HTMLSelectElement **不继承** HTMLInputElement —— 我当初把 bridge-dial 分支写在
+    //   守卫下面,于是它从上线起一次都没执行过:钮点了没反应,而且不报错。
+    //   更该记的是我怎么「验过」的:我用 curl 从 App 代理一路打到桥进程,
+    //   报「整条链通了」—— 但我验的是**断点下面那一层**,用户真正碰的那一下一次没点。
+    //   → 验一个按钮,得从**按钮**开始验,不是从它底下的 API 开始验。
+    if (input instanceof HTMLSelectElement && input.dataset.action === 'bridge-dial') {
+      const field = input.dataset.field === 'model' ? 'model' : 'effort';
+      try {
+        state.bridge = await api('/api/bridge/config', { method: 'POST', body: { [field]: input.value } });
+      } catch (err) { handleBackgroundError(err); }
+      render();
+      return;
+    }
     if (!(input instanceof HTMLInputElement)) return;
     if (input.dataset.action === 'bridge-dial') {
       const field = input.dataset.field === 'model' ? 'model' : 'effort';
@@ -650,11 +664,16 @@ async function loadMessages(scope) {
 // 桥的档位/用量。取不到不是错 —— 这个部署可能压根没有桥,
 // 所以失败就把 available 归 false 让面板消失,而不是弹错误给用户。
 async function loadBridgeConfig() {
+  const before = JSON.stringify(state.bridge || null);
   try {
     state.bridge = await api('/api/bridge/config');
   } catch {
     state.bridge = { available: false };
   }
+  // ★ 拉完必须重绘。渲染发生在切 tab 的那一刻,而这个请求是**渲染之后**才回来的,
+  //   只改 state 不重绘 = 面板永远等下一次别的重绘才出现,用户看到的就是"没有这块"。
+  //   这是从下拉本身验才发现的第二处断点 —— 光验 API 层永远看不见。
+  if (JSON.stringify(state.bridge || null) !== before && state.tab === 'console') render();
 }
 
 async function loadConsole() {

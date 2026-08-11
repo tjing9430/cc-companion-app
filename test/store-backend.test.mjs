@@ -126,3 +126,64 @@ test('JSON 坏了的时候,切 sqlite 要退回 JSON 后端,而不是拿半截�
   assert.ok(fs.readdirSync(dir).some((f) => f.includes('.broken-')), '坏 JSON 该被备份');
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('★★ counters 陷阱:hint 写行之后重启,绝不许把旧消息盖掉', async () => {
+  // 评审在我改调用点**之前**逮到的雷,原样复现:
+  //   nextId() 只改内存里的 counters;如果 hint 只写那一行,counters 永远落不了盘。
+  //   重启后 nextId 发一个用过的 id → putMessage 是 ON CONFLICT(id) DO UPDATE
+  //   → **不是插入失败,是静默盖掉她的旧消息**。这是最坏的一类 bug:没有报错、没有现象。
+  const dir = mkdir();
+  fs.writeFileSync(path.join(dir, 'app-data.json'), JSON.stringify(SEED));
+
+  // 进程一:像真实调用点那样 —— nextId 拿号 → 塞进内存 → 带 hint 写
+  const w = await inChild(dir, 'sqlite', `
+    const m = await import('${REPO}/lib/state.js');
+    const id = m.nextId('message');
+    const row = { id, scope:'chat', sender:'我', role:'user', content:'第一条新消息', session_id:'sx', created_at:'2026-02-01T00:00:00.000Z' };
+    m.store.chat_messages.push(row);
+    m.saveStore({ kind: 'message', row });
+    console.log(JSON.stringify({ id, counter: m.store.counters.message }));`);
+  assert.equal(w.code, 0, w.err);
+  const first = JSON.parse(w.out);
+
+  // 进程二:重启之后再发一条。★ 拿到的号必须比上一条大,否则就要覆盖了
+  const w2 = await inChild(dir, 'sqlite', `
+    const m = await import('${REPO}/lib/state.js');
+    const id = m.nextId('message');
+    const row = { id, scope:'chat', sender:'我', role:'user', content:'第二条新消息', session_id:'sx', created_at:'2026-02-02T00:00:00.000Z' };
+    m.store.chat_messages.push(row);
+    m.saveStore({ kind: 'message', row });
+    console.log(JSON.stringify({ id }));`);
+  assert.equal(w2.code, 0, w2.err);
+  const second = JSON.parse(w2.out);
+  assert.ok(second.id > first.id,
+    `★ 重启后发的 id (${second.id}) 没有大过上一条 (${first.id}) —— 下一步就是把旧消息盖掉`);
+
+  // 进程三:清点。两条新消息都要在,一条都不许被顶掉
+  const r = await inChild(dir, 'sqlite', `
+    const m = await import('${REPO}/lib/state.js');
+    console.log(JSON.stringify(m.store.chat_messages.map((x) => x.content)));`);
+  const all = JSON.parse(r.out);
+  assert.ok(all.includes('第一条新消息'), '★ 第一条被后来的写盖掉了 —— 正是这个雷');
+  assert.ok(all.includes('第二条新消息'));
+  assert.equal(new Set(all).size, all.length, '出现重复内容,说明有行被覆盖后重建');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('★ 读侧保险带:kv 里的 counters 被人为改小,也不许发出已用过的号', async () => {
+  const dir = mkdir();
+  fs.writeFileSync(path.join(dir, 'app-data.json'), JSON.stringify(SEED));
+  await inChild(dir, 'sqlite', `await import('${REPO}/lib/state.js');`);   // 先接管建库
+  // 模拟"counters 落盘落丢了"的最坏情况:直接把 kv 里的值打回 1
+  const { openStoreSync } = await import('../lib/store-sqlite.js');
+  const s = openStoreSync(path.join(dir, 'app.db'));
+  s.putKv('counters', { message: 1, memory: 1, console: 1 });
+  s.close();
+  const r = await inChild(dir, 'sqlite', `
+    const m = await import('${REPO}/lib/state.js');
+    console.log(JSON.stringify({ counter: m.store.counters.message, maxId: Math.max(...m.store.chat_messages.concat(m.store.group_messages).map((x) => x.id)) }));`);
+  const got = JSON.parse(r.out);
+  assert.ok(got.counter > got.maxId,
+    `★ counters(${got.counter}) 必须大过表里最大 id(${got.maxId}) —— 否则下一号就是覆盖`);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

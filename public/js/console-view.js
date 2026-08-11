@@ -39,13 +39,21 @@ function renderDialPanel() {
   const win = Number(b.context_window) || 200000;   // 没报窗口就按 200k 画,并在文案里说明是估的
   const pct = win > 0 ? Math.min(100, Math.round((prompt / win) * 100)) : 0;
   const kk = (n) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
-  const sel = (name, cur, opts, label) => (opts && opts.length ? `
+  // ★ 当前值为空时(部署方没设 CLAUDE_MODEL,桥吃 CLI 默认),不能让浏览器
+  //   自己选中第一个 option —— 那会在界面上显示一个**没人设过的模型名**,
+  //   等于告诉她"你正在用 claude-fable-5",而那是假的。**撒谎比不显示更糟。**
+  //   所以空值时插一条「跟随默认」当选中态,如实说"我们没指定"。
+  const sel = (name, cur, opts, label) => {
+    if (!opts || !opts.length) return '';
+    const has = String(cur || '') !== '';
+    const items = (has ? '' : '<option value="" selected>跟随默认</option>')
+      + opts.map((o) => `<option value="${escAttr(o)}"${has && String(cur) === String(o) ? ' selected' : ''}>${esc(o)}</option>`).join('');
+    return `
     <label class="dial">
       <span class="dial-label">${esc(label)}</span>
-      <select data-action="bridge-dial" data-field="${name}" ${state.offline ? 'disabled' : ''}>
-        ${opts.map((o) => `<option value="${escAttr(o)}" ${String(cur) === String(o) ? 'selected' : ''}>${esc(o)}</option>`).join('')}
-      </select>
-    </label>` : '');
+      <select data-action="bridge-dial" data-field="${name}" ${state.offline ? 'disabled' : ''}>${items}</select>
+    </label>`;
+  };
   return `
     <div class="dial-panel">
       <div class="dial-row">
