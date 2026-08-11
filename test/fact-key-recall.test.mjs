@@ -42,7 +42,7 @@ test('被顶替的事实不进召回(词法路)', () => {
   seed(2);
   const hits = selectRelevantMemories('她住在哪里', 8);
   assert.ok(hits.some((m) => m.id === 2), '新事实要在');
-  assert.ok(!hits.some((m) => m.id === 1), '过时的「住在长沙」不许进 prompt');
+  assert.ok(!hits.some((m) => m.id === 1), '过时的「住在北京」不许进 prompt');
 });
 
 test('反面对照:摘掉顶替标记,旧事实必须重新漏进来', () => {

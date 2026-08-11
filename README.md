@@ -58,6 +58,35 @@ git pull --ff-only            # 拉到指定 commit
 
 前端单独变了不用重启;后端变了就必须重启,否则又回到那个混合态。
 
+## 配置从哪来:`.env` 和真实环境变量
+
+`.env` 是**进程启动时自己读的**(`lib/env.js`,不依赖 dotenv —— 零依赖是硬承诺),读一次,写进 `process.env`。
+读的固定是**仓库根目录**下的 `.env`,跟你在哪个目录敲 `npm start` 无关。
+
+优先级只有一条规则:**真实环境变量赢,`.env` 只填空缺。**
+
+```js
+if (key && !(key in process.env)) process.env[key] = value;
+```
+
+systemd 的 `Environment=`、Docker 的 `-e`、shell 里 `export` 过的同名变量,都会盖住 `.env` 里那一行。
+这条规则本身很常规,坑在两个边角:
+
+- **空值也算「已存在」。** `Environment="STORE_BACKEND="`、`docker run -e STORE_BACKEND=` 都会产生一个空字符串,
+  于是 `.env` 里的 `STORE_BACKEND=sqlite` **完全不生效**——程序拿到空串,回落到默认的 json。
+  配置看着是对的,行为不对,而且没有任何报错。
+- **`.env` 的值不会出现在进程环境快照里。** `/proc/<pid>/environ`、`systemctl show -p Environment`、`docker inspect`
+  给的都是 **exec 那一刻**的快照,而 `.env` 是启动之后才写进 `process.env` 的。
+  **在那里查不到,不等于没加载。**
+
+想确认某个配置最后到底是什么值,用同一个加载器问它,别去查快照:
+
+```bash
+node -e "import('./lib/env.js').then(m=>{m.loadDotEnv('.env');console.log(process.env.STORE_BACKEND)})"
+```
+
+或者直接看效果——比如 `STORE_BACKEND=sqlite` 真生效了,`data/app.db` 就会出现。
+
 ## 为什么要求 Node 22.13+
 
 存储层用 SQLite，而我们**不想为此引入任何依赖**——零依赖是这个项目的硬承诺（`npm install` 装不上原生模块，是自部署最常见的劝退点）。
@@ -214,7 +243,7 @@ data/uploads/
 server.js          组合层:HTTP 路由、静态服务、启动引导(~420 行)
 lib/
   state.js         配置常量 + store 生命周期(装载/落盘/归一化/设置)
-  env.js           .env 装载(行尾注释剥离)
+  env.js           .env 装载(行尾注释剥离;真实环境变量优先,见「配置从哪来」)
   util.js          纯函数工具箱(字符串/文件名/MIME/消息公共形状)
   http-util.js     HTTP 边界(错误类型/JSON 读写/鉴权/路由归一)
   sse.js           SSE 客户端集合与广播(快照由 server 启动时注入)

@@ -1,5 +1,5 @@
 // 事实键顶替:同一个事实键上只有最新那条参与召回,旧的留档但不抢话。
-// 病症(实测过):「住长沙」和「搬到湘潭」两条并排躺着,搜「住」两条一起进 prompt,模型自己蒙一个。
+// 病症(实测过):「住北京」和「搬到上海」两条并排躺着,搜「住」两条一起进 prompt,模型自己蒙一个。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -57,8 +57,8 @@ const search = async (api, q) => (await api('GET', `/api/memory?q=${encodeURICom
 test('同键的新事实顶替旧事实,旧的留档不删', async () => {
   const { api, stop } = await startApp();
   try {
-    const a = (await api('POST', '/api/memory', { title: '住处', content: '住在长沙', fact_key: '住处' })).body;
-    const b = (await api('POST', '/api/memory', { title: '住处', content: '搬到湘潭了', fact_key: '住处' })).body;
+    const a = (await api('POST', '/api/memory', { title: '住处', content: '住在北京', fact_key: '住处' })).body;
+    const b = (await api('POST', '/api/memory', { title: '住处', content: '搬到上海了', fact_key: '住处' })).body;
     const rows = await list(api);
     assert.equal(byId(rows, a.id).superseded_by, b.id, '旧的要指向新的');
     assert.ok(byId(rows, a.id).superseded_at, '要有顶替时间');
@@ -70,8 +70,8 @@ test('同键的新事实顶替旧事实,旧的留档不删', async () => {
 test('没填事实键 = 不建冲突(宁可漏顶替,不可错顶替)', async () => {
   const { api, stop } = await startApp();
   try {
-    const a = (await api('POST', '/api/memory', { title: '住处', content: '住在长沙' })).body;
-    const b = (await api('POST', '/api/memory', { title: '住处', content: '搬到湘潭了' })).body;
+    const a = (await api('POST', '/api/memory', { title: '住处', content: '住在北京' })).body;
+    const b = (await api('POST', '/api/memory', { title: '住处', content: '搬到上海了' })).body;
     const rows = await list(api);
     assert.equal(byId(rows, a.id).superseded_by, null);
     assert.equal(byId(rows, b.id).superseded_by, null);
@@ -81,7 +81,7 @@ test('没填事实键 = 不建冲突(宁可漏顶替,不可错顶替)', async ()
 test('不同键之间互不干扰', async () => {
   const { api, stop } = await startApp();
   try {
-    const home = (await api('POST', '/api/memory', { title: '住处', content: '长沙', fact_key: '住处' })).body;
+    const home = (await api('POST', '/api/memory', { title: '住处', content: '北京', fact_key: '住处' })).body;
     const job = (await api('POST', '/api/memory', { title: '工作', content: '在读书', fact_key: '工作' })).body;
     const rows = await list(api);
     assert.equal(byId(rows, home.id).superseded_by, null);
@@ -92,8 +92,8 @@ test('不同键之间互不干扰', async () => {
 test('把已有记忆编辑成某个键,它成为在效条目、同键其余让位', async () => {
   const { api, stop } = await startApp();
   try {
-    const a = (await api('POST', '/api/memory', { title: '住处', content: '长沙', fact_key: '住处' })).body;
-    const b = (await api('POST', '/api/memory', { title: '住处', content: '湘潭' })).body;
+    const a = (await api('POST', '/api/memory', { title: '住处', content: '北京', fact_key: '住处' })).body;
+    const b = (await api('POST', '/api/memory', { title: '住处', content: '上海' })).body;
     await api('PATCH', `/api/memory/${b.id}`, { fact_key: '住处' });
     const rows = await list(api);
     assert.equal(byId(rows, a.id).superseded_by, b.id, '编辑过的那条是用户最新的意思');
@@ -104,9 +104,9 @@ test('把已有记忆编辑成某个键,它成为在效条目、同键其余让�
 test('被顶替过的记忆若重新成为最新,自己复活', async () => {
   const { api, stop } = await startApp();
   try {
-    const a = (await api('POST', '/api/memory', { title: '住处', content: '长沙', fact_key: '住处' })).body;
-    const b = (await api('POST', '/api/memory', { title: '住处', content: '湘潭', fact_key: '住处' })).body;
-    await api('PATCH', `/api/memory/${a.id}`, { fact_key: '住处', content: '又搬回长沙了' });
+    const a = (await api('POST', '/api/memory', { title: '住处', content: '北京', fact_key: '住处' })).body;
+    const b = (await api('POST', '/api/memory', { title: '住处', content: '上海', fact_key: '住处' })).body;
+    await api('PATCH', `/api/memory/${a.id}`, { fact_key: '住处', content: '又搬回北京了' });
     const rows = await list(api);
     assert.equal(byId(rows, a.id).superseded_by, null, 'a 重新在效');
     assert.equal(byId(rows, b.id).superseded_by, a.id, '换 b 让位');
@@ -116,8 +116,8 @@ test('被顶替过的记忆若重新成为最新,自己复活', async () => {
 test('删掉在效那条,不会让旧事实自己爬回来', async () => {
   const { api, stop } = await startApp();
   try {
-    const a = (await api('POST', '/api/memory', { title: '住处', content: '长沙', fact_key: '住处' })).body;
-    const b = (await api('POST', '/api/memory', { title: '住处', content: '湘潭', fact_key: '住处' })).body;
+    const a = (await api('POST', '/api/memory', { title: '住处', content: '北京', fact_key: '住处' })).body;
+    const b = (await api('POST', '/api/memory', { title: '住处', content: '上海', fact_key: '住处' })).body;
     await api('DELETE', `/api/memory/${b.id}`);
     const rows = await list(api);
     assert.equal(byId(rows, a.id).superseded_by, b.id, '过时的事实不该因为删除而无声复活');
@@ -128,7 +128,7 @@ test('三代连续顶替,只剩最后一条在效', async () => {
   const { api, stop } = await startApp();
   try {
     const ids = [];
-    for (const c of ['长沙', '湘潭', '株洲']) {
+    for (const c of ['北京', '上海', '广州']) {
       ids.push((await api('POST', '/api/memory', { title: '住处', content: c, fact_key: '住处' })).body.id);
     }
     const rows = await list(api);
@@ -151,8 +151,8 @@ test('新字段进了 API 形状(记忆页照这个形状画)', async () => {
 test('搜索仍然看得到被顶替的(UI 要能显示「已被顶替」)', async () => {
   const { api, stop } = await startApp();
   try {
-    await api('POST', '/api/memory', { title: '住处', content: '住在长沙', fact_key: '住处' });
-    await api('POST', '/api/memory', { title: '住处', content: '搬到湘潭了', fact_key: '住处' });
+    await api('POST', '/api/memory', { title: '住处', content: '住在北京', fact_key: '住处' });
+    await api('POST', '/api/memory', { title: '住处', content: '搬到上海了', fact_key: '住处' });
     const hits = await search(api, '住');
     assert.ok(hits.length >= 2, '列表/搜索不过滤,过滤只发生在喂给模型的召回上');
   } finally { await stop(); }
