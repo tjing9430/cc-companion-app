@@ -1867,7 +1867,15 @@ body[data-theme="starry"] .term-view{background:rgba(6,10,24,.55)}
 /* ★ 恰好一屏:不是「填满剩下的空间」。用 flex:1 的话,舞台会被下面的
    「最近记忆」挤扁(实测只剩 662),银河就铺不到底、第一颗星还会撞上 Hero 文字。
    固定成一屏之后,最近记忆自然落到屏幕**外面**,往下滑才看得到。 */
-.home-stage{position:relative;flex:0 0 100dvh;min-height:580px}
+/* ★ `overflow-x:clip`:舞台里有**两层**是故意比屏幕宽的(`.sky-inner` 和 `.sky-gates`,
+   见下面那段"故意裁的"注释)。银河那层被 `.home-sky{overflow:hidden}` 裁住了,
+   **入口层没有** —— 它按设计挂在 `.home-sky` 外面(那层 aria-hidden、不接事件)。
+   于是它多出来的宽度一路冒到 `.content{overflow:auto}`,`auto` 把溢出变成**可以横拖**:
+   实测 360/390/412 三档能横拖 50/47/56px,拖出去就露出页面底色。
+   ★ 症状看着像"多了一层背景",其实是**少了一道裁剪** —— 去背景治不了,页面照样能拖。
+   ★ 用 `clip` 不用 `hidden`:`overflow-x:hidden` 会把 overflow-y 也变成滚动容器,
+     而这里只想裁横向。`clip` 不建立滚动容器,纵向保持 visible。 */
+.home-stage{position:relative;flex:0 0 100dvh;min-height:580px;overflow-x:clip}
 .home-sky{position:absolute;inset:0;overflow:hidden;z-index:0;pointer-events:none}
 
 /* ①「贯穿整个界面」是字面意思:高度撑满视口,宽度按图的比例自然算出来。
