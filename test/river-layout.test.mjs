@@ -10,7 +10,10 @@
 //   要断言的是**这套机制独有的后果**,不是「渲染没崩」。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RIVER, T_START, T_END, MAX_GATES, VISIBLE, riverAt, spreadT, layoutGates, splitGates } from '../public/js/river.js';
+import {
+  RIVER, T_START, T_END, MAX_GATES, VISIBLE, ASPECT,
+  riverAt, spreadT, layoutGates, splitGates, maxOffsetOn, textRoomFor,
+} from '../public/js/river.js';
 
 const G = (n) => Array.from({ length: n }, (_, i) => ({
   tab: `t${i}`, title: `入口${i}`, side: i % 2 ? 'left' : 'right', size: 10,
@@ -67,13 +70,63 @@ test('只动一个控制点,只有坐在那一段上的星星会动(别的不许
   }
 });
 
-test('星星挂在河**边**,不骑在河中间', () => {
-  for (const g of layoutGates(G(5))) {
-    const p = riverAt(g.t);
-    const dx = Math.abs(g.x / 100 - p.x);
-    assert.ok(dx >= p.half - 1e-9,
-      `${g.title} 离河心只有 ${dx.toFixed(3)},小于河道半宽 ${p.half.toFixed(3)} —— 它骑在河上了`);
+// 「让位」规则的验收。原来这条是**无条件**的「星星永不进河道」;现在放宽成
+// 「放得下就不进,放不下宁可贴近河也要让文字留在屏内」。
+//
+// ★ 收窄一条不变式的时候,最怕的是把判据也一起放软(变成"反正有理由就行")。
+//   所以这里不按"文案长不长"分,而是问一个**能算出来的**问题:
+//   当时到底存不存在一个「不骑河 + 文字在屏内」的位置?
+//     存在 → 必须选它,一次都不许降级
+//     不存在 → 降级可以,但必须真的换到"文字在屏内",而且不许翻到河对岸
+//   ★ 一开始我按"短文案不许降级"写,当场被 入口4 打脸:它在 t=0.94,河最宽(half .141),
+//     文字只允许 cap .117 —— **短文案也放不下**。"文案长短"根本不是那个判据。
+const geom = (g) => {
+  const p = riverAt(g.t);
+  const starHalf = (Number(g.size) || 0) / 100 / ASPECT / 2;
+  const room = textRoomFor(g);
+  const best = Math.max(maxOffsetOn('left', p.x, starHalf, room), maxOffsetOn('right', p.x, starHalf, room));
+  return { p, starHalf, room, best, off: Math.abs(g.x / 100 - p.x) };
+};
+
+test('放得下就不许骑河 —— 存在合法位置时,一次都不许降级', () => {
+  for (const list of [G(5), G(3), G(6)]) {
+    for (const g of layoutGates(list)) {
+      const { p, best, off } = geom(g);
+      if (best >= p.half) {
+        assert.ok(off >= p.half - 1e-9,
+          `${g.title} 本来有不骑河的位置(cap ${best.toFixed(3)} ≥ 半宽 ${p.half.toFixed(3)}),却降级到 ${off.toFixed(3)}`);
+      }
+    }
   }
+});
+
+test('放不下时才降级,而且必须真换到「文字在屏内 + 不翻到河对岸」', () => {
+  // 用户把 AI 名字起得很长 —— 真实触发路径是设置页打字,不是改代码
+  const long = G(5).map((g, i) => (i === 0 ? { ...g, hintText: '与 我家那位会写代码的小助手 畅聊' } : g));
+  let degraded = 0;
+  for (const list of [G(5), long]) {
+    for (const g of layoutGates(list)) {
+      const { p, starHalf, room, best, off } = geom(g);
+      if (best >= p.half) continue;          // 没降级,上一条测试管
+      degraded++;
+      const x = g.x / 100;
+      assert.ok(g.side === 'left' ? x < p.x : x > p.x,
+        `${g.title} 为了救文字被推到了河对岸 —— 这不是让位,是换了个更坏的毛病`);
+      // ★ 这里**不再自己算文字边缘**。上一版我在测试里照抄了一遍
+      //   `x ± starHalf*2 ± room`,然后生产代码把 `starHalf*2` 修成
+      //   `starHalf + 缝` —— 测试立刻报"文字还在屏外",而真实渲染是好的:
+      //   **红的是我抄的那份副本,不是被测的东西。**
+      //   所以问同一个函数:降级之后的偏移,不许超过"文字还在屏内"允许的最大偏移。
+      const cap = maxOffsetOn(g.side, p.x, starHalf, room);
+      if (cap > 0) {   // cap ≤ 0 = 文字比整屏还宽,交给 CSS 的 max-width + 省略号
+        assert.ok(off <= cap + 1e-9,
+          `${g.title} 降了级却没换到东西:偏移 ${off.toFixed(3)} 超过了"文字还在屏内"的上限 ${cap.toFixed(3)}`);
+      }
+    }
+  }
+  // ★ 断言"确实发生过降级"。否则上面整个循环可能一次都没进,
+  //   而一个从没执行过的检查和没有检查是一回事。
+  assert.ok(degraded > 0, '没有任何一颗走到降级分支 —— 这条测试根本没验到东西');
 });
 
 test('最终落点必须落在它自己声明/回退的那一侧', () => {

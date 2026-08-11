@@ -111,17 +111,39 @@ function spreadT(n, i) {
 // 「名字 · 主题 · 头像」要 0.23,而「珍藏回忆」只要 0.09,一刀切会把本来放得下的挤掉。
 // 基准宽度取最紧那档手机的容器宽(533px):标题 ~15px/字、副标题 ~11px/字。
 const REF_W = 450;   // 最紧那档手机(360×800)的容器宽 = 800 × 0.5625
+
+// ★★ 这个上限必须和 styles.css 里 `.sg-text{max-width:38vw}` 是同一个数。
+//    它们是**同一件事的两处声明**:文字实际能占多宽。
+//    以前只有 CSS 那一处有上限,几何层这边按字数无限增长 —— 于是用户起个长名字时,
+//    几何层算出"文字要 0.42 容器宽,两侧都放不下",直接退到最后的兜底,
+//    而 CSS 其实早就把它省略号截到 0.31 了,**本来放得下**。
+//    两层对同一个量各说各话,结果是谁都没算错,但合起来把标签甩出了屏幕。
+//    (38vw 换算成容器宽的比例在 0.30~0.38 之间浮动 —— 取上界偏保守,
+//     宁可多留一点空间,也不要算出"放不下"这种假结论。)
+const MAX_TEXT_ROOM = 0.38;
+
 function textRoomFor(g) {
   const title = String(g.title || '');
   const hint = String(g.hintText || '');
-  return Math.max(title.length * 15, hint.length * 11) / REF_W;
+  const want = Math.max(title.length * 15, hint.length * 11) / REF_W;
+  return Math.min(want, MAX_TEXT_ROOM);
 }
 
 // 在某一侧,星心能放的**最外**位置(再往外文字就出界了)。
+//
+// ★ 这里原本写的是 `starHalf * 2`,**把星星的半宽算了两遍**。
+//   真实几何(390 屏实测):星心 207、半宽 55、文字右缘 147 —— 星心到文字之间
+//   只隔着**一个**半宽 + `.3rem` 的缝(CSS: `.sg-left .sg-text{right:calc(100% + .3rem)}`)。
+//   多留一个半宽(0.116 容器宽)的后果不是"更安全",而是几何层**误判成放不下**:
+//   长名字那档实测只差 1px 就能放下,公式却算出 -0.095,于是直接退到最后的兜底,
+//   而兜底不保证文字在屏内 —— **一个偏保守的公式,反而制造了它想避免的故障。**
+const STAR_TEXT_GAP = 0.012;   // .3rem ≈ 4.8px,占容器宽(≈475px)约 1.2%
+
 function maxOffsetOn(side, center, starHalf, textRoom) {
+  const reserve = starHalf + STAR_TEXT_GAP + textRoom;
   return side === 'right'
-    ? (VISIBLE[1] - textRoom - starHalf * 2) - center
-    : center - (VISIBLE[0] + textRoom + starHalf * 2);
+    ? (VISIBLE[1] - reserve) - center
+    : center - (VISIBLE[0] + reserve);
 }
 
 function layoutGates(gates) {
@@ -155,10 +177,33 @@ function layoutGates(gates) {
       return { side, x: p.x + dir * off, slack: cap - off };
     };
 
-    // 首选侧放得下就用首选侧;放不下再翻面;都不行取"挤得少"的那边兜底。
+    // 让位版:两侧都放不下时,**把"星心不进河道"这条底线放掉**,
+    // 只保住「文字在屏内」+「星星还在河的这一侧」。
+    //
+    // ★ 为什么允许让位:副标题是**用户内容**(「与 ${AI 名字} 畅聊」「${群名},提到就唤起」),
+    //   不是写死的文案。用户在设置里起个 12 字的名字,标签就会滑出屏幕 ——
+    //   触发条件在用户手里,不在我们手里。
+    //   两种坏法的代价不对等:文字出屏 = 标签读不到 = 功能故障;星星贴近河 = 不好看。
+    //   **松紧方向要跟失败代价对齐**,所以往"不好看"那侧倒。
+    //
+    // ★ 放掉的必须是 floor(离河多远),不能是 side(在河哪边)。
+    //   第一版我写成"夹住 x 把文字拽进屏",结果 side:'right' 的星被夹到了河**左边**:
+    //   为救文字把落点推到对岸,比原毛病更糟。测试当场逮到。
+    const relaxed = (side) => {
+      const cap = maxOffsetOn(side, p.x, starHalf, room);
+      if (cap <= 0) return null;            // 这一侧连"星在河这侧 + 文字在屏内"都不成立
+      const dir = side === 'left' ? -1 : 1;
+      return { side, x: p.x + dir * Math.min(wish, cap), slack: 0 };
+    };
+
+    // 顺序 = 优先级:① 首选侧且不骑河 ② 翻面且不骑河 ③ 骑近一点但文字在屏内 ④ 都不行
+    // ★ ② 排在 ③ 前面:翻面只是换个方向,骑河是视觉降级 —— 先用代价小的那个。
+    //   (③ 为什么可以存在,见上面 relaxed 的注释。)
     const a = pick(want);
     const b = pick(want === 'left' ? 'right' : 'left');
-    const chosen = a || b || {
+    const chosen = a || b || relaxed(want) || relaxed(want === 'left' ? 'right' : 'left') || {
+      // ④ 文字比整个可见区还宽,几何层无解 —— 交给 CSS 的 max-width + 省略号,
+      //    这里只保证星星本身在屏内,别再算出一个更糟的坐标。
       side: want,
       x: Math.min(VISIBLE[1] - starHalf, Math.max(VISIBLE[0] + starHalf, p.x + (want === 'left' ? -floor : floor))),
     };
@@ -166,4 +211,10 @@ function layoutGates(gates) {
   });
 }
 
-export { RIVER, T_START, T_END, MAX_GATES, VISIBLE, TEXT_ROOM, ASPECT, riverAt, spreadT, layoutGates, splitGates };
+// maxOffsetOn / textRoomFor 导出只为测试:验收「让位」那条规则时必须能问
+// 「当时到底有没有一个不骑河的选择」—— 在测试里照抄一遍公式,等于把同一个错抄两份,
+// 公式改了测试还会绿。
+export {
+  RIVER, T_START, T_END, MAX_GATES, VISIBLE, TEXT_ROOM, ASPECT,
+  riverAt, spreadT, layoutGates, splitGates, maxOffsetOn, textRoomFor,
+};
