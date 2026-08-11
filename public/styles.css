@@ -1803,11 +1803,11 @@ body[data-theme="starry"] .term-view{background:rgba(6,10,24,.55)}
 .home-ask{margin:.55rem 0 0;font-size:.8rem;color:var(--faint)}
 
 /* --- 银河层 ---
-   ★ .home-sky 的 aspect-ratio 必须**等于银河图自己的宽高比**(820/1230)。
+   ★ .home-sky 的 aspect-ratio 必须**等于银河图自己的宽高比**(780/1170,即 2:3)。
      这不是排版偏好,是坐标系的地基:星星的 --x/--y 是从这张图的像素里算出来的,
      只有容器和图**同比**、图又 100% 铺满容器,那组百分比才落在带子上。
      一旦改成 object-fit:cover 之类会裁切的摆法,图被裁掉多少,星星就偏多少。 */
-.home-sky{position:relative;width:100%;aspect-ratio:820/1230;margin:.4rem 0 .2rem}
+.home-sky{position:relative;width:100%;aspect-ratio:780/1170;margin:.4rem 0 .2rem}
 .sky-galaxy{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;
   pointer-events:none;z-index:0;opacity:0;transition:opacity .5s ease}
 body[data-theme="starry"] .sky-galaxy{opacity:1}
