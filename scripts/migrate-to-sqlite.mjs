@@ -56,7 +56,7 @@ CREATE TABLE messages (
   content       TEXT NOT NULL DEFAULT '',
   thinking      TEXT NOT NULL DEFAULT '',
   msg_type      TEXT NOT NULL DEFAULT 'chat',
-  -- ★ 这一列是**往返比对**逮出来的,不是扫代码扫出来的:她真实库里每条消息都带 session_id,
+  -- ★ 这一列是**往返比对**逮出来的,不是扫代码扫出来的:真实库里每条消息都带 session_id,
   --   而我两轮 grep 字段都漏了它(第一次漏 favorited/recalled_at,这是第二次)。
   --   教训:字段清单的权威是**真实数据**,不是源码里的构造函数。
   session_id    TEXT NOT NULL DEFAULT '',

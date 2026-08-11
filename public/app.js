@@ -84,7 +84,7 @@ function bindEvents() {
     }
     if (name === 'bridge-dial') return;   // select 走 change 事件,不在 click 里处理
     if (name === 'pick-since') {
-      // 只把建议值**填进输入框**,不直接落库 —— 让她看见挑的是哪天、能改、按保存才生效。
+      // 只把建议值**填进输入框**,不直接落库 —— 让用户看见挑的是哪天、能改、按保存才生效。
       // 「替我挑一个」不该是「替我决定」。
       const all = [...(state.chat || []), ...(state.group || [])]
         .map((m) => m && m.created_at).filter(Boolean).sort();
@@ -1426,7 +1426,7 @@ function connectStream() {
     if (state.tab === 'memory') render();
   });
   // 真 console 的原始流。★ 只塞进内存环形缓冲 —— 不写 store、不写 localStorage,
-  //   刷新即空。这条通道对她的库零写入,那是它的验收项。
+  //   刷新即空。这条通道对用户的库零写入,那是它的验收项。
   eventStream.addEventListener('console-stream', (event) => {
     const data = parseStreamData(event);
     if (!data || !Array.isArray(data.lines)) return;

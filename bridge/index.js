@@ -76,7 +76,7 @@ const CLAUDE_EFFORT = String(process.env.CLAUDE_EFFORT || '').trim();
 //   shell:false 挡住了 shell 注入,但挡不住**参数注入** —— 传一个以 `--` 开头的值
 //   进去,CLI 的参数解析器会把它当成新开关。所以只认列表里的字面量,别的一律拒。
 // 取值来自 `claude --help`(low, medium, high, xhigh, max)——**实读的,不是照文档抄的**。
-// 第一版只写了前四个,漏了 max;而她的部署恰好用的就是 max,白名单会把合法值挡在门外。
+// 第一版只写了前四个,漏了 max;而实际部署里恰好就有人用 max,白名单会把合法值挡在门外。
 // 「宁可少给选项也不谎报支持」是对的,但那说的是**不确定的**,不是把已知合法的漏掉。
 const EFFORT_CHOICES = ['low', 'medium', 'high', 'xhigh', 'max'];
 // 模型列表不写死在代码里(图纸要求「按 bridge 实际支持列表读」)——

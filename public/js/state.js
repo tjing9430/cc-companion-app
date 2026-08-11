@@ -50,7 +50,7 @@ const state = {
   // 桥的档位/用量快照。available:false = 这个部署没有桥,控制台不摆那块面板。
   bridge: { available: false },
   // 真 console 的 live tail。★ **只活在内存里** —— 不落库、不进 localStorage、
-  // 刷新即空。这是这条通道的验收项:她的库不因为它多写一个字节。
+  // 刷新即空。这是这条通道的验收项:用户的库不因为它多写一个字节。
   consoleView: 'flow',        // 'flow' 工作流卡片 | 'term' 终端
   rawTail: [],                // 环形:只留最近 N 行
 

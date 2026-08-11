@@ -44,7 +44,7 @@ function renderDialPanel() {
   const kk = (n) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
   // ★ 当前值为空时(部署方没设 CLAUDE_MODEL,桥吃 CLI 默认),不能让浏览器
   //   自己选中第一个 option —— 那会在界面上显示一个**没人设过的模型名**,
-  //   等于告诉她"你正在用 claude-fable-5",而那是假的。**撒谎比不显示更糟。**
+  //   等于告诉用户"你正在用 claude-fable-5",而那是假的。**撒谎比不显示更糟。**
   //   所以空值时插一条「跟随默认」当选中态,如实说"我们没指定"。
   const sel = (name, cur, opts, label) => {
     if (!opts || !opts.length) return '';

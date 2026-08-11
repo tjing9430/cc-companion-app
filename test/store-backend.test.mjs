@@ -1,6 +1,6 @@
 // 存储后端开关。
 //
-// 封笔版的风险姿势:**默认仍是 JSON**,sqlite 靠 STORE_BACKEND=sqlite 显式打开。
+// 稳妥优先的取舍:**默认仍是 JSON**,sqlite 靠 STORE_BACKEND=sqlite 显式打开。
 // 理由不是保守本身 —— 是 §6 定的回滚(「删掉 .db 继续用 JSON」)**只有 JSON 那条路
 // 还活着时才成立**;硬切会把自己的回滚路径一起拆掉。
 //
@@ -131,7 +131,7 @@ test('★★ counters 陷阱:hint 写行之后重启,绝不许把旧消息盖掉
   // 评审在我改调用点**之前**逮到的雷,原样复现:
   //   nextId() 只改内存里的 counters;如果 hint 只写那一行,counters 永远落不了盘。
   //   重启后 nextId 发一个用过的 id → putMessage 是 ON CONFLICT(id) DO UPDATE
-  //   → **不是插入失败,是静默盖掉她的旧消息**。这是最坏的一类 bug:没有报错、没有现象。
+  //   → **不是插入失败,是静默盖掉已有的旧消息**。这是最坏的一类 bug:没有报错、没有现象。
   const dir = mkdir();
   fs.writeFileSync(path.join(dir, 'app-data.json'), JSON.stringify(SEED));
 
