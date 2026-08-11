@@ -15,7 +15,7 @@ import {
   memoryMood,
 } from './js/util.js';
 import { renderMarkdown, mdInline, mdSafeUrl } from './js/markdown.js';
-import { orbMarkup, hydrateStarry } from './js/starry.js';
+import { hydrateStarry } from './js/starry.js';
 import { renderHome } from './js/home-view.js';
 import {
   CONSOLE_COMMANDS,
@@ -963,7 +963,9 @@ function renderTopbar() {
       <div class="topbar-title">
         ${state.tab === 'home' ? '' : '<button type="button" class="topbar-home-btn" data-action="tab" data-tab="home" aria-label="回首页" title="回首页">✦</button>'}
         ${mem && mem.back ? '<button type="button" class="topbar-back" data-action="memory-tab" data-tab="home" aria-label="回记忆">‹</button>' : ''}
-        ${orbMarkup(state.tab)}
+        <!-- ★ 顶栏那颗装饰球(orbMarkup)撤掉:它 aria-hidden、不可点、每一页都挂一个,
+             占掉标题左边一大块却不回答任何问题。留下的 ✦ 是**回首页键**(有 aria-label),
+             跟它长得像但不是一回事 —— 底栏是全局拆掉的,✦ 是每页唯一的回家路。 -->
         <div class="topbar-title-text"><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>
       </div>
       <div class="topbar-actions">
