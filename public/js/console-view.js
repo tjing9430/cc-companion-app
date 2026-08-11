@@ -9,10 +9,11 @@ function renderConsole() {
   return `
     <div class="console-view">
       <form class="console-command" data-console-command="1">
-        ${renderViewToggle()}
-        ${renderDialPanel()}
-        <div class="console-shortcuts">
-          ${CONSOLE_COMMANDS.map(([cmd, label]) => `<button type="button" data-action="console-shortcut" data-cmd="${escAttr(cmd)}">${esc(label)}</button>`).join('')}
+        <div class="cv-strip" role="toolbar" aria-label="控制台工具条">
+          ${renderViewToggle()}
+          ${renderDialPanel()}
+          <span class="cv-sep" aria-hidden="true"></span>
+          ${CONSOLE_COMMANDS.map(([cmd, label]) => `<button type="button" class="cv-cmd" data-action="console-shortcut" data-cmd="${escAttr(cmd)}">${esc(label)}</button>`).join('')}
         </div>
         <div class="composer-bar">
           <div class="composer-field">
@@ -28,7 +29,9 @@ function renderConsole() {
     </div>`;
 }
 
-// 「额度仪表盘」:模型定单价、effort 定用量,两个钮相邻摆;下面一条本会话用量。
+// 「额度仪表盘」压成三枚胶囊:模型定单价、effort 定用量、用量条给反馈。
+// ★ 原来是一块竖着的大面板 —— 反馈原话「这一坨东西太大了」。控制台的主角是事件流,
+//   档位和命令是**手边的工具**不是仪表盘,所以压成一条、溢出就横滑,纵向还给内容。
 // ★ 桥给不出这些能力时(没配桥 / 桥没起 / 不是我们这个桥),整块不渲染 ——
 //   和头像那道门同一个判据:后端给不出的能力,前端不给入口。
 function renderDialPanel() {
@@ -48,23 +51,18 @@ function renderDialPanel() {
     const has = String(cur || '') !== '';
     const items = (has ? '' : '<option value="" selected>跟随默认</option>')
       + opts.map((o) => `<option value="${escAttr(o)}"${has && String(cur) === String(o) ? ' selected' : ''}>${esc(o)}</option>`).join('');
-    return `
-    <label class="dial">
-      <span class="dial-label">${esc(label)}</span>
+    // 压成一枚胶囊:下拉自己就是胶囊,不再另起一行标签
+    return `<label class="cv-pill cv-dial" title="${escAttr(label)}">
       <select data-action="bridge-dial" data-field="${name}" ${state.offline ? 'disabled' : ''}>${items}</select>
     </label>`;
   };
-  return `
-    <div class="dial-panel">
-      <div class="dial-row">
-        ${sel('model', b.model, b.models, '模型')}
-        ${sel('effort', b.effort, b.efforts, '思考档')}
-      </div>
-      <div class="usage-bar" title="上一轮送进模型的 token / 上下文窗口">
-        <div class="usage-fill" style="width:${pct}%"></div>
-        <span class="usage-text">${kk(prompt)} / ${kk(win)}${b.context_window ? '' : '(估)'} · 本会话 ${u.turns || 0} 轮 · 出 ${kk(Number(u.output_tokens) || 0)}</span>
-      </div>
-    </div>`;
+  // 三枚胶囊平铺进外面那条横滚带,不再自己占一整块
+  return `${sel('model', b.model, b.models, '模型')}${sel('effort', b.effort, b.efforts, '思考档')}
+    <span class="cv-pill cv-usage" style="--pct:${pct}%"
+          title="上一轮送进模型的 token / 上下文窗口${b.context_window ? '' : '(窗口未声明,按 200k 估)'}">
+      <i class="cv-usage-fill" aria-hidden="true"></i>
+      <span class="cv-usage-text">${kk(prompt)}/${kk(win)}${b.context_window ? '' : '~'} · ${u.turns || 0}轮</span>
+    </span>`;
 }
 
 // 两档:工作流(卡片)/ 终端(等宽一行一条)
