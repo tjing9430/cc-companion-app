@@ -251,6 +251,26 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   .pill-long{display:none}
   .pill-short{display:inline}
 }
+/* ★ 窄屏再减一档:状态药丸只留一个圆点,不带字。
+   它平时是「实时」这种两三个字,但异常态会变成「重连中」——**恰恰是最挤的时候变最长**。
+   颜色已经把状态说清楚了,字在 360 以下是负担。完整文案仍在 title 属性里,长按可见。 */
+/* 「★ 收藏」在窄屏收起 —— 它是六件里最不常用的一件,而且 ⋯ 菜单里够得着。
+   ★ 只藏这一个,不是把整排都藏了:搜索和 ⋯ 是高频入口,藏了等于砍功能。 */
+@media (max-width:400px){
+  .only-wide{display:none}
+  /* 窄屏把顶栏两侧的 1.5rem 收到 .7rem —— 320 上那 48px 内边距比按钮还宽。
+     先还空间,再谈藏东西:能靠留白解决的,不必砍功能。 */
+  .topbar{padding:0 .7rem}
+  /* ★ 再给标题一个硬上限。省略号要生效,得有个**确定的**可用宽度;
+     光靠 flex-shrink,在极端长名字下浏览器仍可能按内容撑开。
+     42vw 是量出来的:320 上给标题 134px,剩下的够 ✦ + 🔍 + ⋯ + 状态点。 */
+  .topbar-title-text{max-width:42vw}
+}
+@media (max-width:400px){
+  .status-pill{padding:0;border:0;background:none;width:10px;height:10px;border-radius:50%;
+    overflow:hidden;text-indent:-999px;background-color:var(--muted)}
+  .status-pill .pill-long,.status-pill .pill-short{display:none}
+}
 .content{flex:1;min-height:0;overflow:auto;padding:1.1rem 1.5rem 1.25rem}
 
 /* Chat */
@@ -397,6 +417,18 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   color:var(--muted);
 }
 .topbar-actions{display:flex;align-items:center;gap:.5rem;min-width:0}
+/* ★ 顶栏挤爆的根:这些按钮**默认是可压缩的**(flex 项 min-width:auto 之后仍会被压),
+   空间不够时会被压到一个字符宽 —— 中文于是竖排成一列,「重连中」被切出右边界。
+   两句话堵死:谁都不许被压缩、谁都不许换行。宁可整条横向挤一点,也不要竖排。 */
+.topbar-actions > *,
+.topbar-title > *:not(.topbar-title-text){flex:0 0 auto;white-space:nowrap}
+/* ★ 标题是这里**唯一**该让位的东西,所以它要被排除在"不许压缩"之外。
+   第一版我把 .topbar-title 的所有子元素都设成 flex:0 0 auto —— 连标题一起钉死了,
+   于是超长名字既不换行也不省略,直接把整条顶栏顶出去 4px。
+   让位的方式是**省略号**,不是竖排:压缩要有,只是要压对地方。 */
+.topbar-title{min-width:0;flex:1 1 auto}
+.topbar-title-text{min-width:0;overflow:hidden;flex:1 1 auto}
+.topbar-title-text h1,.topbar-title-text p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .reply-banner-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .reply-banner-cancel{
   flex:none;

@@ -968,7 +968,7 @@ function renderTopbar() {
       </div>
       <div class="topbar-actions">
         ${(state.tab === 'chat' || state.tab === 'group') ? renderChatSearchBtn(state.tab) : ''}
-        ${(state.tab === 'chat' || state.tab === 'group') ? renderFavFilterBtn(state.tab) : ''}
+        ${(state.tab === 'chat' || state.tab === 'group') ? `<span class="only-wide">${renderFavFilterBtn(state.tab)}</span>` : ''}
         ${(state.tab === 'chat' || state.tab === 'group') ? renderChatToolsMenu(state.tab) : ''}
         <div class="status-pill" title="${escAttr(live)}"><span class="pill-long">${esc(live)}</span><span class="pill-short">${esc(streamStatusLabel())}</span></div>
       </div>
