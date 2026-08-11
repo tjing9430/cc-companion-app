@@ -55,6 +55,26 @@ const TEXT_ROOM = 0.23;
 //   超过这个数的入口应该收进各自页面内部,而不是继续往河上插。
 const MAX_GATES = 6;
 
+// 超出上限的入口怎么办 —— **绝不静默丢掉**。
+//
+// ★ 上一版这里写的是 `GATES.slice(0, MAX_GATES)`:第七个入口会**无声消失**,
+//   fork 的人加了功能、发现首屏没变化,却什么报错都没有。
+//   这正是今天反复咬人的那个形状:**沉默被当成了成功**。
+//   现在:多出来的照样返回,由调用方决定怎么安置,并且在控制台点名说出来。
+function splitGates(gates, max = MAX_GATES) {
+  const list = Array.isArray(gates) ? gates : [];
+  const onRiver = list.slice(0, max);
+  const overflow = list.slice(max);
+  if (overflow.length && typeof console !== 'undefined' && console.warn) {
+    console.warn(
+      `[首屏] 河道最多挂 ${max} 个入口,这些没挂上去:`
+      + overflow.map((g) => g.title || g.tab).join('、')
+      + '。它们会收进「更多」那颗北斗;要让它们上河,得先把别的挪下来。',
+    );
+  }
+  return { onRiver, overflow };
+}
+
 // 沿路径插值。t 落在两个采样点之间时线性混合 —— 采样够密(每 0.1 一个),
 // 线性插值和曲线的差别在视觉上看不出来,却省掉一整套曲线求值。
 function riverAt(t) {
@@ -146,4 +166,4 @@ function layoutGates(gates) {
   });
 }
 
-export { RIVER, T_START, T_END, MAX_GATES, VISIBLE, TEXT_ROOM, ASPECT, riverAt, spreadT, layoutGates };
+export { RIVER, T_START, T_END, MAX_GATES, VISIBLE, TEXT_ROOM, ASPECT, riverAt, spreadT, layoutGates, splitGates };

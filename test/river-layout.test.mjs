@@ -10,7 +10,7 @@
 //   要断言的是**这套机制独有的后果**,不是「渲染没崩」。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RIVER, T_START, T_END, MAX_GATES, VISIBLE, riverAt, spreadT, layoutGates } from '../public/js/river.js';
+import { RIVER, T_START, T_END, MAX_GATES, VISIBLE, riverAt, spreadT, layoutGates, splitGates } from '../public/js/river.js';
 
 const G = (n) => Array.from({ length: n }, (_, i) => ({
   tab: `t${i}`, title: `入口${i}`, side: i % 2 ? 'left' : 'right', size: 10,
@@ -152,4 +152,38 @@ test('入口数为 1 或 0 时不出 NaN', () => {
   assert.equal(one.length, 1);
   assert.ok(Number.isFinite(one[0].x) && Number.isFinite(one[0].y));
   assert.ok(one[0].t > T_START && one[0].t < T_END, '只有一个入口时应当摆在中间');
+});
+
+test('超出上限的入口不许静默消失', () => {
+  // ★ 早先是 `GATES.slice(0, MAX_GATES)`:第七个入口**无声蒸发** ——
+  //   fork 的人加了功能、首屏没变化、控制台一片安静。
+  //   这是今天反复咬人的同一个形状:**沉默被当成了成功**。
+  const gates = Array.from({ length: MAX_GATES + 2 }, (_, i) => ({ tab: `t${i}`, title: `入口${i}` }));
+  const { onRiver, overflow } = splitGates(gates);
+  assert.equal(onRiver.length, MAX_GATES, '河上应当正好挂满上限');
+  assert.equal(overflow.length, 2, '多出来的必须**返回**,不能丢');
+  // 一个都不能少:上河的 + 溢出的 = 原始全集
+  assert.deepEqual([...onRiver, ...overflow].map((g) => g.tab), gates.map((g) => g.tab));
+});
+
+test('没超限时不发警告(闸门不许平时就吵)', () => {
+  // 一个总在报警的闸门等于关掉的闸门 —— 今天在脱敏扫描器上刚吃过这个亏。
+  const seen = [];
+  const orig = console.warn;
+  console.warn = (...a) => seen.push(a.join(' '));
+  try {
+    splitGates(Array.from({ length: MAX_GATES }, (_, i) => ({ tab: `t${i}`, title: `入口${i}` })));
+  } finally { console.warn = orig; }
+  assert.deepEqual(seen, [], `没超限却发了警告:${seen.join(' / ')}`);
+});
+
+test('超限时警告要点名是哪几个(只说"有溢出"等于没说)', () => {
+  const seen = [];
+  const orig = console.warn;
+  console.warn = (...a) => seen.push(a.join(' '));
+  try {
+    splitGates(Array.from({ length: MAX_GATES + 1 }, (_, i) => ({ tab: `t${i}`, title: `入口${i}` })));
+  } finally { console.warn = orig; }
+  assert.equal(seen.length, 1, '超限应当正好警告一次');
+  assert.match(seen[0], new RegExp(`入口${MAX_GATES}`), '警告里要出现被挤下来的那个入口的名字');
 });

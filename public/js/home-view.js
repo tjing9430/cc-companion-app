@@ -20,7 +20,7 @@
 //     **摆一个点不动的铃铛比不摆更差。**
 import { esc, escAttr } from './util.js';
 import { state } from './state.js';
-import { layoutGates, MAX_GATES } from './river.js';
+import { layoutGates, splitGates } from './river.js';
 
 // 五个入口。
 //
@@ -94,6 +94,8 @@ function daysTogether(iso) {
 
 function renderHome() {
   const s = state.settings || {};
+  // 超出上限的入口不会消失,它们归到「更多」那颗北斗名下(并在控制台点名)
+  const { onRiver, overflow } = splitGates(GATES);
   const days = daysTogether(s.companion_since);
 
   return `
@@ -134,7 +136,7 @@ function renderHome() {
            所以 --x/--y 这组从图里算出来的百分比仍然精确落在银河上。
            它不放在 .home-sky 里面,是因为那层 aria-hidden 且不接事件。 -->
       <ul class="sky-gates">
-        ${layoutGates(GATES.slice(0, MAX_GATES).map((g) => ({ ...g, hintText: g.hint(s) }))).map((g) => `
+        ${layoutGates(onRiver.map((g) => ({ ...g, hintText: g.hint(s) }))).map((g) => `
           <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${g.size}%">
             <button type="button" data-action="tab" data-tab="${g.tab}">
               <span class="sg-star"><img src="/assets/stars3/${g.star}" alt=""></span>
@@ -149,7 +151,7 @@ function renderHome() {
             <span class="sg-star"><img src="/assets/stars3/bigdipper3.svg" alt=""></span>
             <span class="sg-text">
               <span class="sg-title">${esc(DIPPER.title)}</span>
-              <span class="sg-hint">${esc(DIPPER.hint)}</span>
+              <span class="sg-hint">${esc(overflow.length ? `还有 ${overflow.length} 个` : DIPPER.hint)}</span>
             </span>
           </button>
         </li>
