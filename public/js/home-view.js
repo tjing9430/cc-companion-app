@@ -38,6 +38,45 @@ function daysTogether(iso) {
   return Math.max(0, Math.round((today - start) / 86400000)) + 1;
 }
 
+// 河道。★ 三层都用同一条 d —— 改形状只改这一处,不会出现「雾和芯不在一条线上」。
+const RIVER_D = 'M252 6 C 150 70, 262 150, 128 232 C 26 296, 196 372, 96 470 C 52 512, 74 566, 122 634';
+
+// 星尘:沿路径采样撒粒子。★ 必须在 DOM 里做 —— getPointAtLength 是 SVG 的真几何,
+// 自己手算三次贝塞尔的弧长参数化既麻烦又容易和渲染出的曲线对不齐。
+export function hydrateHome(root) {
+  const svg = (root || document).querySelector('.river-line');
+  const path = svg && svg.querySelector('#riverPath');
+  const g = svg && svg.querySelector('.river-dust');
+  if (!path || !g || g.childElementCount) return;
+  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const total = path.getTotalLength();
+  const N = reduced ? 130 : 320;           // 密度就是「像不像星河」的关键,细线撒 20 颗没用
+  const NS = 'http://www.w3.org/2000/svg';
+  let html = '';
+  for (let i = 0; i < N; i++) {
+    // 沿弧长均匀取点,再往法线方向随机偏一点 —— 偏移量决定河道的「宽窄」
+    const t = (i + Math.random() * 0.8) / N * total;
+    const p = path.getPointAtLength(Math.min(t, total));
+    const p2 = path.getPointAtLength(Math.min(t + 1, total));
+    const nx = -(p2.y - p.y); const ny = p2.x - p.x;
+    const len = Math.hypot(nx, ny) || 1;
+    // 中间密两边疏:用两次随机取平方,天然向 0 聚
+    const spread = (Math.random() - 0.5) * 2;
+    const off = spread * spread * spread * 44;
+    const x = p.x + (nx / len) * off;
+    const y = p.y + (ny / len) * off;
+    const r = (Math.random() * 2.0 + 0.6).toFixed(2);
+    const o = (0.45 + Math.random() * 0.55).toFixed(2);
+    const warm = i / N < 0.62;            // 上半段偏金,下半段偏蓝紫,跟渐变同一套色
+    const fill = warm ? (Math.random() < 0.3 ? '#FFF6DC' : '#FFD98A') : (Math.random() < 0.3 ? '#EAE2FF' : '#A9B8F5');
+    const dur = (Math.random() * 3 + 2.2).toFixed(1);
+    const delay = (Math.random() * 4).toFixed(1);
+    html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${fill}" opacity="${o}"`
+      + (reduced ? '' : ` style="--o:${o};--dur:${dur}s;--delay:${delay}s"`) + ' class="dust"/>';
+  }
+  g.innerHTML = html;
+}
+
 function renderHome() {
   const s = state.settings || {};
   const days = daysTogether(s.companion_since);
@@ -63,17 +102,32 @@ function renderHome() {
       </div>
 
       <div class="home-river">
-        <svg class="river-line" viewBox="0 0 320 620" preserveAspectRatio="none" aria-hidden="true">
+        <svg class="river-line" viewBox="0 0 320 640" preserveAspectRatio="none" aria-hidden="true">
           <defs>
             <linearGradient id="riverGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#E7C47A" stop-opacity="0"/>
-              <stop offset="18%" stop-color="#E7C47A" stop-opacity=".85"/>
-              <stop offset="55%" stop-color="#8DAFF8" stop-opacity=".7"/>
+              <stop offset="0%"   stop-color="#FFE9B0" stop-opacity="0"/>
+              <stop offset="12%"  stop-color="#FFD98A" stop-opacity="1"/>
+              <stop offset="45%"  stop-color="#E7C47A" stop-opacity="1"/>
+              <stop offset="72%"  stop-color="#A98CF0" stop-opacity=".95"/>
               <stop offset="100%" stop-color="#8DAFF8" stop-opacity="0"/>
             </linearGradient>
+            <filter id="riverBloom" x="-40%" y="-10%" width="180%" height="120%">
+              <feGaussianBlur stdDeviation="10"/>
+            </filter>
+            <filter id="riverBloomWide" x="-60%" y="-10%" width="220%" height="120%">
+              <feGaussianBlur stdDeviation="26"/>
+            </filter>
           </defs>
-          <path class="river-path" d="M250 0 C 120 90, 250 190, 120 280 C 20 350, 190 430, 90 530 C 60 570, 80 600, 110 620"
-                fill="none" stroke="url(#riverGrad)" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- 三层堆出「有厚度的光」:最外一层大模糊当雾,中间一层当光带,芯是细亮线。
+               单独一条 2.5px 的线在深空底上等于没有 —— 第一版就是那样,太淡。 -->
+          <path class="rv rv-haze" d="${RIVER_D}" fill="none" stroke="url(#riverGrad)"
+                stroke-width="62" stroke-linecap="round" opacity=".42" filter="url(#riverBloomWide)"/>
+          <path class="rv rv-band" d="${RIVER_D}" fill="none" stroke="url(#riverGrad)"
+                stroke-width="24" stroke-linecap="round" opacity=".62" filter="url(#riverBloom)"/>
+          <path class="rv rv-core" id="riverPath" d="${RIVER_D}" fill="none" stroke="url(#riverGrad)"
+                stroke-width="1.6" stroke-linecap="round" opacity=".9"/>
+          <!-- 星尘:水合时沿着这条路径采样撒进来(见 hydrateHome) -->
+          <g class="river-dust"></g>
         </svg>
         <ul class="home-gates">
           ${GATES.map((g, i) => `

@@ -1766,15 +1766,34 @@ body[data-theme="starry"] .usage-fill{opacity:.4}
 .home-days b{color:var(--accent);font-size:1.15rem;font-weight:600;margin:0 .15rem}
 .home-ask{margin:.55rem 0 0;font-size:.8rem;color:var(--faint)}
 
-.home-river{position:relative;margin-top:1.4rem}
+/* 河从问候语底下就开始淌,一直到最近记忆之前 —— 它是这一屏的主角,不是图标的背景 */
+.home-river{position:relative;margin-top:.6rem;min-height:640px}
 .river-line{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:0}
 body[data-theme="starry"] .river-line{opacity:1}
-.home-gates{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1.5rem;position:relative;z-index:1}
+/* 星尘一颗颗自己眨,错开相位 —— 整条河一起闪会像故障灯 */
+.river-line .dust{animation:cc-twinkle var(--dur,3s) ease-in-out var(--delay,0s) infinite}
+/* 光带缓慢呼吸,幅度很小:让它「活着」,但不至于变成会动的广告牌 */
+body[data-theme="starry"] .rv-band{animation:cc-river-breathe 7s ease-in-out infinite}
+body[data-theme="starry"] .rv-haze{animation:cc-river-breathe 11s ease-in-out infinite reverse}
+@keyframes cc-river-breathe{0%,100%{opacity:.30}50%{opacity:.62}}
+/* 入口星的光晕加重 —— 样稿里每颗星都是自带光环的,不是贴图平摆 */
+body[data-theme="starry"] .gate-star{
+  filter:drop-shadow(0 0 14px rgba(231,196,122,.55)) drop-shadow(0 0 30px rgba(169,140,240,.28));
+}
+body[data-theme="starry"] .gate-title{
+  background:rgba(20,26,52,.72);border-color:rgba(231,196,122,.35);
+  box-shadow:0 0 18px rgba(231,196,122,.10);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+@media (prefers-reduced-motion:reduce){
+  .river-line .dust,body[data-theme="starry"] .rv-band,body[data-theme="starry"] .rv-haze{animation:none!important}
+}
+.home-gates{list-style:none;margin:0;padding:1rem 0 1.4rem;display:flex;flex-direction:column;gap:2.6rem;position:relative;z-index:1}
 /* 入口沿着河道左右错开,不是一条直线 —— 直线就没有「挂在河上」的意思了 */
 .gate-0{margin-left:0}
-.gate-1{margin-left:1.6rem}
+.gate-1{margin-left:2.4rem}
 .gate-2{margin-left:.5rem}
-.gate-3{margin-left:2.2rem}
+.gate-3{margin-left:3rem}
 .home-gate button{
   display:flex;align-items:center;gap:.85rem;width:100%;padding:0;
   background:none;border:0;cursor:pointer;text-align:left;color:inherit;
