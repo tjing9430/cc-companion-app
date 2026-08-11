@@ -9,6 +9,7 @@ function renderConsole() {
   return `
     <div class="console-view">
       <form class="console-command" data-console-command="1">
+        ${renderViewToggle()}
         ${renderDialPanel()}
         <div class="console-shortcuts">
           ${CONSOLE_COMMANDS.map(([cmd, label]) => `<button type="button" data-action="console-shortcut" data-cmd="${escAttr(cmd)}">${esc(label)}</button>`).join('')}
@@ -20,9 +21,10 @@ function renderConsole() {
           <button class="composer-btn composer-send" type="submit" aria-label="发送命令" title="发送命令" ${state.offline ? 'disabled' : ''}>${ICONS.send}</button>
         </div>
       </form>
+      ${state.consoleView === 'term' ? renderTerminal() : `
       <div class="event-list" data-scroll-list data-scroll-scope="console">
         ${state.events.length ? state.events.map((event) => renderConsoleEvent(event)).join('') : '<div class="empty">还没有控制台事件。</div>'}
-      </div>
+      </div>`}
     </div>`;
 }
 
@@ -57,6 +59,30 @@ function renderDialPanel() {
     </div>`;
 }
 
+// 两档:工作流(卡片)/ 终端(等宽一行一条)
+function renderViewToggle() {
+  const tab = (v, label) => `<button type="button" class="cv-tab${state.consoleView === v ? ' on' : ''}" data-action="console-view" data-view="${v}">${esc(label)}</button>`;
+  return `<div class="cv-toggle">${tab('flow', '工作流')}${tab('term', '终端')}</div>`;
+}
+
+// 终端档 = 两层。
+// ★ 为什么不是纯 live tail:原始流只在一轮进行时存在,不聊天的时候它是个空黑框。
+//   所以下半屏是**历史**(已有的运行事件,换成终端长相),上面接**实时原始流**。
+//   两层的来源不同,界面上如实标出来,不把历史冒充成原始输出。
+function renderTerminal() {
+  const hist = (state.events || []).slice(-120).map((e) => {
+    const t = String(e.created_at || '').slice(11, 19);
+    return `<div class="tl tl-${esc(e.kind || 'event')}"><span class="tl-t">${esc(t)}</span><span class="tl-k">${esc((e.kind || '').padEnd(8))}</span><span class="tl-b">${esc(e.title || '')}${e.body ? ' — ' + esc(String(e.body).slice(0, 300)) : ''}</span></div>`;
+  }).join('');
+  const tail = (state.rawTail || []).map((l) => `<div class="tl tl-raw">${esc(l)}</div>`).join('');
+  return `
+    <div class="term-view" data-scroll-list data-scroll-scope="console">
+      <div class="term-note">运行事件流（不是原始 stdout）</div>
+      ${hist || '<div class="empty">还没有事件。</div>'}
+      ${tail ? `<div class="term-note term-note-live">↓ 实时原始输出（只在内存里，刷新即空）</div>${tail}` : ''}
+    </div>`;
+}
+
 function renderConsoleEvent(event) {
   const body = String(event.body || '');
   // 「长」= 一屏放不下:超过 120 字或含换行。短条目(比如 tool 的「→ Bash」)不给展开键,
@@ -75,4 +101,4 @@ function renderConsoleEvent(event) {
     </article>`;
 }
 
-export { renderConsole, renderConsoleEvent, renderDialPanel };
+export { renderConsole, renderConsoleEvent, renderDialPanel, renderTerminal };

@@ -159,6 +159,47 @@ function log(level, msg) {
 }
 
 // ------------------------------------ post a console event to the app (feed UI)
+// ---- 原始流 tee(真 console 的上游)----
+//
+// 把 CLI 吐的每一行原样送给 App,App 只广播不落库。实测一轮 ~510 行 / ~120KB。
+//
+// ★ **批量发**:一行一个 HTTP 请求就是一轮 510 个请求,把省下来的都还回去。
+//   攒够 40 行或 120ms 发一次 → 一轮十几个请求。
+// ★ **fail-open 是硬要求,不是"顺手加个 try"**:这条通道死了,聊天主链必须零感知。
+//   所以:不 await(发了就不管)、超时短、错误全吞、队列有上限(下游堵住就丢最老的,
+//   宁可少几行日志,也不能让内存涨到影响回话)。
+//   ——「日志通道拖垮业务」是经典事故形态,这里从设计上排除掉。
+const STREAM_MAX_QUEUE = 400;
+let streamQueue = [];
+let streamTimer = null;
+let streamBroken = false;   // 连续失败就整条停掉,不再浪费任何时间
+
+function teeRaw(line) {
+  if (streamBroken || !line) return;
+  streamQueue.push(line.length > 4000 ? `${line.slice(0, 4000)}…[截断]` : line);
+  if (streamQueue.length > STREAM_MAX_QUEUE) streamQueue = streamQueue.slice(-STREAM_MAX_QUEUE);
+  if (streamQueue.length >= 40) return flushRaw();
+  if (!streamTimer) streamTimer = setTimeout(flushRaw, 120);
+}
+
+function flushRaw() {
+  if (streamTimer) { clearTimeout(streamTimer); streamTimer = null; }
+  const lines = streamQueue;
+  streamQueue = [];
+  if (!lines.length) return;
+  // 故意不 await:调用它的是解析热路径,等它就等于让日志给回话让路
+  fetch(`${APP_URL}/api/console/stream`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(APP_AUTH_TOKEN ? { 'x-app-token': APP_AUTH_TOKEN } : {}) },
+    body: JSON.stringify({ lines }),
+    signal: AbortSignal.timeout(3000),
+  }).catch(() => {
+    // 一次失败就闭嘴。App 没起、端点不存在、旧版 App —— 都属于"这个部署没有真流",
+    // 不是错误,更不该反复重试刷日志。桥重启即恢复。
+    streamBroken = true;
+  });
+}
+
 async function postConsole(kind, title, body) {
   try {
     await fetch(`${APP_URL}/api/console/events`, {
@@ -229,6 +270,7 @@ function runClaudeTurn(prompt, resume) {
       const s = line.trim();
       if (!s) return;
       let j;
+      teeRaw(s);   // 原样送走(在解析之前,所以送的是真·原始行)
       try { j = JSON.parse(s); } catch { return; } // ignore non-JSON noise
       if (j.type === 'system' && j.subtype === 'init') {
         if (j.session_id) newSessionId = j.session_id;

@@ -78,6 +78,10 @@ function bindEvents() {
       render();
       await refreshCurrent().catch(handleBackgroundError);
     }
+    if (name === 'console-view') {
+      state.consoleView = action.dataset.view === 'term' ? 'term' : 'flow';
+      render();
+    }
     if (name === 'bridge-dial') return;   // select 走 change 事件,不在 click 里处理
     if (name === 'pick-since') {
       // 只把建议值**填进输入框**,不直接落库 —— 让她看见挑的是哪天、能改、按保存才生效。
@@ -1400,6 +1404,16 @@ function connectStream() {
     else if (data.memory) upsertById(state.memories, data.memory);
     cacheBootstrap();
     if (state.tab === 'memory') render();
+  });
+  // 真 console 的原始流。★ 只塞进内存环形缓冲 —— 不写 store、不写 localStorage,
+  //   刷新即空。这条通道对她的库零写入,那是它的验收项。
+  eventStream.addEventListener('console-stream', (event) => {
+    const data = parseStreamData(event);
+    if (!data || !Array.isArray(data.lines)) return;
+    const RAW_CAP = 400;   // 一轮 ~510 行,留最近 400 行够看,再多是白占内存
+    state.rawTail = [...(state.rawTail || []), ...data.lines].slice(-RAW_CAP);
+    // 只有正开着终端档才重绘 —— 否则后台每 120ms 整页重绘是纯浪费
+    if (state.tab === 'console' && state.consoleView === 'term') render();
   });
   eventStream.addEventListener('settings', (event) => {
     const data = parseStreamData(event);
