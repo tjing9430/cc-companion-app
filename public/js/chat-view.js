@@ -131,7 +131,14 @@ function renderMessage(message, opts = {}) {
   //   附件也跟在最后 —— 图片跟在正文说完之后出现,顺序才对。
   //   `id="msg-N"` 只给第一条:跳转锚点必须唯一。
   const segments = text ? splitParagraphs(text) : [];
-  const head = `${message.thinking ? `<div class="thinking">💭 ${esc(message.thinking)}</div>` : ''}${renderQuotedParent(message)}`;
+  // ★ 思考链默认**折叠**。摊开时它是整段长文,而 `.msg-col` 是 `width:max-content` ——
+  //   于是"只回了三个字"的一条,气泡照样被思考链撑到最宽(真机上逮到的就是这个)。
+  //   收成一个 `thinking` 小标签之后,气泡宽度重新由正文决定。
+  //   ★ 用原生 <details>:点开不需要任何 JS,展开态存在 DOM 属性上,
+  //     不会被聊天列表的重渲染冲掉(存在 state 里就会)。
+  const head = `${message.thinking
+    ? `<details class="cot"><summary>thinking</summary><div class="cot-body">${esc(message.thinking)}</div></details>`
+    : ''}${renderQuotedParent(message)}`;
 
   if (segments.length <= 1) {
     const inner = `${head}${text ? `<div class="body-text md">${renderMarkdown(text)}</div>` : ''}${attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : ''}`;

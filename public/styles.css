@@ -475,8 +475,30 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   0%,100%{box-shadow:0 0 0 0 rgba(201,123,90,0)}
   20%{box-shadow:0 0 0 3px rgba(201,123,90,.5)}
 }
-.thinking{
-  margin-bottom:.4rem;
+/* 思考链:默认折叠成一个 `thinking` 小标签,点开才铺。
+   ★ 折叠不只是为了清爽 —— 摊开时它会把 `width:max-content` 的气泡列整个撑宽,
+     于是"只回了三个字"的消息也顶到最大宽度。收起来,气泡宽度才由正文决定。 */
+.cot{margin-bottom:.4rem;max-width:100%}
+.cot>summary{
+  display:inline-block;          /* 去掉 list-item 的默认三角占位,让标签自己贴住内容宽 */
+  cursor:pointer;
+  list-style:none;
+  /* 需求方指定:系统等宽、10px、粗体、字距放宽 */
+  font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.18em;
+  text-transform:lowercase;
+  color:var(--muted);
+  opacity:.75;
+  padding:.18rem .4rem;
+  border-radius:.3rem;
+  background:rgba(120,120,120,.1);
+}
+.cot>summary::-webkit-details-marker{display:none}
+.cot>summary:hover{opacity:1}
+.cot[open]>summary{margin-bottom:.3rem}
+.cot-body{
   padding:.35rem .55rem;
   border-radius:.4rem;
   background:rgba(120,120,120,.1);
