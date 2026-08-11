@@ -33,7 +33,7 @@ function renderSettings({ notifySupported, notifyEnabled }) {
           </div>
           <p class="form-hint">${s.companion_since
             ? `已经一起 ${daysSince(s.companion_since)} 天了`
-            : '没设的话首屏就不显示这句;「替我挑一个」会按你最早那条消息给个建议,你看过再存。'}</p>
+            : '没设的话首屏就不显示这句;「替我挑一个」会拿最早那条消息当建议,你看过再存。'}</p>
         </div>` : ''}
         ${Object.prototype.hasOwnProperty.call(s, 'user_avatar') ? `
         <div class="form-row avatar-row">
