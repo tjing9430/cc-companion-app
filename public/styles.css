@@ -1919,7 +1919,14 @@ body[data-theme="starry"] .sg-star{
 .sg-text{position:absolute;top:50%;transform:translateY(-50%);
   display:flex;flex-direction:column;gap:.12rem;white-space:nowrap;pointer-events:none;
   max-width:38vw;overflow:hidden}
-.sg-title,.sg-hint{overflow:hidden;text-overflow:ellipsis}
+/* ★ `min-width:0` 不是可选的 —— 少了它,同一行里的省略号**永远不会触发**。
+   flex item 的自动最小尺寸(`min-width:auto`)让子盒拒绝缩到内容宽以下,
+   于是父盒那条 `max-width:38vw` 约束不到它:长标题时子盒自己长到几百 px,
+   `text-overflow:ellipsis` 因为"没有溢出"而不生效,父盒的 `overflow:hidden`
+   把它硬切 —— 用户看到的是名字被拦腰截断,**连省略号都没有**。
+   ★ 难发现的地方在于 `overflow:hidden + text-overflow:ellipsis` 就写在这儿,
+     看起来这件事已经有人管了;短名字时也确实一切正常。 */
+.sg-title,.sg-hint{overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
 /* 对齐立规矩:图标靠河,标题在图标外侧,副标题在标题正下方,
    **同一侧的一律同向对齐** —— 否则每组各飞各的,眼睛没有落点。 */
 .sg-right .sg-text{left:calc(100% + .3rem);text-align:left;align-items:flex-start}
