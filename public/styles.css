@@ -1298,8 +1298,13 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
   }
   .nav button.active .nav-icon{color:var(--accent)}
 
-  /* 底栏已全局拆掉,这里不再给它预留高度(原来是 58px + 安全区) */
+  /* 底栏已全局拆掉,这里不再给它预留 58px。
+     ★ 但**安全区不能跟着一起没**:原来那句是 `calc(58px + env(safe-area-inset-bottom))`,
+       底栏在的时候是它替整个 App 挡住了 home indicator。拆掉底栏 = 58px 该走,
+       安全区该留 —— 我第一版把两样一起删了,手势导航的手机上内容会压在指示条底下。
+       这个在无头浏览器里**看不见**(env() 恒等于 0),只有真机才现形。 */
   .main{max-height:100dvh;padding-bottom:0}
+
   .topbar{height:54px;padding:0 1rem}
   .topbar h1{font-size:1rem}
   .topbar p{font-size:.72rem}
@@ -1994,3 +1999,19 @@ body:has(.home-view) .main{max-height:100vh;padding-bottom:0}
 body:has(.home-view) .content{padding:0;display:flex;flex-direction:column}
 body:has(.home-view) .home-view{padding-bottom:calc(1.5rem + env(safe-area-inset-bottom))}
 
+/* ============ 底部安全区(必须放在文件最后)============
+   底栏被全局拆掉之后,没人再挡 home indicator 了 —— 原来那句
+   `.main{padding-bottom:calc(58px + env(safe-area-inset-bottom))}` 里,
+   58px 是给底栏留的(该走),**安全区是给手势条留的(该留)**,我第一版把两样一起删了。
+
+   ★ 为什么必须写在文件最后:前面几处 `.content{padding: A B C}` 用的是**简写**,
+     简写会把 padding-bottom 一并重置。我先把这条放在 @media 靠前的位置,
+     结果被后面的简写覆盖得干干净净 —— 五个页面量出来全是 10.2px,一个都没兜住。
+   ★ 首屏排除在外:它自己在 .home-view 上带了安全区,而且第一屏是 100dvh 固定高,
+     再加底部内边距会凭空多出一截可滚动区域。
+
+   ★ 这条在无头浏览器里**验不出来**(env() 恒等于 0)。验法是把 env() 临时换成 34px
+     跑 canary,看五个页面的实际内边距变没变 —— 不换的话,改对改错都是同一个数。 */
+@media (max-width:1100px){
+  body:not(:has(.home-view)) .content{padding-bottom:calc(.5rem + env(safe-area-inset-bottom))}
+}

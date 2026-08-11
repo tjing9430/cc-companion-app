@@ -16,8 +16,14 @@ import { ASPECT } from '../public/js/river.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const CSS = fs.readFileSync(
+const RAW_CSS = fs.readFileSync(
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public/styles.css'), 'utf8');
+// ★ 扫描前先剥掉注释。
+//   踩过:注释里为了解释"为什么不能再写 `.main{padding-bottom:58px}`",
+//   把那段被禁的代码原样引了一遍 —— 正则扫的是纯文本,于是**解释触发了它自己解释的那条规则**。
+//   (同一个形状今天第二次:脱敏那一发的 commit message 也把被脱敏的词原样引了一遍。)
+//   闸门要读的是 CSS,不是散文。
+const CSS = RAW_CSS.replace(/\/\*[\s\S]*?\*\//g, '');
 
 // 每一条都对应「没了就有一整块界面变成裸 HTML」的地方。
 // 加新界面时把它的根选择器加进来 —— 这份清单的价值全在于它被维护。
@@ -122,4 +128,20 @@ test('底栏全局拆掉之后,不能再给它留着位置', () => {
   const mainPads = [...CSS.matchAll(/\.main\{[^}]*padding-bottom:\s*([^;}]+)/g)].map((m) => m[1].trim());
   const reserving = mainPads.filter((v) => !/^0$/.test(v));
   assert.deepEqual(reserving, [], `底栏没了却还留着位置:${reserving.join(' / ')}`);
+});
+
+test('底栏拆了,底部安全区不能跟着一起没', () => {
+  // 原来 `.main{padding-bottom:calc(58px + env(safe-area-inset-bottom))}` 里有两样东西:
+  // 58px 是给固定底栏留的(底栏拆了,该走),**env() 是给 home indicator 留的(该留)**。
+  // 我第一版把两样一起删了 —— 手势导航的手机上内容会压在指示条底下,
+  // 而这个在无头浏览器里**看不见**,因为 env() 恒等于 0。
+  assert.match(CSS, /body:not\(:has\(\.home-view\)\) \.content\{[^}]*env\(safe-area-inset-bottom\)/,
+    '没有页面在兜底部安全区了');
+
+  // ★ 必须排在所有 .content 简写之后:前面那些 `padding: A B C` 会把 padding-bottom 一并重置。
+  //   第一版我放在 @media 靠前的位置,被覆盖得干干净净 —— 五个页面量出来全是 10.2px。
+  const safeAt = CSS.lastIndexOf('body:not(:has(.home-view)) .content');
+  const shorthandAt = [...CSS.matchAll(/\.content\{padding:/g)].map((m) => m.index).pop();
+  assert.ok(safeAt > shorthandAt,
+    `安全区规则(${safeAt})排在 .content 的 padding 简写(${shorthandAt})前面,会被重置掉`);
 });
