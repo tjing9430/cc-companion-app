@@ -1897,8 +1897,14 @@ body[data-theme="starry"] .sg-star{
   filter:drop-shadow(0 0 10px rgba(255,217,138,.75)) drop-shadow(0 0 26px rgba(169,140,240,.5))
          drop-shadow(0 0 46px rgba(120,150,255,.28));
 }
+/* ★ 兜底:几何层已经会"空间紧就少推一点",但**副标题长到离谱时它也救不了**
+   (测试里拿一条超长副标题验过)。所以这里再上一道硬约束:限宽 + 省略号。
+   分工是清楚的 —— 几何层负责好看,CSS 负责**任何情况下都不溢出**。
+   只靠其中一层都会有漏:光有几何会被极端文案打穿,光有省略号则正常文案也被无谓截断。 */
 .sg-text{position:absolute;top:50%;transform:translateY(-50%);
-  display:flex;flex-direction:column;gap:.12rem;white-space:nowrap;pointer-events:none}
+  display:flex;flex-direction:column;gap:.12rem;white-space:nowrap;pointer-events:none;
+  max-width:38vw;overflow:hidden}
+.sg-title,.sg-hint{overflow:hidden;text-overflow:ellipsis}
 /* 对齐立规矩:图标靠河,标题在图标外侧,副标题在标题正下方,
    **同一侧的一律同向对齐** —— 否则每组各飞各的,眼睛没有落点。 */
 .sg-right .sg-text{left:calc(100% + .3rem);text-align:left;align-items:flex-start}
