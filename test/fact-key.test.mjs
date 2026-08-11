@@ -137,7 +137,7 @@ test('三代连续顶替,只剩最后一条在效', async () => {
   } finally { await stop(); }
 });
 
-test('新字段进了 API 形状(宝画记忆页照这个形状画)', async () => {
+test('新字段进了 API 形状(记忆页照这个形状画)', async () => {
   const { api, stop } = await startApp();
   try {
     const m = (await api('POST', '/api/memory', { title: 'x', content: 'y' })).body;

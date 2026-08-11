@@ -1,6 +1,6 @@
 // 聊天页(私聊/群聊共用):消息列表、气泡、引用、附件、贴纸、输入栏草稿。
 // 事件路由留在 app.js 壳里:明天换皮只动这里的渲染,壳不动。
-// 玻璃拟态只给顶栏/输入栏/大卡片,不下放到每条气泡 —— 那是宝定的,别扩大化。
+// 玻璃拟态只给顶栏/输入栏/大卡片,不下放到每条气泡 —— 定稿如此,别扩大化。
 import { esc, escAttr, formatTime, formatDateTime, initials, isWideMessage } from './util.js';
 import { renderMarkdown, mdInline } from './markdown.js';
 import { state, ICONS, TEMP_ID_PREFIX, MAX_ATTACHMENT_BYTES } from './state.js';

@@ -1777,12 +1777,12 @@ function applyTheme() {
 
 
 
-/* Markdown light renderer (bao #2: AI replies showed raw **bold** / - list / # heading)
+/* Markdown light renderer —— 起因是 AI 的回复里 **粗体** / - 列表 / # 标题 都以原文露出来了。
    Safety model: esc() the whole string FIRST, then run regexes over the escaped text.
    Any <script> in the source is already &lt;script&gt; by then, so the tags this
    function inserts are the only HTML in the output.
    Scope kept deliberately narrow (not the full spec): bold / italic / inline code /
-   code fence / links, plus the "- list" and "# heading" bao named. No tables,
+   code fence / links, plus "- list" and "# heading". No tables,
    blockquotes, images, or nested lists. */
 
 
