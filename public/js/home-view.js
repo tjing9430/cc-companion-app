@@ -32,6 +32,16 @@ import { state } from './state.js';
 //    修法在 CSS 里(mix-blend-mode:screen / 底下垫放大重模糊的自身副本 /
 //    星星和星河共享一套光源色 / 文字下垫局部径向蒙版),这里只记为什么。
 //
+// ★★★ 第三版最关键的一条纠正:**沿着路走 ≠ 站在路当中**。
+//    前两版我把星星钉在**最亮那股的正中间** —— 结果图标骑在带子上,把河截断了。
+//    要的是「挂在节点旁边」:先算出这一行带子的**左右边缘**(亮度掉到峰值 35% 处),
+//    再把星星放到边缘**外侧**、只压一点点(半个星宽的 55%),看起来是贴着河、不是堵着河。
+//    左右交错(私聊右/群聊左/记忆库右/控制台左/设置右),河才留得出通路。
+//
+// ★★ size 是**占容器高的百分比**,不是像素。写死 px 会随屏幕变胖变瘦:
+//    122px 的私聊星在 320 宽的屏上占 38%,在 430 宽上只占 28% —— 同一个设计
+//    在两台手机上是两个比例。坐标已经是 % 了,尺寸就该在同一个坐标系里。
+//
 // ★★ --x/--y 不是眼睛估的,是**从那张银河图里算出来的**:
 //    逐行取「alpha × 亮度」的剖面,找该行最亮的那一股(局部极大),
 //    那就是银河实际的走向。星星钉在这组坐标上,才是真的长在带子上。
@@ -48,12 +58,14 @@ import { state } from './state.js';
 //      (没加这条时,群聊 64.6% 和记忆库 64.5% 撞在了一起。)
 //   ③ 纵向也要匀 —— 只管横向的话会挤:早先控制台 y=77%、设置 y=84%,
 //      只差 40px,两颗贴在一起。每颗只在目标位 ±4% 的窗口里挑最亮的那股。
-//   ④ **要落在裁切之后还看得见的地方**。银河现在铺满整屏高度,而图是 2:3、
-//      屏是 ~1:2.16,于是元素宽 563 > 视口 390,**左右各裁掉 15.3%**。
-//      可用区间因此收窄到图坐标 22.3%~77.7%(再留 7% 给星星半径)。
-//      这正是评审提醒过的那件事:**图被裁掉多少,星星就偏多少** ——
-//      区别是这一版我们主动裁,所以把裁掉的量算进了落点里。
-//   ⑤ y 从 32% 起 —— 上面 30% 留给 Hero 文字,银河从它背后穿过去,但星星不跟字打架。
+//   ④ **要落在裁切之后还看得见的地方 —— 而且是在最窄的那档手机上**。
+//      图 2:3、容器高=视口高,所以容器比视口宽,左右会裁掉一截。裁多少取决于
+//      **高宽比**而不是宽度:320×568(比 1.77)只裁 7.7%,而 360×800 和 412×915
+//      (比 2.22)裁到 16.2%。**按最狠那档算**,可见区间只剩图坐标 16.2%~83.8%。
+//      落点和文字宽度都在这一档上验过放得下,其余四档自动宽松。
+//   ⑤ 文字宽度**逐条按真实字数算**,不是拍一个统一值:「名字 · 主题 · 头像」有 121px,
+//      「珍藏回忆」只有 45px。用统一值会把本来放得下的位置误判成放不下。
+//   ⑥ 首选侧放不下时才翻面(实测五条都保住了首选侧)。
 //
 // ★★★ size 是**盒子高度**,不是「看上去多大」—— 这两个差得很远,第一版就栽在这:
 //    素材是 512×768 的竖图,我塞进一个正方形盒子用 object-fit:contain,
@@ -63,20 +75,17 @@ import { state } from './state.js';
 //    现在的 size 是**反推**的:想要的可见高度 ÷ 该素材的图形占比。
 //      私密 100/0.82=122 · 群聊 60/0.62=98 · 记忆 70/0.93=75 · 控制台 58/0.54=108 · 设置 46/0.58=79
 //    盒子高度看着乱,但**画出来的图形**才是 100/60/70/58/46 这组层级。
-// ★ nudge:图形在自己画布里未必居中。private-core 偏左 6.2%,
-//   不补这一下,星星的**视觉中心**就不在算出来的落点上(差 5px)。
 const GATES = [
-  { tab: 'chat',     star: 'star-private-core.webp', title: '私密聊天', hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`,   x: 64.6, y: 37, size: 122, nudge: 5 },
-  { tab: 'group',    star: 'star-group.webp',        title: '群聊空间', hint: (s) => `${s.groupName || '小群'}，提到就唤起`, x: 42.8, y: 47, size: 98 },
-  { tab: 'memory',   star: 'star-flower-spare.webp', title: '记忆库',   hint: () => '珍藏回忆',                              x: 55.9, y: 63, size: 75 },
-  { tab: 'console',  star: 'star-console.webp',      title: '控制台',   hint: () => '看它怎么干活',                          x: 33.4, y: 77, size: 108 },
-  { tab: 'settings', star: 'star-moon.webp',         title: '设置',     hint: () => '名字 · 主题 · 头像',                    x: 46.5, y: 87, size: 79 },
+  { tab: 'chat',     star: 'star-private-core.webp', title: '私密聊天', hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`,   x: 49.1, y: 43, size: 14.5, side: 'right' },
+  { tab: 'group',    star: 'star-group.webp',        title: '群聊空间', hint: (s) => `${s.groupName || '小群'}，提到就唤起`, x: 54.8, y: 56, size: 11.6, side: 'left'  },
+  { tab: 'memory',   star: 'star-flower-spare.webp', title: '记忆库',   hint: () => '珍藏回忆',                              x: 39.1, y: 70, size: 9.4,  side: 'right' },
+  { tab: 'console',  star: 'star-console.webp',      title: '控制台',   hint: () => '看它怎么干活',                          x: 40.8, y: 82, size: 12.2, side: 'left'  },
+  { tab: 'settings', star: 'star-moon.webp',         title: '设置',     hint: () => '名字 · 主题 · 头像',                    x: 33.4, y: 90, size: 8.6,  side: 'right' },
 ];
 
-// 文字摆哪边:靠右的星把字放左边,靠左的放右边 —— 纯粹为了不溢出容器。
-// 判据用「在容器里哪边地方大」,不是「哪边星云淡」:压到一点星云无所谓,
-// 被容器裁掉才是硬伤。
-const sideOf = (x) => (x > 50 ? 'left' : 'right');
+// side 现在是**算出来并写死在表里**的,不再由 x 现推。
+// 原因是判据变了:以前只要"不溢出",现在还要满足左右交错的节奏,
+// 而且两个条件在最窄的那档手机上会打架 —— 得解一次,不能每次现猜。
 
 function greeting() {
   const h = new Date().getHours();
@@ -140,10 +149,14 @@ function renderHome() {
            Hero 文字从它上面压过去 —— 「星河要贯穿整个界面」是字面意思。 -->
       <div class="home-sky" aria-hidden="true">
         <div class="sky-dust"></div>
-        <!-- 两张同源的银河叠着:下面放大+重模糊当光晕,上面是本体。
-             光溢出到四周,边缘才化得开 —— 只放一张,边界是硬的,像贴纸。 -->
+        <!-- 两层:下面是**预先烘好的**光晕(一张 156×234 的小图,模糊已经画进去了),
+             上面是本体。光溢出到四周,边缘才化得开 —— 只放一张,边界是硬的,像贴纸。
+             ★ 光晕不用 CSS 的 blur():46px 模糊 × 780×1170 的图,浏览器每帧重算,
+               软件渲染下一次截图能跑到 45 秒以上。而模糊本来就把细节抹平了 ——
+               缩到 1/5 烘好再放大,看着一样,代价几乎为零(11KB vs 224KB)。
+               这对低端手机是实打实的省,不只是我这台跑得快。 -->
         <div class="sky-inner">
-          <img class="sky-galaxy glow" src="/assets/galaxy-river.webp" alt="" decoding="async">
+          <img class="sky-galaxy glow" src="/assets/galaxy-glow.webp" alt="" decoding="async">
           <img class="sky-galaxy core" src="/assets/galaxy-river.webp" alt="" decoding="async">
         </div>
       </div>
@@ -169,7 +182,7 @@ function renderHome() {
            它不放在 .home-sky 里面,是因为那层 aria-hidden 且不接事件。 -->
       <ul class="sky-gates">
         ${GATES.map((g) => `
-          <li class="sky-gate sg-${sideOf(g.x)}" style="--x:${g.x}%;--y:${g.y}%;--size:${g.size}px;--nudge:${g.nudge || 0}px">
+          <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${g.size}%">
             <button type="button" data-action="tab" data-tab="${g.tab}">
               <span class="sg-star"><img src="/assets/stars/${g.star}" alt=""></span>
               <span class="sg-text">

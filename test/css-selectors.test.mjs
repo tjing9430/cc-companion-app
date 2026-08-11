@@ -68,10 +68,27 @@ test('第一屏是整整一屏 —— 不是「填满剩下的空间」', () => 
   assert.match(ruleFor('.home-stage'), /flex:\s*0\s+0\s+100dvh/, '.home-stage 必须固定成一屏高');
 });
 
-test('三层要融合,不是叠着 —— screen 混合和光晕副本都得在', () => {
-  // 「背景/星河/星星像三个图层」是这一版返工的原话。消除贴纸感靠这两样,
+test('三层要融合,不是叠着 —— 混合、光晕层、星星共光源都得在', () => {
+  // 「背景/星河/星星像三个图层」是这一版返工的原话。消除贴纸感靠这三样,
   // 谁把它们删了,画面立刻退回三张纸叠着的样子,而且没有任何报错。
+  //
+  // ★ 断言盯的是**性质**(有没有一层更柔更大的光晕),不是**实现手法**。
+  //   第一版写死了 `blur(`,后来光晕改成预先烘好的小图、不再用 CSS 滤镜 ——
+  //   性质没变、还更快,断言却红了。**把手法钉死的断言,会在改进时误报。**
   assert.match(CSS, /\.sky-galaxy\{[\s\S]{0,400}?mix-blend-mode:\s*screen/, '银河层缺 mix-blend-mode:screen');
-  assert.match(CSS, /\.sky-galaxy\.glow\{[^}]*blur\(/, '缺放大重模糊的光晕副本');
+  const glow = /\.sky-galaxy\.glow\{([^}]*)\}/.exec(CSS);
+  assert.ok(glow, '缺独立的光晕层 .sky-galaxy.glow');
+  assert.match(glow[1], /transform:\s*scale\(1\.\d/, '光晕层必须比本体大一圈,光才溢得出来');
   assert.match(CSS, /\.sg-star\{[^}]*drop-shadow/, '星星缺和银河同色系的光晕(锐度不统一会一眼看穿)');
+});
+
+test('光晕层用的是预烘小图,不是全尺寸实时模糊', () => {
+  // blur(46px) × 780×1170 在软件渲染下一次合成能跑到 45 秒以上(实测截图直接超时),
+  // 而低端手机正是这个开源件的目标用户。模糊本来就抹掉细节 —— 缩到 1/5 烘好再放大,
+  // 观感一样,代价几乎为零。这条防止有人"顺手"把 filter:blur 加回来。
+  const glow = /\.sky-galaxy\.glow\{([^}]*)\}/.exec(CSS)[1];
+  assert.ok(!/filter:\s*blur\(/.test(glow), '光晕层不该再挂实时 blur —— 用预烘的 galaxy-glow.webp');
+  const p = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public/assets/galaxy-glow.webp');
+  assert.ok(fs.existsSync(p), '预烘光晕图 galaxy-glow.webp 不在');
+  assert.ok(fs.statSync(p).size < 40 * 1024, '预烘光晕图应该很小(它是被模糊过的,不需要分辨率)');
 });

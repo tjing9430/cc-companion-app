@@ -1797,17 +1797,18 @@ body[data-theme="starry"] .term-view{background:rgba(6,10,24,.55)}
 .home-view{padding:1.1rem 0 2rem;position:relative}
 .home-hero{position:relative;z-index:2;padding:0 1rem}
 .home-brand{font-size:1.05rem;letter-spacing:.04em;color:var(--accent);font-weight:600}
-.home-who{display:flex;align-items:center;gap:.6rem;margin:.9rem 0 1.3rem}
+.home-who{display:flex;align-items:center;gap:.6rem;margin:.7rem 0 .9rem}
 .home-avatar{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 auto;
   border:1px solid var(--line);background:var(--panel-soft)}
 .home-avatar img{width:100%;height:100%;object-fit:cover;display:block}
 .home-status{font-size:.82rem;color:var(--text);display:flex;align-items:center;gap:.35rem}
 .home-status .dot{width:6px;height:6px;border-radius:50%;background:#6ede9a;flex:0 0 auto}
 .home-sub{font-size:.72rem;color:var(--muted);margin-top:.15rem}
-.home-greet{font-size:1.7rem;margin:0;font-weight:600;letter-spacing:.02em}
-.home-days{margin:.4rem 0 0;font-size:.86rem;color:var(--muted)}
+/* 顶部太重会把视线钉在标题上,河就没人看了。字号压一档、留出呼吸。 */
+.home-greet{font-size:1.34rem;margin:0;font-weight:600;letter-spacing:.02em}
+.home-days{margin:.3rem 0 0;font-size:.78rem;color:var(--muted)}
 .home-days b{color:var(--accent);font-size:1.15rem;font-weight:600;margin:0 .15rem}
-.home-ask{margin:.55rem 0 0;font-size:.8rem;color:var(--faint)}
+.home-ask{margin:.4rem 0 0;font-size:.74rem;color:var(--faint)}
 
 /* --- 银河层:铺满整屏,当这一页的**底**,不是页面中段的一块 ---
    ★ 返工的要害是一句话:「背景/星河/星星 像三个图层」。技术上确实是三层,
@@ -1836,9 +1837,23 @@ body[data-theme="starry"] .term-view{background:rgba(6,10,24,.55)}
 /* ③ 关键的一刀:screen 混合 —— 发光素材用它,**暗部自动变透明**,
       边缘化进背景,而不是压着一块深色矩形贴上去。「贴纸感」主要就是这一下消掉的。 */
 body[data-theme="starry"] .sky-galaxy{mix-blend-mode:screen}
-body[data-theme="starry"] .sky-galaxy.core{opacity:.95}
-/* 同一张图放大 + 重模糊垫在底下当光晕:光溢出到四周,纸才不像纸 */
-body[data-theme="starry"] .sky-galaxy.glow{opacity:.4;transform:scale(1.15);filter:blur(38px)}
+/* ★「贯穿整个界面」和「不要太粗」不矛盾,说的是两个轴:
+     贯穿 = **纵向走完全屏**(已经做到),不粗 = **带子本身更细更虚**。
+     所以这里压的是实度,不是把图缩小。 */
+body[data-theme="starry"] .sky-galaxy.core{
+  opacity:.72;
+  /* 两端化开:河不该在屏幕边缘被"切断",要自己淡出去。
+     顺带做出明暗虚实 —— 整条一样亮正是它显得像贴纸的原因之一。 */
+  /* ★ 实心段拉到 88%:原来 76% 就开始淡出,底下两颗(控制台/设置)正好落在淡出区,
+     在最小的 320×568 上河已经暗到跟星星脱开了(实测内缘只高出底色 +6/+4,
+     而同样位置在 430 屏上是 +59/+12)。小屏本身就会把细股平均得更暗,
+     两个因素叠在一起才露出来 —— 这就是必须按最小那档验的原因。 */
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0%,#000 12%,#000 88%,transparent 100%);
+  mask-image:linear-gradient(to bottom,transparent 0%,#000 12%,#000 88%,transparent 100%);
+}
+/* 外围薄雾:同一张图放大 + 重模糊垫底,光溢到四周,纸才不像纸 */
+/* 光晕层已经是烘好的小图,这里只放大、不再挂 filter:blur() —— 见 home-view.js 的说明 */
+body[data-theme="starry"] .sky-galaxy.glow{opacity:.34;transform:scale(1.18)}
 
 /* ② 背景自己要有内容。第一版背景是纯渐变、一粒星尘都没有 ——
       背景一干净,银河就成了画面里唯一的"东西",于是像浮在白纸上。
@@ -1859,8 +1874,12 @@ body[data-theme="starry"] .sky-dust{opacity:1}
 /* --- 五个入口:和 .sky-inner 同一个盒子,坐标才对得上 --- */
 .sky-gates{list-style:none;margin:0;padding:0;position:absolute;top:0;height:100%;
   aspect-ratio:780/1170;left:50%;transform:translateX(-50%);z-index:2;pointer-events:none}
-.sky-gate{position:absolute;left:var(--x);top:var(--y);height:var(--size);
-  transform:translate(calc(-50% + var(--nudge,0px)),-50%);pointer-events:auto}
+/* ★ 高度用**占容器高的百分比**,不是像素:坐标已经是 % 了,尺寸就该在同一坐标系里。
+     写死 px 的话,122px 的星在 320 宽屏上占 38%、430 宽屏上只占 28% —— 同一份设计
+     在两台手机上是两个比例。clamp 只兜极端小屏/超长屏,正常档位不介入。 */
+.sky-gate{position:absolute;left:var(--x);top:var(--y);
+  height:clamp(46px, var(--size), 132px);
+  transform:translate(-50%,-50%);pointer-events:auto}
 .sky-gate button{position:relative;height:100%;width:auto;padding:0;display:block;
   background:none;border:0;cursor:pointer;color:inherit}
 .sg-star{display:block;height:100%;width:auto;transition:transform .18s ease}
@@ -1873,8 +1892,10 @@ body[data-theme="starry"] .sg-star{
 }
 .sg-text{position:absolute;top:50%;transform:translateY(-50%);
   display:flex;flex-direction:column;gap:.12rem;white-space:nowrap;pointer-events:none}
-.sg-right .sg-text{left:calc(100% + .45rem);text-align:left}
-.sg-left .sg-text{right:calc(100% + .45rem);text-align:right}
+/* 对齐立规矩:图标靠河,标题在图标外侧,副标题在标题正下方,
+   **同一侧的一律同向对齐** —— 否则每组各飞各的,眼睛没有落点。 */
+.sg-right .sg-text{left:calc(100% + .3rem);text-align:left;align-items:flex-start}
+.sg-left .sg-text{right:calc(100% + .3rem);text-align:right;align-items:flex-end}
 .sg-title{font-size:.92rem;font-weight:600;letter-spacing:.03em;color:var(--text)}
 .sg-hint{font-size:.68rem;color:var(--muted);letter-spacing:.01em}
 /* ④ 铺满之后文字会压在亮部上。**不压暗整张图** —— 那会把刚做出来的通透感又抹掉;
