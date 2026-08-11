@@ -44,15 +44,30 @@ import { layoutGates, MAX_GATES } from './river.js';
 // ★ size 是**占容器高的百分比**,不是像素:写死 px 的话,同一颗星
 //   在 320 宽屏上占 38%、430 宽屏上只占 28%,一套设计变成两个比例。
 //
-// ★ side 决定挂河的哪一侧,左右交错让河留得出通路 ——
-//   「沿着路走 ≠ 站在路当中」,骑在带子中间会把河截断。
+// ★ side 决定挂河的哪一侧。**这一版五颗全在左**,不是审美选择,是算出来的:
+//   定稿素材的河紧贴右缘,右侧放不下「星 + 文字」——
+//   实测右侧外缘会越界 10%/32%/10%/42%(只有「设置」那颗放得下)。
+//   所以交错让位给了「放得下」。换素材后如果河居中,交错会自己回来。
 const GATES = [
-  { tab: 'chat',     star: 'star-private-core.webp', title: '私密聊天', hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`,   side: 'right', size: 14.5 },
-  { tab: 'group',    star: 'star-group.webp',        title: '群聊空间', hint: (s) => `${s.groupName || '小群'}，提到就唤起`, side: 'left',  size: 11.6 },
-  { tab: 'memory',   star: 'star-flower-spare.webp', title: '记忆库',   hint: () => '珍藏回忆',                              side: 'right', size: 9.4  },
-  { tab: 'console',  star: 'star-console.webp',      title: '控制台',   hint: () => '看它怎么干活',                          side: 'left',  size: 12.2 },
-  { tab: 'settings', star: 'star-moon.webp',         title: '设置',     hint: () => '名字 · 主题 · 头像',                    side: 'right', size: 8.6  },
+  { tab: 'chat',     star: 'star3-private.svg',  title: '私密聊天', hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`,   side: 'left', size: 13   },
+  { tab: 'group',    star: 'star3-group.svg',    title: '群聊空间', hint: (s) => `${s.groupName || '小群'}，提到就唤起`, side: 'left', size: 10.5 },
+  { tab: 'memory',   star: 'star3-memory.svg',   title: '记忆库',   hint: () => '珍藏回忆',                              side: 'left', size: 8.5  },
+  { tab: 'console',  star: 'star3-console.svg',  title: '控制台',   hint: () => '看它怎么干活',                          side: 'left', size: 11   },
+  { tab: 'settings', star: 'star3-settings.svg', title: '设置',     hint: () => '名字 · 主题',                           side: 'left', size: 8    },
 ];
+
+// 北斗七星:「找不到的功能来这儿」。
+// ★ 它**不挂在河上**,而是钉在左边那块空地上 —— 所以不走 layoutGates。
+//   理由:它是星座不是单星,跟五颗主入口一眼分得开,不会被当成第六个平级项;
+//   语义上北斗本来就是指路的。
+// ★ y 从评审给的 47% 挪到了 29%:47% 在**他那版**坐标下不压字,但我的五颗星是
+//   由 t 算出来的,群聊正好落在 48.8% —— 两个文字框只差 6px。
+//   盒子判定说"不重叠",眼睛看却是「群聊空间 更多」连成一行:
+//   **框不相交 ≠ 视觉上分得开**。所以挪到 Hero 与第一颗星之间那块 90px 的真空档。
+// ★ side:'right' —— 它在左边那块空地上,文字必须朝**屏幕中心**展开,朝左会被裁掉。
+//   (第一版没给 side,于是 .sg-text 没有任何定位规则,文字直接飘出左边界。)
+// ★ hint 也短了:原来写「还没挂上来的都在这儿」十个字,在 24% 这个位置放不下。
+const DIPPER = { tab: 'settings', title: '更多', hint: '其它都在这儿', x: 24, y: 29, size: 13, side: 'right' };
 
 // side 现在是**算出来并写死在表里**的,不再由 x 现推。
 // 原因是判据变了:以前只要"不溢出",现在还要满足左右交错的节奏,
@@ -77,32 +92,6 @@ function daysTogether(iso) {
   return Math.max(0, Math.round((today - start) / 86400000)) + 1;
 }
 
-// 背景星尘。
-// ★ 第一版这层刻意压得很稀(怕和银河的颗粒打架),结果**反了**:
-//   背景太干净,银河一放上去就像浮在一张白纸上 —— 「三个图层」的一大半是这么来的。
-//   背景本身有内容,星河才是"从夜空里长出来的"而不是"贴在夜空上的"。
-//   所以这一版加密、加细、铺满整屏,但**每颗都很暗**(靠数量给质感,不靠亮度抢戏)。
-export function hydrateHome(root) {
-  const sky = (root || document).querySelector('.home-sky');
-  const g = sky && sky.querySelector('.sky-dust');
-  if (!g || g.childElementCount) return;
-  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let html = '';
-  for (let i = 0, N = reduced ? 90 : 260; i < N; i++) {
-    const d = (Math.random() * 1.3 + 0.5).toFixed(2);
-    const o = (0.10 + Math.random() * 0.38).toFixed(2);
-    const vars = reduced ? '' : `--dur:${(Math.random() * 3.5 + 2.4).toFixed(1)}s;--delay:${(Math.random() * 5).toFixed(1)}s;`;
-    html += `<i class="sd" style="left:${(Math.random() * 100).toFixed(2)}%;top:${(Math.random() * 100).toFixed(2)}%;`
-      + `width:${d}px;height:${d}px;--o:${o};${vars}"></i>`;
-  }
-  // 几颗四芒星高光 —— 设计稿点名要的那种「少量」。多了就俗气。
-  for (let i = 0, N = reduced ? 2 : 5; i < N; i++) {
-    html += `<i class="sd-spark" style="left:${(10 + Math.random() * 78).toFixed(1)}%;top:${(8 + Math.random() * 82).toFixed(1)}%;`
-      + `--s:${(7 + Math.random() * 9).toFixed(1)}px;--delay:${(Math.random() * 6).toFixed(1)}s"></i>`;
-  }
-  g.innerHTML = html;
-}
-
 function renderHome() {
   const s = state.settings || {};
   const days = daysTogether(s.companion_since);
@@ -119,16 +108,11 @@ function renderHome() {
       <!-- ★ 银河是**整屏的底**,不是页面中段的一块。它排在最前、绝对定位铺满,
            Hero 文字从它上面压过去 —— 「星河要贯穿整个界面」是字面意思。 -->
       <div class="home-sky" aria-hidden="true">
-        <div class="sky-dust"></div>
-        <!-- 两层:下面是**预先烘好的**光晕(一张 156×234 的小图,模糊已经画进去了),
-             上面是本体。光溢出到四周,边缘才化得开 —— 只放一张,边界是硬的,像贴纸。
-             ★ 光晕不用 CSS 的 blur():46px 模糊 × 780×1170 的图,浏览器每帧重算,
-               软件渲染下一次截图能跑到 45 秒以上。而模糊本来就把细节抹平了 ——
-               缩到 1/5 烘好再放大,看着一样,代价几乎为零(11KB vs 224KB)。
-               这对低端手机是实打实的省,不只是我这台跑得快。 -->
+        <!-- ★ 只有一层。新素材把银河和夜空画在同一张图里了 ——
+             「背景/星河/星星像三个图层」的根治办法不是把三层调得像一层,
+             而是让它**真的只有一层**。所以星尘层、渐变底、预烘光晕全部删掉。 -->
         <div class="sky-inner">
-          <img class="sky-galaxy glow" src="/assets/galaxy-glow.webp" alt="" decoding="async">
-          <img class="sky-galaxy core" src="/assets/galaxy-river.webp" alt="" decoding="async">
+          <img class="sky-galaxy" src="/assets/galaxy-river.webp" alt="" decoding="async">
         </div>
       </div>
 
@@ -155,13 +139,22 @@ function renderHome() {
         ${layoutGates(GATES.slice(0, MAX_GATES).map((g) => ({ ...g, hintText: g.hint(s) }))).map((g) => `
           <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${g.size}%">
             <button type="button" data-action="tab" data-tab="${g.tab}">
-              <span class="sg-star"><img src="/assets/stars/${g.star}" alt=""></span>
+              <span class="sg-star"><img src="/assets/stars3/${g.star}" alt=""></span>
               <span class="sg-text">
                 <span class="sg-title">${esc(g.title)}</span>
                 <span class="sg-hint">${esc(g.hintText)}</span>
               </span>
             </button>
           </li>`).join('')}
+        <li class="sky-gate sky-dipper sg-${DIPPER.side}" style="--x:${DIPPER.x}%;--y:${DIPPER.y}%;--size:${DIPPER.size}%">
+          <button type="button" data-action="tab" data-tab="${DIPPER.tab}">
+            <span class="sg-star"><img src="/assets/stars3/bigdipper3.svg" alt=""></span>
+            <span class="sg-text">
+              <span class="sg-title">${esc(DIPPER.title)}</span>
+              <span class="sg-hint">${esc(DIPPER.hint)}</span>
+            </span>
+          </button>
+        </li>
       </ul>
       </div>
 

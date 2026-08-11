@@ -71,7 +71,7 @@ test('星星挂在河**边**,不骑在河中间', () => {
   for (const g of layoutGates(G(5))) {
     const p = riverAt(g.t);
     const dx = Math.abs(g.x / 100 - p.x);
-    assert.ok(dx >= p.half * 0.9,
+    assert.ok(dx >= p.half - 1e-9,
       `${g.title} 离河心只有 ${dx.toFixed(3)},小于河道半宽 ${p.half.toFixed(3)} —— 它骑在河上了`);
   }
 });
@@ -94,9 +94,13 @@ test('偏移会为长副标题主动收窄(而不是硬顶出去)', () => {
   // ★ 「偏移可伸缩」的验收:同一个位置,副标题越长,星星应当**离河越近**
   //   —— 把外面的空间让给文字,而不是把文字顶出屏幕。
   const mk = (hint) => layoutGates([{ tab: 'x', title: '设置', hintText: hint, side: 'right', size: 14.5 }])[0];
+  // ★ 比的是**离河心的偏移**,不是原始 x:副标题一长可能会翻面,
+  //   翻面之后 x 会跳到河的另一边,拿 x 直接比会得出"往外跑了"的错误结论。
+  const off = (g) => Math.abs(g.x / 100 - riverAt(g.t).x);
   const short = mk('短');
   const long = mk('名字 · 主题 · 头像');
-  assert.ok(long.x <= short.x + 1e-9, `副标题变长了,星星却没往里收(${short.x.toFixed(2)} → ${long.x.toFixed(2)})`);
+  assert.ok(off(long) <= off(short) + 1e-9,
+    `副标题变长了,星星却没往里收(偏移 ${off(short).toFixed(3)} → ${off(long).toFixed(3)})`);
 
   // ★ 但几何层不是万能的:副标题长到离谱时它也放不下 ——
   //   那一层由 CSS 的 max-width + 省略号兜底(见 styles.css 的 .sg-text)。

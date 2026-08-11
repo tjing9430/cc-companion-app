@@ -16,7 +16,7 @@ import {
 } from './js/util.js';
 import { renderMarkdown, mdInline, mdSafeUrl } from './js/markdown.js';
 import { orbMarkup, hydrateStarry } from './js/starry.js';
-import { renderHome, hydrateHome } from './js/home-view.js';
+import { renderHome } from './js/home-view.js';
 import {
   CONSOLE_COMMANDS,
   MAX_ATTACHMENT_BYTES,
@@ -891,7 +891,7 @@ function render() {
   // 星空主题的动态零件(背景星野 / 页头主星的环和珠子)要在 DOM 落地之后挂。
   // 非 starry 主题时它自己会把东西收干净,不用在这儿判断。
   hydrateStarry(root);
-  hydrateHome(root);   // 星河的星尘要等 SVG 落地才能沿路径采样
+  // (首屏不再需要水合:新素材把银河和夜空画在同一张图里,没有要 JS 撒的星尘了)
 }
 
 function renderLightbox() {

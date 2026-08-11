@@ -1869,50 +1869,19 @@ body[data-theme="starry"] .term-view{background:rgba(6,10,24,.55)}
    图是 2:3、屏接近 1:2.16,于是元素比视口宽,左右各溢出一截被裁掉 ——
    ★ 这是**故意**裁的,而且裁掉多少已经算进星星的落点里了(见 home-view.js)。
      `aspect-ratio` + `height:100%` 让宽度自己长,坐标系仍然和图 1:1。 */
-.sky-inner{position:absolute;top:0;height:100%;aspect-ratio:780/1170;
+.sky-inner{position:absolute;top:0;height:100%;aspect-ratio:900/1600;
   left:50%;transform:translateX(-50%)}
 .sky-galaxy{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;
   opacity:0;transition:opacity .6s ease}
-/* ③ 关键的一刀:screen 混合 —— 发光素材用它,**暗部自动变透明**,
-      边缘化进背景,而不是压着一块深色矩形贴上去。「贴纸感」主要就是这一下消掉的。 */
-body[data-theme="starry"] .sky-galaxy{mix-blend-mode:screen}
-/* ★「贯穿整个界面」和「不要太粗」不矛盾,说的是两个轴:
-     贯穿 = **纵向走完全屏**(已经做到),不粗 = **带子本身更细更虚**。
-     所以这里压的是实度,不是把图缩小。 */
-body[data-theme="starry"] .sky-galaxy.core{
-  opacity:.72;
-  /* 两端化开:河不该在屏幕边缘被"切断",要自己淡出去。
-     顺带做出明暗虚实 —— 整条一样亮正是它显得像贴纸的原因之一。 */
-  /* ★ 实心段拉到 88%:原来 76% 就开始淡出,底下两颗(控制台/设置)正好落在淡出区,
-     在最小的 320×568 上河已经暗到跟星星脱开了(实测内缘只高出底色 +6/+4,
-     而同样位置在 430 屏上是 +59/+12)。小屏本身就会把细股平均得更暗,
-     两个因素叠在一起才露出来 —— 这就是必须按最小那档验的原因。 */
-  -webkit-mask-image:linear-gradient(to bottom,transparent 0%,#000 12%,#000 88%,transparent 100%);
-  mask-image:linear-gradient(to bottom,transparent 0%,#000 12%,#000 88%,transparent 100%);
-}
-/* 外围薄雾:同一张图放大 + 重模糊垫底,光溢到四周,纸才不像纸 */
-/* 光晕层已经是烘好的小图,这里只放大、不再挂 filter:blur() —— 见 home-view.js 的说明 */
-body[data-theme="starry"] .sky-galaxy.glow{opacity:.34;transform:scale(1.18)}
-
-/* ② 背景自己要有内容。第一版背景是纯渐变、一粒星尘都没有 ——
-      背景一干净,银河就成了画面里唯一的"东西",于是像浮在白纸上。
-      现在铺满整屏、又细又密,但每颗都很暗:靠数量给质感,不靠亮度抢戏。 */
-.sky-dust{position:absolute;inset:0;z-index:0;opacity:0}
-body[data-theme="starry"] .sky-dust{opacity:1}
-.sky-dust .sd{position:absolute;border-radius:50%;background:#DCE4FF;
-  opacity:var(--o,.3);animation:cc-twinkle var(--dur,3s) ease-in-out var(--delay,0s) infinite}
-.sky-dust .sd-spark{position:absolute;width:var(--s,10px);height:var(--s,10px);
-  background:radial-gradient(circle,rgba(255,246,220,.9) 0%,rgba(255,246,220,0) 62%);
-  animation:cc-spark 6s ease-in-out var(--delay,0s) infinite}
-.sky-dust .sd-spark::before,.sky-dust .sd-spark::after{content:"";position:absolute;
-  left:50%;top:50%;background:linear-gradient(transparent,rgba(255,246,220,.85),transparent)}
-.sky-dust .sd-spark::before{width:1px;height:220%;transform:translate(-50%,-50%)}
-.sky-dust .sd-spark::after{width:220%;height:1px;transform:translate(-50%,-50%)}
-@keyframes cc-spark{0%,100%{opacity:.15;transform:scale(.7)}50%{opacity:.85;transform:scale(1)}}
+body[data-theme="starry"] .sky-galaxy{opacity:1}
+/* ★ 这一版**只有一层**:新素材把银河和夜空画在同一张图里了。
+   所以 screen 混合、放大重模糊的光晕副本、CSS 星尘层 —— 全部删掉。
+   「背景/星河/星星像三个图层」的根治办法不是把三层调得像一层,
+   而是让它真的只有一层;能删掉的融合技巧,就不该留着调。 */
 
 /* --- 五个入口:和 .sky-inner 同一个盒子,坐标才对得上 --- */
 .sky-gates{list-style:none;margin:0;padding:0;position:absolute;top:0;height:100%;
-  aspect-ratio:780/1170;left:50%;transform:translateX(-50%);z-index:2;pointer-events:none}
+  aspect-ratio:900/1600;left:50%;transform:translateX(-50%);z-index:2;pointer-events:none}
 /* ★ 高度用**占容器高的百分比**,不是像素:坐标已经是 % 了,尺寸就该在同一坐标系里。
      写死 px 的话,122px 的星在 320 宽屏上占 38%、430 宽屏上只占 28% —— 同一份设计
      在两台手机上是两个比例。clamp 只兜极端小屏/超长屏,正常档位不介入。 */
@@ -1925,9 +1894,12 @@ body[data-theme="starry"] .sky-dust{opacity:1}
 .sg-star img{height:100%;width:auto;object-fit:contain;display:block}
 /* ③ 星星和星河**共享一套光源**:同色系的金/紫光晕。
       上一版星星锐、星河柔,锐度不统一,眼睛一看就知道是两码事。 */
+/* ★ 光晕颜色从**素材里采**,不是自己定:galaxy-d 的亮像素 75% 落在蓝 240–270°,
+   金/橙只占 0.2% —— 所以上一版那圈纯金 drop-shadow 是外来色,一眼就脱开。
+   (我肉眼看图里有琥珀色丝,一采样才知道只有 0.2%;眼睛会骗人,采样不会。) */
 body[data-theme="starry"] .sg-star{
-  filter:drop-shadow(0 0 10px rgba(255,217,138,.75)) drop-shadow(0 0 26px rgba(169,140,240,.5))
-         drop-shadow(0 0 46px rgba(120,150,255,.28));
+  filter:drop-shadow(0 0 8px rgba(249,216,243,.55)) drop-shadow(0 0 22px rgba(167,130,227,.45))
+         drop-shadow(0 0 40px rgba(115,91,206,.3));
 }
 /* ★ 兜底:几何层已经会"空间紧就少推一点",但**副标题长到离谱时它也救不了**
    (测试里拿一条超长副标题验过)。所以这里再上一道硬约束:限宽 + 省略号。
@@ -1945,12 +1917,18 @@ body[data-theme="starry"] .sg-star{
 .sg-hint{font-size:.68rem;color:var(--muted);letter-spacing:.01em}
 /* ④ 铺满之后文字会压在亮部上。**不压暗整张图** —— 那会把刚做出来的通透感又抹掉;
       只在文字自己坐的那一小片垫一层大羽化的径向暗斑。 */
+/* ★ 不在文字/星星背后垫暗晕。评审原话:落在河亮部被淹要靠**落点算法**解决,
+   不能靠在背后糊黑布 —— 糊黑布会把刚做出来的通透感又抹掉。
+   可读性改用描边式阴影:只加深字的边缘,不在画面上留一块方形暗斑。 */
 body[data-theme="starry"] .sg-text{
-  padding:.18rem .5rem;margin:-.18rem -.5rem;
-  background:radial-gradient(ellipse 120% 150% at 50% 50%,rgba(6,10,26,.72) 0%,rgba(6,10,26,.45) 55%,rgba(6,10,26,0) 100%);
+  text-shadow:0 1px 3px rgba(6,10,26,.95), 0 0 10px rgba(6,10,26,.8);
 }
 body[data-theme="starry"] .sg-title{color:#F2F0FF}
 body[data-theme="starry"] .sg-hint{color:#AEBBDD}
+/* 北斗是「更多」,不是第六个平级入口 —— 压暗一档,视觉上退到后面 */
+.sky-dipper .sg-star{opacity:.72}
+.sky-dipper .sg-title{font-size:.82rem;font-weight:500}
+.sky-dipper .sg-hint{font-size:.64rem}
 .sky-gate button:hover .sg-star{transform:scale(1.07)}
 .sky-gate button:active .sg-star{transform:scale(.95)}
 
@@ -1958,7 +1936,8 @@ body[data-theme="starry"] .sg-hint{color:#AEBBDD}
 .home-hero{position:relative;z-index:2;padding:0 1rem}
 .home-hero{padding-top:calc(.7rem + env(safe-area-inset-top))}
 body[data-theme="starry"] .home-hero{
-  background:radial-gradient(ellipse 140% 96% at 28% 34%,rgba(6,10,26,.8) 0%,rgba(6,10,26,.4) 58%,rgba(6,10,26,0) 100%);
+  /* 同上:Hero 也不垫暗斑,靠阴影把字压住就够 —— 新素材左上本来就是深色空域 */
+  text-shadow:0 1px 4px rgba(6,10,26,.95), 0 0 12px rgba(6,10,26,.7);
   padding-bottom:1.2rem;
 }
 
@@ -1988,7 +1967,6 @@ body:not([data-theme="starry"]) .sg-text{position:static;transform:none;
 /* 首屏在星空下不要顶栏那条线,让它像一整块夜空 */
 @media (prefers-reduced-motion:reduce){
   .sg-star{transition:none}
-  .sky-dust .sd,.sky-dust .sd-spark{animation:none!important}
 }
 
 /* 首屏是落地页:顶栏让位,页面自己带标题(避免和「记忆页」当初一样标题重复两遍) */

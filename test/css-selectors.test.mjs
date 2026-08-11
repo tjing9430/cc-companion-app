@@ -12,6 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { ASPECT } from '../public/js/river.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,7 +23,7 @@ const CSS = fs.readFileSync(
 // 加新界面时把它的根选择器加进来 —— 这份清单的价值全在于它被维护。
 const REQUIRED = [
   '.home-view', '.home-stage', '.home-hero', '.home-sky', '.sky-inner', '.sky-galaxy',
-  '.sky-gates', '.sky-gate', '.sg-star', '.sg-text', '.sg-title', '.home-recent',
+  '.sky-gates', '.sky-gate', '.sky-dipper', '.sg-star', '.sg-text', '.sg-title', '.home-recent',
   '.topbar', '.sidebar', '.composer', '.bubble', '.message-list',
   '.cv-strip', '.console-view', '.memory-view', '.chat-view', '.term-view',
   '.event-list', '.memory-list', '.quota-panel',
@@ -50,15 +51,21 @@ function ruleFor(sel) {
   return i < 0 ? '' : CSS.slice(i, CSS.indexOf('}', i));
 }
 
-test('银河盒子和入口层必须同比、且都等于素材的 2:3 —— 否则星星会偏离银河', () => {
-  // 星星的 --x/--y 是从素材像素里算出来的。.sky-inner(画图的)和 .sky-gates(摆星星的)
+test('银河盒子和入口层必须同比,且和 river.js 里的 ASPECT 对得上', () => {
+  // 星星的 --x/--y 是按容器比例算的。.sky-inner(画图的)和 .sky-gates(摆星星的)
   // 必须是**同一个几何盒子**,任何一方比例变了,星星就从带子上滑下来。
-  for (const sel of ['.sky-inner', '.sky-gates']) {
+  //
+  // ★ 断言不再写死 2:3 —— 换素材时那是个必然会红的假警报。
+  //   改成拿 CSS 的比例去和 **river.js 导出的 ASPECT** 对账:
+  //   要红就红在"两边不一致"上,而不是"跟我记忆里的数不一样"。
+  const ratios = ['.sky-inner', '.sky-gates'].map((sel) => {
     const m = /aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/.exec(ruleFor(sel));
     assert.ok(m, `${sel} 上找不到 aspect-ratio`);
-    const ratio = Number(m[1]) / Number(m[2]);
-    assert.ok(Math.abs(ratio - 2 / 3) < 0.001, `${sel} 比例 ${ratio.toFixed(4)} 与素材的 2:3 不符`);
-  }
+    return Number(m[1]) / Number(m[2]);
+  });
+  assert.ok(Math.abs(ratios[0] - ratios[1]) < 1e-6, `画图的盒子和摆星星的盒子比例不一致:${ratios}`);
+  assert.ok(Math.abs(ratios[0] - ASPECT) < 1e-6,
+    `CSS 比例 ${ratios[0].toFixed(4)} 与 river.js 的 ASPECT ${ASPECT.toFixed(4)} 不一致 —— 换素材时两边要一起改`);
   assert.ok(!/\.sky-galaxy\{[^}]*object-fit:\s*cover/.test(CSS), '银河图不能用 object-fit:cover:裁切会让星星偏离');
 });
 
@@ -68,29 +75,27 @@ test('第一屏是整整一屏 —— 不是「填满剩下的空间」', () => 
   assert.match(ruleFor('.home-stage'), /flex:\s*0\s+0\s+100dvh/, '.home-stage 必须固定成一屏高');
 });
 
-test('三层要融合,不是叠着 —— 混合、光晕层、星星共光源都得在', () => {
-  // 「背景/星河/星星像三个图层」是这一版返工的原话。消除贴纸感靠这三样,
-  // 谁把它们删了,画面立刻退回三张纸叠着的样子,而且没有任何报错。
+test('首屏只有一层 —— 融合技巧全部撤掉', () => {
+  // 「背景/星河/星星像三个图层」的根治办法不是把三层调得像一层,
+  // 而是让它**真的只有一层**:定稿素材把银河和夜空画进了同一张图。
   //
-  // ★ 断言盯的是**性质**(有没有一层更柔更大的光晕),不是**实现手法**。
-  //   第一版写死了 `blur(`,后来光晕改成预先烘好的小图、不再用 CSS 滤镜 ——
-  //   性质没变、还更快,断言却红了。**把手法钉死的断言,会在改进时误报。**
-  assert.match(CSS, /\.sky-galaxy\{[\s\S]{0,400}?mix-blend-mode:\s*screen/, '银河层缺 mix-blend-mode:screen');
-  const glow = /\.sky-galaxy\.glow\{([^}]*)\}/.exec(CSS);
-  assert.ok(glow, '缺独立的光晕层 .sky-galaxy.glow');
-  assert.match(glow[1], /transform:\s*scale\(1\.\d/, '光晕层必须比本体大一圈,光才溢得出来');
-  assert.match(CSS, /\.sg-star\{[^}]*drop-shadow/, '星星缺和银河同色系的光晕(锐度不统一会一眼看穿)');
+  // ★ 所以这条断言从"必须有 screen 混合 + 光晕副本"**反了过来**:现在它们不该存在。
+  //   闸门跟着设计走是应该的 —— 但要跟着**当前**的设计走,
+  //   留着上一版的判据就会像刚才那样,在正确的改动上报假警。
+  assert.ok(!/mix-blend-mode/.test(CSS), '只有一层了,不该再有混合模式');
+  assert.ok(!/\.sky-galaxy\.glow/.test(CSS), '光晕副本层应当已删除');
+  assert.ok(!/\.sky-dust/.test(CSS), 'CSS 星尘层应当已删除(素材自带背景星点)');
+  // 星星仍要和素材共享光源,只是颜色换成了从新素材采出来的紫/粉
+  assert.match(CSS, /\.sg-star\{[^}]*drop-shadow/, '星星缺光晕');
 });
 
-test('光晕层用的是预烘小图,不是全尺寸实时模糊', () => {
-  // blur(46px) × 780×1170 在软件渲染下一次合成能跑到 45 秒以上(实测截图直接超时),
-  // 而低端手机正是这个开源件的目标用户。模糊本来就抹掉细节 —— 缩到 1/5 烘好再放大,
-  // 观感一样,代价几乎为零。这条防止有人"顺手"把 filter:blur 加回来。
-  const glow = /\.sky-galaxy\.glow\{([^}]*)\}/.exec(CSS)[1];
-  assert.ok(!/filter:\s*blur\(/.test(glow), '光晕层不该再挂实时 blur —— 用预烘的 galaxy-glow.webp');
-  const p = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public/assets/galaxy-glow.webp');
-  assert.ok(fs.existsSync(p), '预烘光晕图 galaxy-glow.webp 不在');
-  assert.ok(fs.statSync(p).size < 40 * 1024, '预烘光晕图应该很小(它是被模糊过的,不需要分辨率)');
+test('星星背后不许垫暗晕', () => {
+  // 评审原话:落在河亮部被淹要靠**落点算法**解决,不能靠在背后糊黑布 ——
+  // 糊黑布会把刚做出来的通透感又抹掉。可读性用描边式 text-shadow。
+  const t = /body\[data-theme="starry"\] \.sg-text\{([^}]*)\}/.exec(CSS);
+  assert.ok(t, '找不到 starry 下的 .sg-text 规则');
+  assert.ok(!/background/.test(t[1]), '.sg-text 背后又垫上底色了');
+  assert.match(t[1], /text-shadow/, '去掉暗斑之后要用 text-shadow 保住可读性');
 });
 
 test('row-reverse 下不许再写 justify-content:flex-end —— 它俩会互相抵消', () => {

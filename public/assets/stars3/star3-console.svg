@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><defs>
+    <radialGradient id="corec" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="11%"  stop-color="#FFFFFF" stop-opacity=".97"/>
+      <stop offset="25%"  stop-color="#FFF6EC" stop-opacity=".88"/>
+      <stop offset="41%"  stop-color="#FDE2F2" stop-opacity=".72"/>
+      <stop offset="58%"  stop-color="#EAC0F0" stop-opacity=".5"/>
+      <stop offset="76%"  stop-color="#C99EEA" stop-opacity=".26"/>
+      <stop offset="89%"  stop-color="#A27FE2" stop-opacity=".1"/>
+      <stop offset="100%" stop-color="#A27FE2" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rayc" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#A27FE2" stop-opacity="0"/>
+      <stop offset="14%" stop-color="#C99EEA" stop-opacity=".45"/>
+      <stop offset="26%" stop-color="#EAC0F0" stop-opacity=".72"/>
+      <stop offset="38%" stop-color="#FDE2F2" stop-opacity=".9"/>
+      <stop offset="47%" stop-color="#FFF4F8" stop-opacity=".97"/>
+      <stop offset="50%" stop-color="#FFFFFF"/>
+      <stop offset="53%" stop-color="#FFF4F8" stop-opacity=".97"/>
+      <stop offset="62%" stop-color="#FDE2F2" stop-opacity=".9"/>
+      <stop offset="74%" stop-color="#EAC0F0" stop-opacity=".72"/>
+      <stop offset="86%" stop-color="#C99EEA" stop-opacity=".45"/>
+      <stop offset="100%" stop-color="#A27FE2" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="backc" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#0A0818" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#0A0818" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="gc" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="1.8" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs><g filter="url(#gc)"><path d="M 50 12 C 51.092 37.08 53.12 48.062 53.12 50 C 53.12 51.938 51.092 62.92 50 88 C 48.908 62.92 46.88 51.938 46.88 50 C 46.88 48.062 48.908 37.08 50 12 Z" fill="url(#rayc)" opacity="1.0" transform="rotate(0 50 50)"/><path d="M 50 12 C 51.092 37.08 53.12 48.062 53.12 50 C 53.12 51.938 51.092 62.92 50 88 C 48.908 62.92 46.88 51.938 46.88 50 C 46.88 48.062 48.908 37.08 50 12 Z" fill="url(#rayc)" opacity="1.0" transform="rotate(60 50 50)"/><path d="M 50 12 C 51.092 37.08 53.12 48.062 53.12 50 C 53.12 51.938 51.092 62.92 50 88 C 48.908 62.92 46.88 51.938 46.88 50 C 46.88 48.062 48.908 37.08 50 12 Z" fill="url(#rayc)" opacity="1.0" transform="rotate(120 50 50)"/><path d="M 50 29 C 50.6552 42.86 51.872 48.929 51.872 50 C 51.872 51.071 50.6552 57.14 50 71 C 49.3448 57.14 48.128 51.071 48.128 50 C 48.128 48.929 49.3448 42.86 50 29 Z" fill="url(#rayc)" opacity="0.8" transform="rotate(30 50 50)"/><path d="M 50 29 C 50.6552 42.86 51.872 48.929 51.872 50 C 51.872 51.071 50.6552 57.14 50 71 C 49.3448 57.14 48.128 51.071 48.128 50 C 48.128 48.929 49.3448 42.86 50 29 Z" fill="url(#rayc)" opacity="0.8" transform="rotate(90 50 50)"/><path d="M 50 29 C 50.6552 42.86 51.872 48.929 51.872 50 C 51.872 51.071 50.6552 57.14 50 71 C 49.3448 57.14 48.128 51.071 48.128 50 C 48.128 48.929 49.3448 42.86 50 29 Z" fill="url(#rayc)" opacity="0.8" transform="rotate(150 50 50)"/><circle cx="50" cy="50" r="8.5" fill="url(#corec)"/><circle cx="50" cy="50" r="4" fill="url(#corec)"/><circle cx="50" cy="50" r="14" fill="none" stroke="#FDE2F2" stroke-width=".85" opacity=".68"/><circle cx="50" cy="50" r="19.5" fill="none" stroke="#EAC0F0" stroke-width=".6" opacity=".45"/></g><g></g></svg>
