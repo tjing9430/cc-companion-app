@@ -16,6 +16,7 @@ import {
 } from './js/util.js';
 import { renderMarkdown, mdInline, mdSafeUrl } from './js/markdown.js';
 import { orbMarkup, hydrateStarry } from './js/starry.js';
+import { renderHome } from './js/home-view.js';
 import {
   CONSOLE_COMMANDS,
   MAX_ATTACHMENT_BYTES,
@@ -43,6 +44,9 @@ let fallbackTimer = null;
 
 
 
+// ★ 'home' 不在这个列表里 —— 它是落地页不是并列 tab:
+//   ① 样稿上首屏没有底栏 ② 塞进去底栏就是 6 格,390px 上挤到换行
+//   进首屏靠顶栏那颗星,从首屏出去靠星河上的四个入口。
 const tabs = [
   ['chat',     '私聊',   '私聊'],
   ['group',    '群聊',   '群聊'],
@@ -619,6 +623,7 @@ async function loadBootstrap() {
 async function refreshCurrent() {
   if (!state.settings) return;
   try {
+    if (state.tab === 'home') await loadMemories();
     if (state.tab === 'chat') await loadMessages('chat');
     else if (state.tab === 'group') await loadMessages('group');
     else if (state.tab === 'console') { await loadConsole(); await loadBridgeConfig(); }
@@ -914,10 +919,13 @@ function renderTopbar() {
   const mem = state.tab === 'memory' ? memoryTabHeading() : null;
   const title = mem ? mem.title : (state.tab === 'chat'
     ? state.settings.assistantName
-    : (state.tab === 'group'
+    : (state.tab === 'home'
+      ? state.settings.appName
+      : state.tab === 'group'
       ? state.settings.groupName
       : (tabs.find(([id]) => id === state.tab)?.[1] || 'App')));
   const subtitle = mem ? mem.subtitle : {
+    home: '',
     chat: `和 ${state.settings.assistantName} 单独说话。`,
     group: `共享房间，提到 @${state.settings.agentMention} 会唤起 AI。`,
     console: '查看运行事件、回复和调试日志。',
@@ -927,8 +935,9 @@ function renderTopbar() {
   const status = state.offline ? '离线快照' : (state.settings.agent.configured ? 'API 已配置' : '演示模式');
   const live = state.offline ? status : `${streamStatusLabel()} - ${status}`;
   return `
-    <header class="topbar${mem ? ' topbar-paper' : ''}">
+    <header class="topbar${mem ? ' topbar-paper' : ''}${state.tab === 'home' ? ' topbar-home' : ''}">
       <div class="topbar-title">
+        ${state.tab === 'home' ? '' : '<button type="button" class="topbar-home-btn" data-action="tab" data-tab="home" aria-label="回首页" title="回首页">✦</button>'}
         ${mem && mem.back ? '<button type="button" class="topbar-back" data-action="memory-tab" data-tab="home" aria-label="回记忆">‹</button>' : ''}
         ${orbMarkup(state.tab)}
         <div class="topbar-title-text"><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>
@@ -977,6 +986,7 @@ function ensureMessageLoaded(scope, id) {
 
 
 function renderTab() {
+  if (state.tab === 'home') return renderHome();
   if (state.tab === 'chat') return renderChat('chat', state.chat);
   if (state.tab === 'group') return renderChat('group', state.group);
   if (state.tab === 'console') return renderConsole();

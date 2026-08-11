@@ -1749,3 +1749,71 @@ body[data-theme="starry"] .usage-fill{opacity:.4}
   border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
 .since-pick:hover{border-color:var(--accent);color:var(--accent)}
 .form-hint{margin:.3rem 0 0;font-size:.7rem;color:var(--muted)}
+
+/* ============ 首屏:星河 + 四个入口 ============ */
+.home-view{padding:1.1rem 1rem 2rem;position:relative}
+.home-head{position:relative;z-index:2}
+.home-brand{font-size:1.05rem;letter-spacing:.04em;color:var(--accent);font-weight:600}
+.home-who{display:flex;align-items:center;gap:.6rem;margin:.9rem 0 1.3rem}
+.home-avatar{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 auto;
+  border:1px solid var(--line);background:var(--panel-soft)}
+.home-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.home-status{font-size:.82rem;color:var(--text);display:flex;align-items:center;gap:.35rem}
+.home-status .dot{width:6px;height:6px;border-radius:50%;background:#6ede9a;flex:0 0 auto}
+.home-sub{font-size:.72rem;color:var(--muted);margin-top:.15rem}
+.home-greet{font-size:1.7rem;margin:0;font-weight:600;letter-spacing:.02em}
+.home-days{margin:.4rem 0 0;font-size:.86rem;color:var(--muted)}
+.home-days b{color:var(--accent);font-size:1.15rem;font-weight:600;margin:0 .15rem}
+.home-ask{margin:.55rem 0 0;font-size:.8rem;color:var(--faint)}
+
+.home-river{position:relative;margin-top:1.4rem}
+.river-line{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:0}
+body[data-theme="starry"] .river-line{opacity:1}
+.home-gates{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1.5rem;position:relative;z-index:1}
+/* 入口沿着河道左右错开,不是一条直线 —— 直线就没有「挂在河上」的意思了 */
+.gate-0{margin-left:0}
+.gate-1{margin-left:1.6rem}
+.gate-2{margin-left:.5rem}
+.gate-3{margin-left:2.2rem}
+.home-gate button{
+  display:flex;align-items:center;gap:.85rem;width:100%;padding:0;
+  background:none;border:0;cursor:pointer;text-align:left;color:inherit;
+}
+.gate-star{width:var(--gate-size,64px);height:var(--gate-size,64px);flex:0 0 auto;
+  display:grid;place-items:center}
+.gate-star img{width:100%;height:100%;object-fit:contain;display:block}
+body[data-theme="starry"] .gate-star{filter:drop-shadow(0 0 12px rgba(231,196,122,.28))}
+.gate-text{display:flex;flex-direction:column;gap:.2rem;min-width:0}
+.gate-title{font-size:1rem;font-weight:600;letter-spacing:.02em;
+  padding:.28rem .8rem;border-radius:var(--radius-pill);
+  background:var(--panel-soft);border:1px solid var(--line);white-space:nowrap}
+.gate-title em{font-style:normal;color:var(--accent);margin-left:.2rem}
+.gate-hint{font-size:.72rem;color:var(--muted);padding-left:.85rem}
+.home-gate button:hover .gate-title{border-color:var(--accent);color:var(--accent-strong)}
+.home-gate button:active .gate-star{transform:scale(.94)}
+.gate-star{transition:transform .16s ease}
+
+.home-recent{margin-top:2rem;position:relative;z-index:2}
+.home-recent-head{font-size:.75rem;color:var(--faint);text-align:center;letter-spacing:.2em;margin-bottom:.6rem}
+.home-recent-row{display:flex;justify-content:space-between;align-items:center;gap:.6rem;width:100%;
+  padding:.5rem .7rem;margin-bottom:.35rem;border-radius:var(--radius);
+  background:var(--panel-soft);border:1px solid var(--line-soft);cursor:pointer;color:inherit;text-align:left}
+.rr-title{font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-mood{font-size:.7rem;color:var(--muted);flex:0 0 auto}
+
+/* 首屏在星空下不要顶栏那条线,让它像一整块夜空 */
+body[data-theme="starry"] .topbar:has(+ .content .home-view){border-bottom-color:transparent}
+@media (prefers-reduced-motion:reduce){ .gate-star{transition:none} }
+
+/* 首屏是落地页:顶栏让位,页面自己带标题(避免和「记忆页」当初一样标题重复两遍) */
+.topbar.topbar-home{background:transparent;border-bottom-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+.topbar.topbar-home .topbar-title-text{display:none}
+.topbar-home-btn{
+  background:none;border:0;cursor:pointer;color:var(--accent);
+  font-size:1rem;line-height:1;padding:.2rem .35rem;margin-inline-end:.15rem;flex:0 0 auto;
+}
+.topbar-home-btn:hover{color:var(--accent-strong);transform:scale(1.12)}
+.topbar-home-btn{transition:transform .15s ease}
+/* 首屏自己占满,不留底栏的位置 */
+body:has(.home-view) .sidebar{display:none}
+body:has(.home-view) .main{max-height:100vh}

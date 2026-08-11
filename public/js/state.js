@@ -39,7 +39,8 @@ const ICONS = {
 };
 
 const state = {
-  tab: 'chat',
+  // 落地页。老用户下一次打开也会先看到它 —— 它是入口不是新功能,四个星直达原来的地方。
+  tab: 'home',
   settings: null,
   chat: [],
   group: [],

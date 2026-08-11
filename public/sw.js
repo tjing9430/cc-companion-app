@@ -8,7 +8,7 @@
 // (回落值只在「不经本项目服务端、直接静态托管 public/」时用到,那种部署本来就得自己管缓存。)
 const CACHE_VERSION = self.__CC_CACHE_VERSION__ || 'cc-companion-static-dev';
 // 会天天改的代码必须每次拿最新的;其余(图标/manifest)继续走缓存优先
-const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/js/state.js', '/js/console-view.js', '/js/settings-view.js', '/js/memory-view.js', '/js/chat-view.js', '/js/starry.js', '/styles.css', '/index.html'];
+const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/js/state.js', '/js/console-view.js', '/js/settings-view.js', '/js/memory-view.js', '/js/chat-view.js', '/js/starry.js', '/js/home-view.js', '/styles.css', '/index.html'];
 const STATIC_ASSETS = [
   '/',
   '/index.html',
