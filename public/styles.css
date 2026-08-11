@@ -278,7 +278,13 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
    DOM 顺序固定是 avatar → msg-col(为了读屏和 :not(.me) 那边的默认布局),
    所以这里用 row-reverse 翻过来,而不是去改结构 —— 结构一改,
    非 me 那边和所有依赖「avatar 在前」的选择器都要跟着动。 */
-.message-row.me{justify-content:flex-end;flex-direction:row-reverse}
+/* ★ row-reverse 把主轴翻过来了,于是 main-start 在右、**main-end 在左** ——
+   再写 justify-content:flex-end 就等于"推到左边",和 row-reverse 想要的效果互相抵消。
+   头像确实跑到了气泡右侧(那半是对的),可整行贴在了屏幕左边。
+   row-reverse 下要靠右,得用 flex-start。
+   ★ 这个 bug **只有短消息看得出来**:长回复占满 76% 宽度,贴左贴右几乎没差别 ——
+     我自测用的正是长文本,样本的形状把它藏住了。回归测试因此专门用短消息。 */
+.message-row.me{justify-content:flex-start;flex-direction:row-reverse}
 /* 拆出来的后续气泡:名字不重复了,靠上贴紧前一段,读起来才是「同一个人连着说」 */
 .message-row.cont{margin-top:-.25rem}
 .message-row.cont .msg-col{gap:0}
@@ -1260,7 +1266,8 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
   }
   .nav button.active .nav-icon{color:var(--accent)}
 
-  .main{max-height:100dvh;padding-bottom:calc(58px + env(safe-area-inset-bottom))}  /* 反馈#9:24px 太开、6px 又太窄 → 中间值 */
+  /* 底栏已全局拆掉,这里不再给它预留高度(原来是 58px + 安全区) */
+  .main{max-height:100dvh;padding-bottom:0}
   .topbar{height:54px;padding:0 1rem}
   .topbar h1{font-size:1rem}
   .topbar p{font-size:.72rem}
@@ -1966,7 +1973,12 @@ body:not([data-theme="starry"]) .sg-text{position:static;transform:none;
    ★ 顶栏没了就得自己让开刘海/状态栏,所以补 safe-area-inset-top;
      底下同理补 inset-bottom,别让最后一颗星压在home indicator 上。 */
 body:has(.home-view) .topbar{display:none}
-body:has(.home-view) .sidebar{display:none}
+/* ★ 底栏**全局**拆掉(需求方拍的 A 案:「全局拆掉」)。
+   首屏那五颗星就是唯一入口,顶栏的 ✦ 是每一页都在的回家键。
+   代价说明白:从记忆页去群聊要两跳(✦ 回首屏 → 点星星)。 */
+.sidebar{display:none}
+/* ★ 给底栏预留的 58px 已经在它声明的那一处(手机档 .main)直接改成 0 了,
+   不在这儿再叠一层覆盖 —— 覆盖能跑通,但读代码的人会看到两个互相打架的值。 */
 body:has(.home-view) .main{max-height:100vh;padding-bottom:0}
 /* ★ 首屏的 content 不留内边距:安全区让给 .home-hero 自己去躲。
    这样舞台就能干干净净地写 `100dvh`,不用在这儿把别处的内边距再减一遍

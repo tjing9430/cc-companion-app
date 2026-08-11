@@ -92,3 +92,29 @@ test('光晕层用的是预烘小图,不是全尺寸实时模糊', () => {
   assert.ok(fs.existsSync(p), '预烘光晕图 galaxy-glow.webp 不在');
   assert.ok(fs.statSync(p).size < 40 * 1024, '预烘光晕图应该很小(它是被模糊过的,不需要分辨率)');
 });
+
+test('row-reverse 下不许再写 justify-content:flex-end —— 它俩会互相抵消', () => {
+  // 真机上暴露过:自己的消息整行贴到了**左边**。
+  // `flex-direction:row-reverse` 把主轴翻过来,main-end 因此在左;
+  // 再写 `justify-content:flex-end` 就是"推到左边",正好抵消掉 row-reverse 想要的效果。
+  // 头像确实到了气泡右侧(所以半对),可整行位置反了。row-reverse 下要靠右得用 flex-start。
+  //
+  // ★ 这个 bug **只有短消息看得出来** —— 长回复占满 76% 宽度,贴左贴右几乎没差别,
+  //   而我自测用的正是长文本。**样本的形状把 bug 藏住了**:不是没验,是验的东西碰不到它。
+  const rule = /\.message-row\.me\{([^}]*)\}/.exec(CSS);
+  assert.ok(rule, '找不到 .message-row.me');
+  const body = rule[1];
+  if (/flex-direction:\s*row-reverse/.test(body)) {
+    assert.ok(!/justify-content:\s*flex-end/.test(body),
+      'row-reverse 配 flex-end 会把整行推到左边 —— 要靠右请用 flex-start');
+  }
+});
+
+test('底栏全局拆掉之后,不能再给它留着位置', () => {
+  // 藏元素和撤空间是两件事。首屏那次就栽过:.sidebar 早就 display:none 了,
+  // 可 .main 上给固定底栏预留的 58px padding 没跟着撤,底下白空一块。
+  assert.match(CSS, /(^|\n)\.sidebar\{display:none\}/, '底栏应当全局隐藏(需求方拍的 A 案)');
+  const mainPads = [...CSS.matchAll(/\.main\{[^}]*padding-bottom:\s*([^;}]+)/g)].map((m) => m[1].trim());
+  const reserving = mainPads.filter((v) => !/^0$/.test(v));
+  assert.deepEqual(reserving, [], `底栏没了却还留着位置:${reserving.join(' / ')}`);
+});
