@@ -1809,77 +1809,109 @@ body[data-theme="starry"] .term-view{background:rgba(6,10,24,.55)}
 .home-days b{color:var(--accent);font-size:1.15rem;font-weight:600;margin:0 .15rem}
 .home-ask{margin:.55rem 0 0;font-size:.8rem;color:var(--faint)}
 
-/* --- 银河层 ---
-   ★ .home-sky 的 aspect-ratio 必须**等于银河图自己的宽高比**(780/1170,即 2:3)。
-     这不是排版偏好,是坐标系的地基:星星的 --x/--y 是从这张图的像素里算出来的,
-     只有容器和图**同比**、图又 100% 铺满容器,那组百分比才落在带子上。
-     一旦改成 object-fit:cover 之类会裁切的摆法,图被裁掉多少,星星就偏多少。 */
-.home-sky{position:relative;width:100%;aspect-ratio:780/1170;margin:.4rem 0 .2rem}
-.sky-galaxy{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;
-  pointer-events:none;z-index:0;opacity:0;transition:opacity .5s ease}
-body[data-theme="starry"] .sky-galaxy{opacity:1}
+/* --- 银河层:铺满整屏,当这一页的**底**,不是页面中段的一块 ---
+   ★ 返工的要害是一句话:「背景/星河/星星 像三个图层」。技术上确实是三层,
+     但**要看起来像一层**。上一版像三张纸叠着,四个原因分别在下面对治。 */
+.home-view{position:relative;isolation:isolate;display:flex;flex-direction:column;flex:1 0 auto}
+/* 第一屏舞台:银河/Hero/入口全在它里面绝对定位。舞台外的内容(最近记忆)
+   因此老实落到第一屏**下面**,不会顶上来跟星星叠在一起。
+   ★ 高度用 flex 撑,不写 100% 也不写 100dvh:
+     `height:100%` 需要父级有确定高度,而 .home-view 只有 min-height —— 第一版就这么
+     缩回了 min-height 580px。写 100dvh 又要自己去减 .content 的内边距,等于把
+     别处的布局知识抄一份在这儿,那处一改这儿就错。让 flex 去算,它本来就知道。 */
+/* ★ 恰好一屏:不是「填满剩下的空间」。用 flex:1 的话,舞台会被下面的
+   「最近记忆」挤扁(实测只剩 662),银河就铺不到底、第一颗星还会撞上 Hero 文字。
+   固定成一屏之后,最近记忆自然落到屏幕**外面**,往下滑才看得到。 */
+.home-stage{position:relative;flex:0 0 100dvh;min-height:580px}
+.home-sky{position:absolute;inset:0;overflow:hidden;z-index:0;pointer-events:none}
 
-/* 银河之外补的稀疏微光。密度压得低 —— 银河图自己就带颗粒,
-   这层再铺满,两层颗粒会互相打架糊成噪点。 */
-.sky-dust{position:absolute;inset:0;pointer-events:none;z-index:1;opacity:0}
+/* ①「贯穿整个界面」是字面意思:高度撑满视口,宽度按图的比例自然算出来。
+   图是 2:3、屏接近 1:2.16,于是元素比视口宽,左右各溢出一截被裁掉 ——
+   ★ 这是**故意**裁的,而且裁掉多少已经算进星星的落点里了(见 home-view.js)。
+     `aspect-ratio` + `height:100%` 让宽度自己长,坐标系仍然和图 1:1。 */
+.sky-inner{position:absolute;top:0;height:100%;aspect-ratio:780/1170;
+  left:50%;transform:translateX(-50%)}
+.sky-galaxy{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;
+  opacity:0;transition:opacity .6s ease}
+/* ③ 关键的一刀:screen 混合 —— 发光素材用它,**暗部自动变透明**,
+      边缘化进背景,而不是压着一块深色矩形贴上去。「贴纸感」主要就是这一下消掉的。 */
+body[data-theme="starry"] .sky-galaxy{mix-blend-mode:screen}
+body[data-theme="starry"] .sky-galaxy.core{opacity:.95}
+/* 同一张图放大 + 重模糊垫在底下当光晕:光溢出到四周,纸才不像纸 */
+body[data-theme="starry"] .sky-galaxy.glow{opacity:.4;transform:scale(1.15);filter:blur(38px)}
+
+/* ② 背景自己要有内容。第一版背景是纯渐变、一粒星尘都没有 ——
+      背景一干净,银河就成了画面里唯一的"东西",于是像浮在白纸上。
+      现在铺满整屏、又细又密,但每颗都很暗:靠数量给质感,不靠亮度抢戏。 */
+.sky-dust{position:absolute;inset:0;z-index:0;opacity:0}
 body[data-theme="starry"] .sky-dust{opacity:1}
-.sky-dust .sd{position:absolute;border-radius:50%;background:#EAE2FF;
-  opacity:var(--o,.4);animation:cc-twinkle var(--dur,3s) ease-in-out var(--delay,0s) infinite}
+.sky-dust .sd{position:absolute;border-radius:50%;background:#DCE4FF;
+  opacity:var(--o,.3);animation:cc-twinkle var(--dur,3s) ease-in-out var(--delay,0s) infinite}
 .sky-dust .sd-spark{position:absolute;width:var(--s,10px);height:var(--s,10px);
-  background:radial-gradient(circle,rgba(255,246,220,.95) 0%,rgba(255,246,220,0) 62%);
+  background:radial-gradient(circle,rgba(255,246,220,.9) 0%,rgba(255,246,220,0) 62%);
   animation:cc-spark 6s ease-in-out var(--delay,0s) infinite}
 .sky-dust .sd-spark::before,.sky-dust .sd-spark::after{content:"";position:absolute;
-  left:50%;top:50%;background:linear-gradient(transparent,rgba(255,246,220,.9),transparent)}
+  left:50%;top:50%;background:linear-gradient(transparent,rgba(255,246,220,.85),transparent)}
 .sky-dust .sd-spark::before{width:1px;height:220%;transform:translate(-50%,-50%)}
 .sky-dust .sd-spark::after{width:220%;height:1px;transform:translate(-50%,-50%)}
 @keyframes cc-spark{0%,100%{opacity:.15;transform:scale(.7)}50%{opacity:.85;transform:scale(1)}}
 
-/* --- 五个入口:钉在银河上 --- */
-.sky-gates{list-style:none;margin:0;padding:0;position:absolute;inset:0;z-index:2}
-/* ★ 定位的是**星**本身,不是「星+文字」这个整体:
-     整体居中的话,文字一长一短就会把星推得偏离算出来的落点。 */
-/* ★ 只定高、宽度交给图自己(width:auto)。
-     素材是 512×768 的竖图,塞进正方形盒子 contain 会白白缩掉 1/3 ——
-     盒子跟着图的比例走,--size 才等于「图有多高」。 */
+/* --- 五个入口:和 .sky-inner 同一个盒子,坐标才对得上 --- */
+.sky-gates{list-style:none;margin:0;padding:0;position:absolute;top:0;height:100%;
+  aspect-ratio:780/1170;left:50%;transform:translateX(-50%);z-index:2;pointer-events:none}
 .sky-gate{position:absolute;left:var(--x);top:var(--y);height:var(--size);
-  transform:translate(calc(-50% + var(--nudge,0px)),-50%)}
+  transform:translate(calc(-50% + var(--nudge,0px)),-50%);pointer-events:auto}
 .sky-gate button{position:relative;height:100%;width:auto;padding:0;display:block;
   background:none;border:0;cursor:pointer;color:inherit}
 .sg-star{display:block;height:100%;width:auto;transition:transform .18s ease}
 .sg-star img{height:100%;width:auto;object-fit:contain;display:block}
+/* ③ 星星和星河**共享一套光源**:同色系的金/紫光晕。
+      上一版星星锐、星河柔,锐度不统一,眼睛一看就知道是两码事。 */
 body[data-theme="starry"] .sg-star{
-  filter:drop-shadow(0 0 14px rgba(231,196,122,.5)) drop-shadow(0 0 30px rgba(169,140,240,.26));
+  filter:drop-shadow(0 0 10px rgba(255,217,138,.75)) drop-shadow(0 0 26px rgba(169,140,240,.5))
+         drop-shadow(0 0 46px rgba(120,150,255,.28));
 }
-/* 文字轻轻挨在星旁边,不做成胶囊按钮 —— 设计稿点名不要「五个一样的大按钮」。
-   只给一道极细的低透明度金线当分隔,不给底色。 */
 .sg-text{position:absolute;top:50%;transform:translateY(-50%);
   display:flex;flex-direction:column;gap:.12rem;white-space:nowrap;pointer-events:none}
-.sg-right .sg-text{left:calc(100% + .45rem);text-align:left;
-  padding-left:.55rem;border-left:1px solid rgba(231,196,122,.22)}
-.sg-left .sg-text{right:calc(100% + .45rem);text-align:right;
-  padding-right:.55rem;border-right:1px solid rgba(231,196,122,.22)}
+.sg-right .sg-text{left:calc(100% + .45rem);text-align:left}
+.sg-left .sg-text{right:calc(100% + .45rem);text-align:right}
 .sg-title{font-size:.92rem;font-weight:600;letter-spacing:.03em;color:var(--text)}
 .sg-hint{font-size:.68rem;color:var(--muted);letter-spacing:.01em}
-body[data-theme="starry"] .sg-title{text-shadow:0 0 12px rgba(9,14,32,.9)}
-body[data-theme="starry"] .sg-hint{color:#9BA9CF;text-shadow:0 0 10px rgba(9,14,32,.9)}
+/* ④ 铺满之后文字会压在亮部上。**不压暗整张图** —— 那会把刚做出来的通透感又抹掉;
+      只在文字自己坐的那一小片垫一层大羽化的径向暗斑。 */
+body[data-theme="starry"] .sg-text{
+  padding:.18rem .5rem;margin:-.18rem -.5rem;
+  background:radial-gradient(ellipse 120% 150% at 50% 50%,rgba(6,10,26,.72) 0%,rgba(6,10,26,.45) 55%,rgba(6,10,26,0) 100%);
+}
+body[data-theme="starry"] .sg-title{color:#F2F0FF}
+body[data-theme="starry"] .sg-hint{color:#AEBBDD}
 .sky-gate button:hover .sg-star{transform:scale(1.07)}
 .sky-gate button:active .sg-star{transform:scale(.95)}
-.sky-gate button:hover .sg-title{color:var(--accent-strong)}
+
+/* Hero 压在银河上,同样只给自己那一片垫蒙版,不动整张图 */
+.home-hero{position:relative;z-index:2;padding:0 1rem}
+.home-hero{padding-top:calc(.7rem + env(safe-area-inset-top))}
+body[data-theme="starry"] .home-hero{
+  background:radial-gradient(ellipse 140% 96% at 28% 34%,rgba(6,10,26,.8) 0%,rgba(6,10,26,.4) 58%,rgba(6,10,26,0) 100%);
+  padding-bottom:1.2rem;
+}
 
 /* --- 非星空主题:银河不出场,入口退回一条朴素的竖列 ---
    一张深空银河压在米色底上会很脏。不为了好看去绑架主题选择。 */
-body:not([data-theme="starry"]) .home-sky{aspect-ratio:auto;padding:0 1rem}
-body:not([data-theme="starry"]) .sky-gates{position:static;display:flex;
-  flex-direction:column;gap:1.25rem;padding:.6rem 0}
-body:not([data-theme="starry"]) .sky-gate{position:static;transform:none;
-  width:auto;height:auto}
+body:not([data-theme="starry"]) .home-sky{display:none}
+body:not([data-theme="starry"]) .sky-gates{position:static;transform:none;
+  aspect-ratio:auto;height:auto;display:flex;flex-direction:column;gap:1.25rem;padding:.6rem 1rem}
+body:not([data-theme="starry"]) .sky-gate{position:static;transform:none;height:auto}
 body:not([data-theme="starry"]) .sky-gate button{display:flex;align-items:center;
   gap:.85rem;width:100%;height:auto;text-align:left}
 body:not([data-theme="starry"]) .sg-star{height:var(--size);width:auto;flex:0 0 auto}
 body:not([data-theme="starry"]) .sg-text{position:static;transform:none;
+  border:0;padding:0;margin:0;background:none;text-align:left}
+body:not([data-theme="starry"]) .sg-star{height:var(--size);width:auto;flex:0 0 auto}
+body:not([data-theme="starry"]) .sg-text{position:static;transform:none;
   border:0;padding:0;text-align:left}
 
-.home-recent{margin-top:1.2rem;position:relative;z-index:2;padding:0 1rem}
+.home-recent{margin-top:1.6rem;position:relative;z-index:2;padding:0 1rem 1rem}
 .home-recent-head{font-size:.75rem;color:var(--faint);text-align:center;letter-spacing:.2em;margin-bottom:.6rem}
 .home-recent-row{display:flex;justify-content:space-between;align-items:center;gap:.6rem;width:100%;
   padding:.5rem .7rem;margin-bottom:.35rem;border-radius:var(--radius);
@@ -1915,6 +1947,9 @@ body:not([data-theme="starry"]) .sg-text{position:static;transform:none;
 body:has(.home-view) .topbar{display:none}
 body:has(.home-view) .sidebar{display:none}
 body:has(.home-view) .main{max-height:100vh;padding-bottom:0}
-body:has(.home-view) .content{padding:calc(.4rem + env(safe-area-inset-top)) 0 0}
+/* ★ 首屏的 content 不留内边距:安全区让给 .home-hero 自己去躲。
+   这样舞台就能干干净净地写 `100dvh`,不用在这儿把别处的内边距再减一遍
+   —— 减法一旦抄两份,那边一改这边就错。 */
+body:has(.home-view) .content{padding:0;display:flex;flex-direction:column}
 body:has(.home-view) .home-view{padding-bottom:calc(1.5rem + env(safe-area-inset-bottom))}
 

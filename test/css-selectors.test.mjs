@@ -21,8 +21,8 @@ const CSS = fs.readFileSync(
 // 每一条都对应「没了就有一整块界面变成裸 HTML」的地方。
 // 加新界面时把它的根选择器加进来 —— 这份清单的价值全在于它被维护。
 const REQUIRED = [
-  '.home-view', '.home-hero', '.home-sky', '.sky-galaxy', '.sky-gates', '.sky-gate',
-  '.sg-star', '.sg-text', '.sg-title', '.home-recent',
+  '.home-view', '.home-stage', '.home-hero', '.home-sky', '.sky-inner', '.sky-galaxy',
+  '.sky-gates', '.sky-gate', '.sg-star', '.sg-text', '.sg-title', '.home-recent',
   '.topbar', '.sidebar', '.composer', '.bubble', '.message-list',
   '.cv-strip', '.console-view', '.memory-view', '.chat-view', '.term-view',
   '.event-list', '.memory-list', '.quota-panel',
@@ -41,12 +41,37 @@ test('首屏那张银河图确实在仓库里,而且没胖回去', () => {
   assert.ok(kb < 300, `银河图 ${kb.toFixed(0)}KB,超过 300KB 上限了`);
 });
 
-test('首屏容器比例必须跟素材一致 —— 否则星星会偏离银河', () => {
-  // 星星的 --x/--y 是从素材像素里算出来的,容器一旦不同比(比如改成 object-fit:cover
-  // 去裁切),图被裁掉多少星星就偏多少。这条把那个隐含约定钉成断言。
-  const m = /aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/.exec(CSS.slice(CSS.indexOf('.home-sky{')));
-  assert.ok(m, '.home-sky 上找不到 aspect-ratio');
-  const ratio = Number(m[1]) / Number(m[2]);
-  assert.ok(Math.abs(ratio - 2 / 3) < 0.001, `容器比例 ${ratio.toFixed(4)} 与素材的 2:3 不符`);
+// ★ 这条第一版是**搭便车**的:它从 `.home-sky{` 往后 grep 第一个 aspect-ratio,
+//   首屏改版后 .home-sky 已经不带比例了(改成 inset:0 铺满),它却顺手匹配到了后面
+//   .sky-inner 的比例,照样绿。断言必须**点名**它真正要管的那个盒子。
+//   (同一个坑今天第三次:断言卡在别人也满足的条件上,就永远不会红。)
+function ruleFor(sel) {
+  const i = CSS.indexOf(`${sel}{`);
+  return i < 0 ? '' : CSS.slice(i, CSS.indexOf('}', i));
+}
+
+test('银河盒子和入口层必须同比、且都等于素材的 2:3 —— 否则星星会偏离银河', () => {
+  // 星星的 --x/--y 是从素材像素里算出来的。.sky-inner(画图的)和 .sky-gates(摆星星的)
+  // 必须是**同一个几何盒子**,任何一方比例变了,星星就从带子上滑下来。
+  for (const sel of ['.sky-inner', '.sky-gates']) {
+    const m = /aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/.exec(ruleFor(sel));
+    assert.ok(m, `${sel} 上找不到 aspect-ratio`);
+    const ratio = Number(m[1]) / Number(m[2]);
+    assert.ok(Math.abs(ratio - 2 / 3) < 0.001, `${sel} 比例 ${ratio.toFixed(4)} 与素材的 2:3 不符`);
+  }
   assert.ok(!/\.sky-galaxy\{[^}]*object-fit:\s*cover/.test(CSS), '银河图不能用 object-fit:cover:裁切会让星星偏离');
+});
+
+test('第一屏是整整一屏 —— 不是「填满剩下的空间」', () => {
+  // flex:1 会被下面的「最近记忆」挤扁(实测只剩 662/844),银河铺不到底、
+  // 第一颗星还会撞上 Hero 文字。这条钉住「恰好一屏」。
+  assert.match(ruleFor('.home-stage'), /flex:\s*0\s+0\s+100dvh/, '.home-stage 必须固定成一屏高');
+});
+
+test('三层要融合,不是叠着 —— screen 混合和光晕副本都得在', () => {
+  // 「背景/星河/星星像三个图层」是这一版返工的原话。消除贴纸感靠这两样,
+  // 谁把它们删了,画面立刻退回三张纸叠着的样子,而且没有任何报错。
+  assert.match(CSS, /\.sky-galaxy\{[\s\S]{0,400}?mix-blend-mode:\s*screen/, '银河层缺 mix-blend-mode:screen');
+  assert.match(CSS, /\.sky-galaxy\.glow\{[^}]*blur\(/, '缺放大重模糊的光晕副本');
+  assert.match(CSS, /\.sg-star\{[^}]*drop-shadow/, '星星缺和银河同色系的光晕(锐度不统一会一眼看穿)');
 });

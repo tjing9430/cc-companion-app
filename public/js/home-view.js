@@ -23,6 +23,15 @@ import { state } from './state.js';
 
 // 五个入口。
 //
+// ★★★ 第二版返工的要害,原话是「**背景/星河/星星 就像在三个图层一样**」——
+//    技术上它确实是三层,但**要看起来像一层**。上一版像三张纸叠着,原因有四:
+//      ① 银河只占下半屏,上半屏是干净 Hero + 一大片空 —— 要的是**贯穿整屏**
+//      ② 背景一粒星尘都没有 → 星河成了画面里唯一的"东西",纸感就是这么来的
+//      ③ 星河是直接叠上去的,边缘生硬;星星锐、星河柔,**锐度不统一**一眼看穿
+//      ④ 铺满之后文字压在亮部会糊
+//    修法在 CSS 里(mix-blend-mode:screen / 底下垫放大重模糊的自身副本 /
+//    星星和星河共享一套光源色 / 文字下垫局部径向蒙版),这里只记为什么。
+//
 // ★★ --x/--y 不是眼睛估的,是**从那张银河图里算出来的**:
 //    逐行取「alpha × 亮度」的剖面,找该行最亮的那一股(局部极大),
 //    那就是银河实际的走向。星星钉在这组坐标上,才是真的长在带子上。
@@ -37,9 +46,14 @@ import { state } from './state.js';
 //   ② 相邻两颗横向至少错开 15% —— 否则会排成一条竖线,
 //      正是设计稿点名不要的「所有图标都在同一条垂直线上」。
 //      (没加这条时,群聊 64.6% 和记忆库 64.5% 撞在了一起。)
-//   ③ 纵向也要匀 —— 只管横向的话会挤:第一版控制台 y=77%、设置 y=84%,
-//      只差 40px,两颗贴在一起。现在从 16% 到 88% 四段各 ~18%,
-//      每颗只在目标位 ±4% 的窗口里挑最亮的那股。
+//   ③ 纵向也要匀 —— 只管横向的话会挤:早先控制台 y=77%、设置 y=84%,
+//      只差 40px,两颗贴在一起。每颗只在目标位 ±4% 的窗口里挑最亮的那股。
+//   ④ **要落在裁切之后还看得见的地方**。银河现在铺满整屏高度,而图是 2:3、
+//      屏是 ~1:2.16,于是元素宽 563 > 视口 390,**左右各裁掉 15.3%**。
+//      可用区间因此收窄到图坐标 22.3%~77.7%(再留 7% 给星星半径)。
+//      这正是评审提醒过的那件事:**图被裁掉多少,星星就偏多少** ——
+//      区别是这一版我们主动裁,所以把裁掉的量算进了落点里。
+//   ⑤ y 从 32% 起 —— 上面 30% 留给 Hero 文字,银河从它背后穿过去,但星星不跟字打架。
 //
 // ★★★ size 是**盒子高度**,不是「看上去多大」—— 这两个差得很远,第一版就栽在这:
 //    素材是 512×768 的竖图,我塞进一个正方形盒子用 object-fit:contain,
@@ -52,11 +66,11 @@ import { state } from './state.js';
 // ★ nudge:图形在自己画布里未必居中。private-core 偏左 6.2%,
 //   不补这一下,星星的**视觉中心**就不在算出来的落点上(差 5px)。
 const GATES = [
-  { tab: 'chat',     star: 'star-private-core.webp', title: '私密聊天', hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`,   x: 80.5, y: 16, size: 122, nudge: 5 },
-  { tab: 'group',    star: 'star-group.webp',        title: '群聊空间', hint: (s) => `${s.groupName || '小群'}，提到就唤起`, x: 64.6, y: 32, size: 98 },
-  { tab: 'memory',   star: 'star-flower-spare.webp', title: '记忆库',   hint: () => '珍藏回忆',                              x: 49.6, y: 49, size: 75 },
-  { tab: 'console',  star: 'star-console.webp',      title: '控制台',   hint: () => '看它怎么干活',                          x: 27.0, y: 70, size: 108 },
-  { tab: 'settings', star: 'star-moon.webp',         title: '设置',     hint: () => '名字 · 主题 · 头像',                    x: 44.1, y: 88, size: 79 },
+  { tab: 'chat',     star: 'star-private-core.webp', title: '私密聊天', hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`,   x: 64.6, y: 37, size: 122, nudge: 5 },
+  { tab: 'group',    star: 'star-group.webp',        title: '群聊空间', hint: (s) => `${s.groupName || '小群'}，提到就唤起`, x: 42.8, y: 47, size: 98 },
+  { tab: 'memory',   star: 'star-flower-spare.webp', title: '记忆库',   hint: () => '珍藏回忆',                              x: 55.9, y: 63, size: 75 },
+  { tab: 'console',  star: 'star-console.webp',      title: '控制台',   hint: () => '看它怎么干活',                          x: 33.4, y: 77, size: 108 },
+  { tab: 'settings', star: 'star-moon.webp',         title: '设置',     hint: () => '名字 · 主题 · 头像',                    x: 46.5, y: 87, size: 79 },
 ];
 
 // 文字摆哪边:靠右的星把字放左边,靠左的放右边 —— 纯粹为了不溢出容器。
@@ -83,18 +97,20 @@ function daysTogether(iso) {
   return Math.max(0, Math.round((today - start) / 86400000)) + 1;
 }
 
-// 星尘:银河图自己带了颗粒,这里只在**银河之外的天上**补一层稀疏微光和几颗四芒星,
-// 让画面在带子以外也有空间感。密度刻意压低 —— 银河才是主角,
-// 这层要是也铺满,两层颗粒会互相打架、糊成一片噪点。
+// 背景星尘。
+// ★ 第一版这层刻意压得很稀(怕和银河的颗粒打架),结果**反了**:
+//   背景太干净,银河一放上去就像浮在一张白纸上 —— 「三个图层」的一大半是这么来的。
+//   背景本身有内容,星河才是"从夜空里长出来的"而不是"贴在夜空上的"。
+//   所以这一版加密、加细、铺满整屏,但**每颗都很暗**(靠数量给质感,不靠亮度抢戏)。
 export function hydrateHome(root) {
   const sky = (root || document).querySelector('.home-sky');
   const g = sky && sky.querySelector('.sky-dust');
   if (!g || g.childElementCount) return;
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let html = '';
-  for (let i = 0, N = reduced ? 40 : 90; i < N; i++) {
-    const d = (Math.random() * 1.6 + 0.9).toFixed(2);
-    const o = (0.18 + Math.random() * 0.45).toFixed(2);
+  for (let i = 0, N = reduced ? 90 : 260; i < N; i++) {
+    const d = (Math.random() * 1.3 + 0.5).toFixed(2);
+    const o = (0.10 + Math.random() * 0.38).toFixed(2);
     const vars = reduced ? '' : `--dur:${(Math.random() * 3.5 + 2.4).toFixed(1)}s;--delay:${(Math.random() * 5).toFixed(1)}s;`;
     html += `<i class="sd" style="left:${(Math.random() * 100).toFixed(2)}%;top:${(Math.random() * 100).toFixed(2)}%;`
       + `width:${d}px;height:${d}px;--o:${o};${vars}"></i>`;
@@ -115,6 +131,23 @@ function renderHome() {
 
   return `
     <div class="home-view">
+      <!-- ★ 第一屏是一个固定高度的舞台:银河/Hero/入口都在它里面绝对定位。
+           没有这个舞台,入口层因为是 absolute 不占流,「最近记忆」会直接顶到
+           Hero 底下和星星叠在一起(第一版就是这样)。
+           舞台之外的内容自然落到第一屏**下面**,往下滑才看得到 —— 第一屏保持干净。 -->
+      <div class="home-stage">
+      <!-- ★ 银河是**整屏的底**,不是页面中段的一块。它排在最前、绝对定位铺满,
+           Hero 文字从它上面压过去 —— 「星河要贯穿整个界面」是字面意思。 -->
+      <div class="home-sky" aria-hidden="true">
+        <div class="sky-dust"></div>
+        <!-- 两张同源的银河叠着:下面放大+重模糊当光晕,上面是本体。
+             光溢出到四周,边缘才化得开 —— 只放一张,边界是硬的,像贴纸。 -->
+        <div class="sky-inner">
+          <img class="sky-galaxy glow" src="/assets/galaxy-river.webp" alt="" decoding="async">
+          <img class="sky-galaxy core" src="/assets/galaxy-river.webp" alt="" decoding="async">
+        </div>
+      </div>
+
       <div class="home-hero">
         <div class="home-brand">${esc(s.appName || 'CC Companion')}</div>
         <div class="home-who">
@@ -131,21 +164,21 @@ function renderHome() {
         <p class="home-ask">今天想和 ${esc(s.assistantName || 'AI')} 聊些什么？</p>
       </div>
 
-      <div class="home-sky">
-        <img class="sky-galaxy" src="/assets/galaxy-river.webp" alt="" aria-hidden="true" decoding="async">
-        <div class="sky-dust" aria-hidden="true"></div>
-        <ul class="sky-gates">
-          ${GATES.map((g) => `
-            <li class="sky-gate sg-${sideOf(g.x)}" style="--x:${g.x}%;--y:${g.y}%;--size:${g.size}px;--nudge:${g.nudge || 0}px">
-              <button type="button" data-action="tab" data-tab="${g.tab}">
-                <span class="sg-star"><img src="/assets/stars/${g.star}" alt=""></span>
-                <span class="sg-text">
-                  <span class="sg-title">${esc(g.title)}</span>
-                  <span class="sg-hint">${esc(g.hint(s))}</span>
-                </span>
-              </button>
-            </li>`).join('')}
-        </ul>
+      <!-- ★ 入口层跟 .sky-inner **同一个盒子**(同样的 aspect-ratio + 居中),
+           所以 --x/--y 这组从图里算出来的百分比仍然精确落在银河上。
+           它不放在 .home-sky 里面,是因为那层 aria-hidden 且不接事件。 -->
+      <ul class="sky-gates">
+        ${GATES.map((g) => `
+          <li class="sky-gate sg-${sideOf(g.x)}" style="--x:${g.x}%;--y:${g.y}%;--size:${g.size}px;--nudge:${g.nudge || 0}px">
+            <button type="button" data-action="tab" data-tab="${g.tab}">
+              <span class="sg-star"><img src="/assets/stars/${g.star}" alt=""></span>
+              <span class="sg-text">
+                <span class="sg-title">${esc(g.title)}</span>
+                <span class="sg-hint">${esc(g.hint(s))}</span>
+              </span>
+            </button>
+          </li>`).join('')}
+      </ul>
       </div>
 
       ${recent.length ? `
