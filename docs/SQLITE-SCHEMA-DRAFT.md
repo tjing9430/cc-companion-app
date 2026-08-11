@@ -93,6 +93,7 @@ CREATE TABLE messages (
   content       TEXT NOT NULL DEFAULT '',
   thinking      TEXT NOT NULL DEFAULT '',  -- 思考链;订阅态 print 模式下为空串(不是 NULL)
   msg_type      TEXT DEFAULT 'chat',
+  session_id    TEXT NOT NULL DEFAULT '',   -- 往返比对逮出来的漏列,见 §8
   parent_msg_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
   attachments   TEXT DEFAULT '[]',  -- JSON 数组;附件是整体读写的,不值得开表
   -- ★ 是 favorited 不是 favorite,而且还有 recalled_at ——

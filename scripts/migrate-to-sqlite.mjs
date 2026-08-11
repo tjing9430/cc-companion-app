@@ -56,6 +56,10 @@ CREATE TABLE messages (
   content       TEXT NOT NULL DEFAULT '',
   thinking      TEXT NOT NULL DEFAULT '',
   msg_type      TEXT NOT NULL DEFAULT 'chat',
+  -- ★ 这一列是**往返比对**逮出来的,不是扫代码扫出来的:她真实库里每条消息都带 session_id,
+  --   而我两轮 grep 字段都漏了它(第一次漏 favorited/recalled_at,这是第二次)。
+  --   教训:字段清单的权威是**真实数据**,不是源码里的构造函数。
+  session_id    TEXT NOT NULL DEFAULT '',
   parent_msg_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
   attachments   TEXT NOT NULL DEFAULT '[]',
   favorited     INTEGER NOT NULL DEFAULT 0,
@@ -240,8 +244,8 @@ export async function migrate({ storePath, dbPath, write = false, allowRepairs =
     // 默认当成错误停下来,而不是"顺手修好了不吭声" —— 迁移期间偷偷改数据最难查。
     const known = new Set(ids);
     const putMsg = db.prepare(`INSERT INTO messages
-      (id, scope, sender, role, content, thinking, msg_type, parent_msg_id, attachments, favorited, recalled, recalled_at, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+      (id, scope, sender, role, content, thinking, msg_type, session_id, parent_msg_id, attachments, favorited, recalled, recalled_at, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     for (const m of src.messages) {
       let parent = m.parent_msg_id == null ? null : int(m.parent_msg_id);
       if (parent != null && !known.has(parent)) {
@@ -250,7 +254,7 @@ export async function migrate({ storePath, dbPath, write = false, allowRepairs =
       }
       putMsg.run(int(m.id), str(m.scope, 'chat'), str(m.sender, 'unknown'),
         m.role === 'assistant' ? 'assistant' : 'user', str(m.content), str(m.thinking),
-        str(m.msg_type, 'chat'), parent, JSON.stringify(m.attachments || []),
+        str(m.msg_type, 'chat'), str(m.session_id), parent, JSON.stringify(m.attachments || []),
         bool(m.favorited), bool(m.recalled), str(m.recalled_at), str(m.created_at));
     }
 
