@@ -41,6 +41,26 @@ export function appendText(acc, piece) {
 
 // Fold a batch of transcript entries into deltas. Collects ALL assistant text blocks
 // (not only the final end_turn one) so pre-tool transition text ("let me check…") is kept;
+// 「用了什么工具」和「**改了什么**」是两件事:前者是 `name`,后者藏在 `input` 里。
+// 原来这儿只 push 了 name —— 于是"读了哪个文件、跑了什么命令"在源头就丢了,
+// 后面任何一层都补不回来。这里把 input 折成**一行摘要**跟着走。
+//
+// ★ 只取定位信息,不取内容:`Write.content` / `Edit.new_string` 可能是整个文件,
+//   既没必要也不该原样端到聊天界面上去。文件路径、命令、搜索词足够回答"它动了哪儿"。
+// ★ 硬截断 —— 命令行和路径都可能很长,而这行字最后要挤进一个聊天气泡。
+const ARG_KEYS = ['file_path', 'path', 'command', 'pattern', 'query', 'url', 'notebook_path'];
+export function summarizeToolInput(input) {
+  if (!input || typeof input !== 'object') return '';
+  for (const k of ARG_KEYS) {
+    const v = input[k];
+    if (typeof v === 'string' && v.trim()) {
+      const one = v.replace(/\s+/g, ' ').trim();
+      return one.length > 120 ? `${one.slice(0, 119)}…` : one;
+    }
+  }
+  return '';
+}
+
 // done = an assistant end_turn entry that carries text. Pure — unit-testable.
 export function foldTurnEntries(entries) {
   let thinking = '', text = '', done = false;
@@ -50,7 +70,7 @@ export function foldTurnEntries(entries) {
     for (const b of j.message.content) {
       if (b.type === 'thinking' && b.thinking) thinking += b.thinking;
       else if (b.type === 'text' && b.text) text = appendText(text, b.text);
-      else if (b.type === 'tool_use' && b.name) tools.push(b.name);
+      else if (b.type === 'tool_use' && b.name) tools.push({ name: b.name, arg: summarizeToolInput(b.input) });
     }
     if (j.message.stop_reason === 'end_turn' && j.message.content.some((b) => b.type === 'text')) done = true;
   }
@@ -180,7 +200,7 @@ export function createInteractiveRunner(opts) {
       if (entries.length) lastGrowth = Date.now();
       const fold = foldTurnEntries(entries);
       if (fold.thinking) { thinking += fold.thinking; postConsole('thinking', assistantName, fold.thinking); }
-      for (const name of fold.tools) postConsole('tool', assistantName, `→ ${name}`);
+      for (const t of fold.tools) postConsole('tool', assistantName, t.arg ? `→ ${t.name}  ${t.arg}` : `→ ${t.name}`);
       finalText = appendText(finalText, fold.text); // ALL assistant text (keeps pre-tool transition text)
       if (fold.done) done = true;
     };

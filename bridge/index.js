@@ -22,7 +22,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createInteractiveRunner } from './interactive.js';
+import { createInteractiveRunner, summarizeToolInput } from './interactive.js';
 import { buildPrompt } from './prompt.js';
 import { syncLibrary } from './library.js';
 
@@ -305,7 +305,11 @@ function runClaudeTurn(prompt, resume) {
       if (j.type === 'assistant' && j.message && Array.isArray(j.message.content)) {
         // surface tool calls (incl. MCP) to the live console feed
         for (const block of j.message.content) {
-          if (block && block.type === 'tool_use') postConsole('tool', ASSISTANT_NAME, `→ ${block.name}`);
+          if (block && block.type === 'tool_use') {
+            // 带上 input 的一行摘要 —— 只有工具名回答不了「它动了哪个文件」
+            const arg = summarizeToolInput(block.input);
+            postConsole('tool', ASSISTANT_NAME, arg ? `→ ${block.name}  ${arg}` : `→ ${block.name}`);
+          }
         }
         return;
       }
