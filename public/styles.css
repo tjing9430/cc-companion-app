@@ -341,6 +341,10 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   line-height:1.25;
   padding:0 .18rem;
 }
+/* ★ 私聊里不在自己气泡上面标自己的名字 —— 一对一的对话里,右边那列只可能是你。
+   只限私聊:群聊里发言人是谁仍然要标(那儿不止两个人)。
+   靠 body[data-tab] 限定,不改模板 —— 模板是各页共用的。 */
+body[data-tab="chat"] .message-row.me .msg-sender{display:none}
 /* 反馈#4:每条消息底下 复制/回复/☆/撤回/删除 一整排太重 → 默认只露时间+⋮,点开才出 */
 .msg-more{
   margin-left:.3rem;
