@@ -75,6 +75,16 @@ function bindEvents() {
       await refreshCurrent().catch(handleBackgroundError);
     }
     if (name === 'bridge-dial') return;   // select 走 change 事件,不在 click 里处理
+    if (name === 'pick-since') {
+      // 只把建议值**填进输入框**,不直接落库 —— 让她看见挑的是哪天、能改、按保存才生效。
+      // 「替我挑一个」不该是「替我决定」。
+      const all = [...(state.chat || []), ...(state.group || [])]
+        .map((m) => m && m.created_at).filter(Boolean).sort();
+      const suggestion = (all[0] || new Date().toISOString()).slice(0, 10);
+      const input = document.querySelector('input[name="companion_since"]');
+      if (input) { input.value = suggestion; input.focus(); }
+      return;
+    }
     if (name === 'pick-avatar' || name === 'clear-avatar') {
       const field = action.dataset.field === 'assistant_avatar' ? 'assistant_avatar' : 'user_avatar';
       let url = '';

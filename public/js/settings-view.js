@@ -24,6 +24,17 @@ function renderSettings({ notifySupported, notifyEnabled }) {
             <option value="starry" ${s.theme === 'starry' ? 'selected' : ''}>星空</option>
           </select>
         </div>
+        ${Object.prototype.hasOwnProperty.call(s, 'companion_since') ? `
+        <div class="form-row">
+          <label>陪伴起算日</label>
+          <div class="since-row">
+            <input name="companion_since" type="date" value="${escAttr(s.companion_since || '')}">
+            <button type="button" class="since-pick" data-action="pick-since">替我挑一个</button>
+          </div>
+          <p class="form-hint">${s.companion_since
+            ? `已经一起 ${daysSince(s.companion_since)} 天了`
+            : '没设的话首屏就不显示这句;「替我挑一个」会按你最早那条消息给个建议,你看过再存。'}</p>
+        </div>` : ''}
         ${Object.prototype.hasOwnProperty.call(s, 'user_avatar') ? `
         <div class="form-row avatar-row">
           <label>头像</label>
@@ -205,6 +216,15 @@ function quotaRemainingTime(resetsAt, fetchedAt) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return rest ? `${hours}h${rest}m` : `${hours}h`;
+}
+
+// 「已经一起 N 天」。★ 用**日期**算不用毫秒差:跨时区/夏令时的时候,
+// 毫秒差除以 86400000 会在半夜前后抖出 ±1 天。取两个 UTC 零点再相减就稳。
+function daysSince(iso) {
+  const start = Date.parse(`${iso}T00:00:00Z`);
+  if (Number.isNaN(start)) return 0;
+  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  return Math.max(0, Math.round((today - start) / 86400000)) + 1;   // 当天算第 1 天
 }
 
 function field(name, label, value) {

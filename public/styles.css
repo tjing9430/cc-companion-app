@@ -1738,3 +1738,14 @@ body[data-theme="starry"] .avatar-pick-btn{box-shadow:0 0 10px rgba(231,196,122,
 .usage-text{position:relative;display:block;line-height:20px;text-align:center;
   font-size:.66rem;color:var(--muted);letter-spacing:0}
 body[data-theme="starry"] .usage-fill{opacity:.4}
+
+/* 陪伴起算日 */
+.since-row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.since-row input[type="date"]{
+  flex:0 1 auto;padding:.35rem .5rem;border-radius:var(--radius);
+  border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:.8rem;
+}
+.since-pick{font-size:.72rem;padding:.25rem .6rem;border-radius:var(--radius-pill);
+  border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.since-pick:hover{border-color:var(--accent);color:var(--accent)}
+.form-hint{margin:.3rem 0 0;font-size:.7rem;color:var(--muted)}
