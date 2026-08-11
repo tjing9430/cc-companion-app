@@ -23,7 +23,7 @@ const CSS = fs.readFileSync(
 // 加新界面时把它的根选择器加进来 —— 这份清单的价值全在于它被维护。
 const REQUIRED = [
   '.home-view', '.home-stage', '.home-hero', '.home-sky', '.sky-inner', '.sky-galaxy',
-  '.sky-gates', '.sky-gate', '.sky-dipper', '.sg-star', '.sg-text', '.sg-title', '.home-recent',
+  '.sky-gates', '.sky-gate', '.sky-dipper', '.sg-star', '.sg-text', '.sg-title',
   '.topbar', '.sidebar', '.composer', '.bubble', '.message-list',
   '.cv-strip', '.console-view', '.memory-view', '.chat-view', '.term-view',
   '.event-list', '.memory-list', '.quota-panel',

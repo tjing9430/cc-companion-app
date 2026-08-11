@@ -1956,14 +1956,6 @@ body:not([data-theme="starry"]) .sg-star{height:var(--size);width:auto;flex:0 0 
 body:not([data-theme="starry"]) .sg-text{position:static;transform:none;
   border:0;padding:0;text-align:left}
 
-.home-recent{margin-top:1.6rem;position:relative;z-index:2;padding:0 1rem 1rem}
-.home-recent-head{font-size:.75rem;color:var(--faint);text-align:center;letter-spacing:.2em;margin-bottom:.6rem}
-.home-recent-row{display:flex;justify-content:space-between;align-items:center;gap:.6rem;width:100%;
-  padding:.5rem .7rem;margin-bottom:.35rem;border-radius:var(--radius);
-  background:var(--panel-soft);border:1px solid var(--line-soft);cursor:pointer;color:inherit;text-align:left}
-.rr-title{font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rr-mood{font-size:.7rem;color:var(--muted);flex:0 0 auto}
-
 /* 首屏在星空下不要顶栏那条线,让它像一整块夜空 */
 @media (prefers-reduced-motion:reduce){
   .sg-star{transition:none}

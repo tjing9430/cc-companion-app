@@ -95,8 +95,6 @@ function daysTogether(iso) {
 function renderHome() {
   const s = state.settings || {};
   const days = daysTogether(s.companion_since);
-  // 最近记忆:有就摆几条,没有就整块不出现 —— 空标题配空列表是最难看的一种
-  const recent = (state.memories || []).filter((m) => !m.superseded_by && !m.archived).slice(-3).reverse();
 
   return `
     <div class="home-view">
@@ -157,16 +155,6 @@ function renderHome() {
         </li>
       </ul>
       </div>
-
-      ${recent.length ? `
-      <div class="home-recent">
-        <div class="home-recent-head">最近记忆</div>
-        ${recent.map((m) => `
-          <button type="button" class="home-recent-row" data-action="tab" data-tab="memory">
-            <span class="rr-title">${esc(m.title || '未命名')}</span>
-            <span class="rr-mood">${esc(m.mood || '')}</span>
-          </button>`).join('')}
-      </div>` : ''}
     </div>`;
 }
 
