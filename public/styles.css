@@ -274,7 +274,14 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   padding:.15rem .1rem .25rem;
 }
 .message-row{display:flex;gap:.55rem;align-items:flex-start;min-width:0;width:100%;max-width:100%}
-.message-row.me{justify-content:flex-end}
+/* ★ 自己的消息:头像摆在气泡**右边**。
+   DOM 顺序固定是 avatar → msg-col(为了读屏和 :not(.me) 那边的默认布局),
+   所以这里用 row-reverse 翻过来,而不是去改结构 —— 结构一改,
+   非 me 那边和所有依赖「avatar 在前」的选择器都要跟着动。 */
+.message-row.me{justify-content:flex-end;flex-direction:row-reverse}
+/* 拆出来的后续气泡:名字不重复了,靠上贴紧前一段,读起来才是「同一个人连着说」 */
+.message-row.cont{margin-top:-.25rem}
+.message-row.cont .msg-col{gap:0}
 
 .avatar{
   width:30px;height:30px;

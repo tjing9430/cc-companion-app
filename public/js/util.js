@@ -90,6 +90,51 @@ function memoryMood(memory) {
   return String(memory && memory.mood || '平静').trim();
 }
 
+// 把一段正文按**段落**切成几块,给「长回复拆成几个小气泡」用。
+//
+// ★ 光按空行 split 是不行的:Markdown 里代码块、列表、表格、引用**内部也有空行**,
+//   从中间切断会把一段代码劈成两半、把一个列表拆成两个列表,渲染出来是乱的。
+//   所以只在**段落边界**切,遇到成块的结构就整块留着。
+//
+// 判据:一个空行要不要切,看它前后 —— 前后都还在同一种块结构里(都是列表项/表格行/
+// 引用/缩进代码),那这个空行是结构内部的松散排版,不切;否则才是真正的段落边界。
+const BLOCK_CONT = /^\s{0,3}([-*+]|\d{1,9}[.)])\s+|^\s{0,3}\||^\s{0,3}>|^ {4,}\S/;
+const FENCE = /^\s{0,3}(```+|~~~+)/;
+
+function splitParagraphs(text) {
+  const src = String(text == null ? '' : text);
+  if (!src.trim()) return [];
+  const lines = src.split('\n');
+  const segs = [];
+  let cur = [];
+  let fence = '';
+  const lastNonBlank = () => {
+    for (let i = cur.length - 1; i >= 0; i--) if (cur[i].trim()) return cur[i];
+    return '';
+  };
+  const flush = () => { const seg = cur.join('\n').trim(); if (seg) segs.push(seg); cur = []; };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const f = FENCE.exec(line);
+    if (f) {                                   // 围栏代码块:进去了就一路收到出来为止
+      if (!fence) fence = f[1];
+      else if (line.trim().startsWith(fence[0])) fence = '';
+      cur.push(line);
+      continue;
+    }
+    if (fence || line.trim()) { cur.push(line); continue; }
+    // 空行:往后看到下一个非空行,判断这是不是真的段落边界
+    let j = i + 1;
+    while (j < lines.length && !lines[j].trim()) j++;
+    const next = j < lines.length ? lines[j] : '';
+    if (next && BLOCK_CONT.test(next) && BLOCK_CONT.test(lastNonBlank())) { cur.push(line); continue; }
+    flush();
+  }
+  flush();
+  return segs.length ? segs : [src.trim()];
+}
+
 export {
   esc,
   escAttr,
@@ -105,4 +150,5 @@ export {
   memoryTime,
   memoryMonthLabel,
   memoryMood,
+  splitParagraphs,
 };

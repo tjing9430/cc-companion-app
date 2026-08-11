@@ -1,7 +1,7 @@
 // 聊天页(私聊/群聊共用):消息列表、气泡、引用、附件、贴纸、输入栏草稿。
 // 事件路由留在 app.js 壳里:明天换皮只动这里的渲染,壳不动。
 // 玻璃拟态只给顶栏/输入栏/大卡片,不下放到每条气泡 —— 定稿如此,别扩大化。
-import { esc, escAttr, formatTime, formatDateTime, initials, isWideMessage } from './util.js';
+import { esc, escAttr, formatTime, formatDateTime, initials, isWideMessage, splitParagraphs } from './util.js';
 import { renderMarkdown, mdInline } from './markdown.js';
 import { state, ICONS, TEMP_ID_PREFIX, MAX_ATTACHMENT_BYTES } from './state.js';
 
@@ -109,20 +109,63 @@ function renderMessage(message, opts = {}) {
   }
   if (feat.featureDelete !== false && feat.authEnabled && !message.pending) btns.push(`<button class="del-btn" type="button" data-action="delete-message" data-id="${idAttr}" aria-label="删除">删除</button>`);
   if (opts.showJump) btns.push(`<button class="jump-btn" type="button" data-action="jump-to" data-id="${idAttr}" aria-label="跳到原文">跳转</button>`);
-  const bubbleInner = recalled
-    ? `<div class="recalled-note">${isMe ? '你撤回了一条消息' : `${esc(message.sender)} 撤回了一条消息`}</div>`
-    : `${message.thinking ? `<div class="thinking">💭 ${esc(message.thinking)}</div>` : ''}${renderQuotedParent(message)}${text ? `<div class="body-text md">${renderMarkdown(text)}</div>` : ''}${attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : ''}`;
-  return `
+  const footer = `<div class="msg-time">${formatTime(message.created_at)}${btns.length ? `<button class="msg-more" type="button" data-action="toggle-msg-actions" data-id="${idAttr}" aria-label="更多操作" aria-expanded="${String(state.openMsgActions || '') === String(message.id)}">⋮</button><span class="msg-actions">${btns.join(' ')}</span>` : ''}</div>`;
+
+  if (recalled) {
+    return `
+    <article class="${classes}" id="msg-${idAttr}">
+      ${avatarHtml(message)}
+      <div class="msg-col">
+        <div class="msg-sender">${esc(message.sender)}</div>
+        <div class="bubble"><div class="recalled-note">${isMe ? '你撤回了一条消息' : `${esc(message.sender)} 撤回了一条消息`}</div></div>
+        ${footer}
+      </div>
+    </article>`;
+  }
+
+  // ★ 长回复按段落拆成几个小气泡,每个自带头像 —— 这是明确要的效果。
+  //   切法见 util.splitParagraphs:**只在段落边界切**,代码块/列表/表格/引用整块不拆,
+  //   否则一段代码会被劈成两半。
+  // ★ 拆开之后的分工:名字只挂第一条(不然一串重复的名字),
+  //   时间和操作按钮只挂最后一条(它们属于「这条消息」,不属于每一段),
+  //   附件也跟在最后 —— 图片跟在正文说完之后出现,顺序才对。
+  //   `id="msg-N"` 只给第一条:跳转锚点必须唯一。
+  const segments = text ? splitParagraphs(text) : [];
+  const head = `${message.thinking ? `<div class="thinking">💭 ${esc(message.thinking)}</div>` : ''}${renderQuotedParent(message)}`;
+
+  if (segments.length <= 1) {
+    const inner = `${head}${text ? `<div class="body-text md">${renderMarkdown(text)}</div>` : ''}${attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : ''}`;
+    return `
     <article class="${classes}" id="msg-${idAttr}">
       ${avatarHtml(message)}
       <div class="msg-col">
         <div class="msg-sender">${esc(message.sender)}</div>
         <div class="bubble">
-          ${bubbleInner}
+          ${inner}
         </div>
-        <div class="msg-time">${formatTime(message.created_at)}${btns.length ? `<button class="msg-more" type="button" data-action="toggle-msg-actions" data-id="${idAttr}" aria-label="更多操作" aria-expanded="${String(state.openMsgActions || '') === String(message.id)}">⋮</button><span class="msg-actions">${btns.join(' ')}</span>` : ''}</div>
+        ${footer}
       </div>
     </article>`;
+  }
+
+  return segments.map((seg, i) => {
+    const first = i === 0;
+    const last = i === segments.length - 1;
+    const rowClass = `${classes}${first ? '' : ' cont'}`;
+    const inner = `${first ? head : ''}<div class="body-text md">${renderMarkdown(seg)}</div>`
+      + (last && attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : '');
+    return `
+    <article class="${rowClass}"${first ? ` id="msg-${idAttr}"` : ''}>
+      ${avatarHtml(message)}
+      <div class="msg-col">
+        ${first ? `<div class="msg-sender">${esc(message.sender)}</div>` : ''}
+        <div class="bubble">
+          ${inner}
+        </div>
+        ${last ? footer : ''}
+      </div>
+    </article>`;
+  }).join('');
 }
 
 function renderAttachment(file) {
