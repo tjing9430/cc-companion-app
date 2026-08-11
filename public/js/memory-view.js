@@ -1,5 +1,5 @@
 // 记忆页全家:首屏三张撕纸便签 / 日记列表 / 全屏本子 / 写日记 / 资料库。
-// 事件路由留在 app.js 壳里(沈屿 #7176):换皮只动渲染,壳不动。
+// 事件路由留在 app.js 壳里:换皮只动渲染,壳不动。
 // ★ 记忆页 UI 明天不许动(星空主题的红线),所以这一刀纯搬位置,一个字节没改渲染。
 import { esc, escAttr, formatDateTime, formatDocSize, memoryTime, memoryMonthLabel, memoryMood } from './util.js';
 import { state, memoryAuthor } from './state.js';
@@ -88,7 +88,7 @@ function renderMemory() {
       <button type="button" class="${view === 'cards' ? 'on' : ''}" data-action="memory-view" data-view="cards">卡片</button>
       <button type="button" class="${view === 'timeline' ? 'on' : ''}" data-action="memory-view" data-view="timeline">时间线</button>
     </div>`;
-  // 全部条目是「翻库」的地方:搜索框和标签一直摆在外面,跟内容一起往上滚(反馈 #47455)
+  // 全部条目是「翻库」的地方:搜索框和标签一直摆在外面,跟内容一起往上滚
   // 日记只有几篇、要留白,还是收在放大镜里
   if (isAll) {
     return `
@@ -198,8 +198,8 @@ function renderDocItem(doc) {
     </article>`;
 }
 
-// 六个快选 + 「自己写一个」输入框 —— 沈屿的心情是自由短语,规格不对齐就一眼看得出
-// 谁是系统给的、谁是自己写的(小匠 #7023)
+// 六个快选 + 「自己写一个」输入框 —— 心情本身是自由短语,规格不对齐就一眼看得出
+// 谁是系统给的、谁是自己写的
 const MEMORY_MOODS = ['☀ 晴', '☁ 阴', '☂ 雨天', '✿ 雀跃', '· 平静', '~ 疲惫'];
 
 function renderMemoryWriter(editing, editMood, editAuthor, editTags) {
@@ -239,7 +239,7 @@ const MEMORY_MOON = '<svg class="memory-moon" viewBox="0 0 12 12" aria-hidden="t
 const ICON_SEARCH = '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.25"/><path d="M10.2 10.2 13.5 13.5"/></svg>';
 
 // 卡片 = 标题(可换行) + 心情签右上 / 月牙·作者·时间 / 细线 / [编辑][删除]
-// 不放正文预览:点标题进全屏本子看全文(反馈 #7012「下面不要内容,是编辑/删除」)
+// 不放正文预览:点标题进全屏本子看全文(卡片下面不放正文,只放编辑/删除)
 function renderMemoryItem(memory) {
   const mood = memoryMood(memory);
   const author = memoryAuthor(memory);

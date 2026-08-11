@@ -23,11 +23,11 @@ const { store } = await import('../lib/state.js');
 const { selectRelevantMemories, findSimilarMemory, activeMemories } = await import('../lib/memory.js');
 
 const OLD = {
-  id: 1, title: '住处', content: '宝宝住在长沙', tags: ['fact'], fact_key: '住处',
+  id: 1, title: '住处', content: '小南住在青禾镇', tags: ['fact'], fact_key: '住处',
   pinned: false, created_at: '2026-08-01T00:00:00.000Z', updated_at: '2026-08-01T00:00:00.000Z',
 };
 const NEW = {
-  id: 2, title: '住处', content: '宝宝搬到湘潭了', tags: ['fact'], fact_key: '住处',
+  id: 2, title: '住处', content: '小南搬到白露城了', tags: ['fact'], fact_key: '住处',
   superseded_by: null, superseded_at: '',
   pinned: false, created_at: '2026-08-10T00:00:00.000Z', updated_at: '2026-08-10T00:00:00.000Z',
 };
@@ -67,7 +67,7 @@ test('置顶的被顶替记忆也不许翻墙', () => {
 
 test('去重只跟在效的比:被顶替的旧事实不该挡住新记忆入库', () => {
   seed(2);
-  assert.equal(findSimilarMemory('宝宝住在长沙'), null,
+  assert.equal(findSimilarMemory('小南住在青禾镇'), null,
     '拿一条已被顶替的旧事实去挡新记忆,等于让过时内容继续说话');
 });
 

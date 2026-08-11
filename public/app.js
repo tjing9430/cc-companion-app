@@ -900,7 +900,7 @@ function renderAuth() {
 }
 
 function renderTopbar() {
-  // 记忆 tab 的顶栏跟着小 tab 走 —— 页里不再重复一遍标题(反馈 #47434)
+  // 记忆 tab 的顶栏跟着小 tab 走 —— 页里不再重复一遍标题
   const mem = state.tab === 'memory' ? memoryTabHeading() : null;
   const title = mem ? mem.title : (state.tab === 'chat'
     ? state.settings.assistantName
@@ -1761,7 +1761,7 @@ function applyTheme() {
    Safety model: esc() the whole string FIRST, then run regexes over the escaped text.
    Any <script> in the source is already &lt;script&gt; by then, so the tags this
    function inserts are the only HTML in the output.
-   Scope kept narrow (shenyu: don't do the full spec): bold / italic / inline code /
+   Scope kept deliberately narrow (not the full spec): bold / italic / inline code /
    code fence / links, plus the "- list" and "# heading" bao named. No tables,
    blockquotes, images, or nested lists. */
 

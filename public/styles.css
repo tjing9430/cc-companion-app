@@ -1339,7 +1339,7 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
 /* console 命令栏:同一套胶囊,但里面没有表情键,左右内边距对称即可 */
 .console-command .composer-field{padding:2px 8px}
 
-/* ============ 记忆页:日记卡片 + 全屏本子(反馈 #7012/#7014,照用户的 App 日记流做) ============ */
+/* ============ 记忆页:日记卡片 + 全屏本子(照手写日记流的观感做) ============ */
 .memory-card{
   background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;
   padding:.85rem .85rem .6rem;margin-bottom:.7rem;box-shadow:0 1px 2px rgba(90,70,50,.05);
@@ -1502,7 +1502,7 @@ body[data-theme="starry"] .mem-note-tape{
 /* 关了动效就别转纸片 —— 只留质感,不留歪斜 */
 @media (prefers-reduced-motion: reduce){ .mem-note{transform:none!important} }
 
-/* 记忆 tab 的顶栏标题走行楷:页里不再重复标题,这里就是唯一那一个(反馈 #47434) */
+/* 记忆 tab 的顶栏标题走行楷:页里不再重复标题,这里就是唯一那一个 */
 .topbar-paper h1{font-family:'HangkaiUI',var(--font-serif,Georgia),serif;font-weight:400;letter-spacing:.02em}
 /* 手机上顶栏副标题本来是藏的(聊天页省地方);记忆页的条数现在只剩这一处 → 放出来 */
 @media (max-width:480px){
@@ -1518,7 +1518,7 @@ body[data-theme="starry"] .mem-note-tape{
 }
 .topbar-back:active{opacity:.55}
 
-/* 全部条目 = 翻库页:搜索框和标签摆在外面,跟内容一起往上滚(反馈 #47455) */
+/* 全部条目 = 翻库页:搜索框和标签摆在外面,跟内容一起往上滚 */
 /* .memory-view 是 grid;栅格项 min-width 默认 auto = 不肯缩到内容宽以下,
    一行 nowrap 标签就能把整列撑爆、连搜索框和卡片一起拉宽 → 必须显式归零 */
 .mem-lib>*{min-width:0}
