@@ -148,8 +148,10 @@ verify 放到 Phase D 一起测。
 
 先跟用户讲清楚这条路的本质：
 
-> 这种模式用你本机的 **Claude Code CLI** 当后端——走你的 Claude 订阅、**不用 API key**、自带 MCP 工具。仓库里自带一个小 bridge（`bridge/` 目录），它假装成一个 OpenAI 兼容服务、底层跑 `claude -p`。App 照常把消息发给它，回复回到私聊、工具调用实时进 Console。
-> 已知限制：订阅态 headless `claude -p` 不吐原始思考（只有加密签名）——所以这条路暂时看不到 thinking 卡片，Console 显示实时工具活动代替。补回 thinking 是 roadmap 的 v1.1。
+> 这种模式用你本机的 **Claude Code CLI** 当后端——走你的 Claude 订阅、**不用 API key**、自带 MCP 工具。仓库里自带一个小 bridge（`bridge/` 目录），它假装成一个 OpenAI 兼容服务、底层驱动你本机的 Claude Code CLI。App 照常把消息发给它，回复回到私聊、工具调用实时进 Console。
+> 两种模式，由 `.env` 里的 `BRIDGE_MODE` 决定，**默认 `interactive`**：
+> - **`interactive`（默认）**：在伪终端里驱动一个真正的交互式 CLI，再读会话 transcript——**thinking 卡片看得见**。**需要 Linux 或 WSL**（用到 util-linux 的 `script`）。
+> - **`print`**：headless `claude -p`，跨平台、更快，但**没有 thinking**（订阅态 headless 只吐加密签名）。macOS / Windows 用户在 `.env` 里加一行 `BRIDGE_MODE=print`。
 > 前提：你本机已装好并能跑 Claude Code CLI（`npm install -g @anthropic-ai/claude-code`、已登录订阅、终端里敲 `claude` 能用）。
 
 > 第一步，打开项目里的 `.env`，把 provider 指到 bridge（填这三行）：
@@ -190,7 +192,7 @@ verify 放到 Phase D 一起测。
 期望：
 - **mock**：回一句「演示 AI 在私聊里收到了…」。
 - **OpenAI**：回一句真实模型生成的话。
-- **Claude Code（bridge）**：回一句来自你本机 Claude Code 的话；Console 里能看到工具调用（订阅态暂时没有 thinking 卡片）。
+- **Claude Code（bridge）**：回一句来自你本机 Claude Code 的话；Console 里能看到工具调用，默认的 `interactive` 模式下还能看到 thinking 卡片（设成 `print` 就没有）。
 
 排查：
 - 一直没回、控台「thinking」不动 → 看跑 `npm start` 的终端有没有报错贴给我。

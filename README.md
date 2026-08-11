@@ -284,8 +284,6 @@ API 路由总表、控制台命令的适配器 JSON 协议等长内容都在上�
 - **影院**：共享放映厅，本地字幕、进度同步，音乐架在路上
 - **纪念日卡片**：轻量日期管理，助手不错过生日和纪念日
 
-欢迎开 issue 投票你最想要哪个。
-
 ## 致谢
 
 - [CyberSealNull/CcCompanion](https://github.com/CyberSealNull/CcCompanion)（电脑眠眠豹）——iOS 版 Claude Code 口袋客户端。看到它才动手补了这个 Web/Android 侧的实现；代码为独立编写，方向上它是先行者。

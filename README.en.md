@@ -364,8 +364,6 @@ These features are already running in the authors' upstream setup and are being 
 - **Cinema** — a shared media room for watching films with local subtitles; progress sync and a music shelf are in the works.
 - **Anniversary cards** — lightweight date tracking so the assistant never misses a birthday or an anniversary.
 
-Issues and votes on what should land first are welcome.
-
 ## Credits
 
 - [CyberSealNull/CcCompanion](https://github.com/CyberSealNull/CcCompanion) — the iOS pocket client for Claude Code that inspired this project. Seeing the iOS version is what prompted this independent Web/Android-side implementation; it came first in this direction.

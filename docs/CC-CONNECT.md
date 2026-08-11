@@ -11,7 +11,7 @@ install.
 
 ## How it works
 
-The app already speaks the OpenAI chat-completions shape (see [Mode 1](../README.md#mode-1-standalone-api-direct)).
+The app already speaks the OpenAI chat-completions shape (see [Mode 1](../README.en.md#mode-1-standalone-api-direct)).
 The bridge implements that same shape locally and runs the Claude Code CLI for each turn,
 so **no `server.js` changes are needed** — you just point the app's provider settings at
 the bridge.
@@ -183,7 +183,7 @@ reach its port can spend your Claude usage. It binds to `127.0.0.1` by default.
 
 - Do **not** set `BRIDGE_HOST=0.0.0.0` or expose the bridge port on a public interface.
 - To use the app from your phone, expose the **app** (port 8787) behind auth + HTTPS
-  (see [Install It On Your Phone](../README.md#install-it-on-your-phone)), and keep the bridge local.
+  (see [Install It On Your Phone](../README.en.md#install-it-on-your-phone)), and keep the bridge local.
 - The bridge logs a warning if it is bound to a non-local address.
 
 ## FAQ
