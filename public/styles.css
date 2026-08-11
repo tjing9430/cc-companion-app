@@ -1786,9 +1786,9 @@ body[data-theme="starry"] .term-view{background:rgba(6,10,24,.55)}
 .tl-raw{color:var(--muted);opacity:.85}
 .tl-raw:nth-child(odd){opacity:.75}
 
-/* ============ 首屏:星河 + 四个入口 ============ */
-.home-view{padding:1.1rem 1rem 2rem;position:relative}
-.home-head{position:relative;z-index:2}
+/* ============ 首屏:沉浸式星河导航页 ============ */
+.home-view{padding:1.1rem 0 2rem;position:relative}
+.home-hero{position:relative;z-index:2;padding:0 1rem}
 .home-brand{font-size:1.05rem;letter-spacing:.04em;color:var(--accent);font-weight:600}
 .home-who{display:flex;align-items:center;gap:.6rem;margin:.9rem 0 1.3rem}
 .home-avatar{width:44px;height:44px;border-radius:50%;overflow:hidden;flex:0 0 auto;
@@ -1802,56 +1802,77 @@ body[data-theme="starry"] .term-view{background:rgba(6,10,24,.55)}
 .home-days b{color:var(--accent);font-size:1.15rem;font-weight:600;margin:0 .15rem}
 .home-ask{margin:.55rem 0 0;font-size:.8rem;color:var(--faint)}
 
-/* 河从问候语底下就开始淌,一直到最近记忆之前 —— 它是这一屏的主角,不是图标的背景 */
-.home-river{position:relative;margin-top:.6rem;min-height:640px}
-.river-line{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:0}
-body[data-theme="starry"] .river-line{opacity:1}
-/* 星尘一颗颗自己眨,错开相位 —— 整条河一起闪会像故障灯 */
-.river-line .dust{animation:cc-twinkle var(--dur,3s) ease-in-out var(--delay,0s) infinite}
-/* 光带缓慢呼吸,幅度很小:让它「活着」,但不至于变成会动的广告牌 */
-body[data-theme="starry"] .rv-band{animation:cc-river-breathe 7s ease-in-out infinite}
-body[data-theme="starry"] .rv-haze{animation:cc-river-breathe 11s ease-in-out infinite reverse}
-@keyframes cc-river-breathe{0%,100%{opacity:.30}50%{opacity:.62}}
-/* 入口星的光晕加重 —— 样稿里每颗星都是自带光环的,不是贴图平摆 */
-body[data-theme="starry"] .gate-star{
-  filter:drop-shadow(0 0 14px rgba(231,196,122,.55)) drop-shadow(0 0 30px rgba(169,140,240,.28));
-}
-body[data-theme="starry"] .gate-title{
-  background:rgba(20,26,52,.72);border-color:rgba(231,196,122,.35);
-  box-shadow:0 0 18px rgba(231,196,122,.10);
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-}
-@media (prefers-reduced-motion:reduce){
-  .river-line .dust,body[data-theme="starry"] .rv-band,body[data-theme="starry"] .rv-haze{animation:none!important}
-}
-.home-gates{list-style:none;margin:0;padding:.8rem 0 1.2rem;display:flex;flex-direction:column;gap:1.9rem;position:relative;z-index:1}
-/* 入口沿着河道左右错开,不是一条直线 —— 直线就没有「挂在河上」的意思了 */
-/* 五颗沿河道错开。★ 390px 要放得下五颗:间距 2.6→1.9rem、缩进也压一档。
-   挤成一坨和排成直线都会让「挂在河上」的意思消失。 */
-.gate-0{margin-left:0}
-.gate-1{margin-left:2.2rem}
-.gate-2{margin-left:.4rem}
-.gate-3{margin-left:2.6rem}
-.gate-4{margin-left:.8rem}
-.home-gate button{
-  display:flex;align-items:center;gap:.85rem;width:100%;padding:0;
-  background:none;border:0;cursor:pointer;text-align:left;color:inherit;
-}
-.gate-star{width:var(--gate-size,64px);height:var(--gate-size,64px);flex:0 0 auto;
-  display:grid;place-items:center}
-.gate-star img{width:100%;height:100%;object-fit:contain;display:block}
-body[data-theme="starry"] .gate-star{filter:drop-shadow(0 0 12px rgba(231,196,122,.28))}
-.gate-text{display:flex;flex-direction:column;gap:.2rem;min-width:0}
-.gate-title{font-size:1rem;font-weight:600;letter-spacing:.02em;
-  padding:.28rem .8rem;border-radius:var(--radius-pill);
-  background:var(--panel-soft);border:1px solid var(--line);white-space:nowrap}
-.gate-title em{font-style:normal;color:var(--accent);margin-left:.2rem}
-.gate-hint{font-size:.72rem;color:var(--muted);padding-left:.85rem}
-.home-gate button:hover .gate-title{border-color:var(--accent);color:var(--accent-strong)}
-.home-gate button:active .gate-star{transform:scale(.94)}
-.gate-star{transition:transform .16s ease}
+/* --- 银河层 ---
+   ★ .home-sky 的 aspect-ratio 必须**等于银河图自己的宽高比**(820/1230)。
+     这不是排版偏好,是坐标系的地基:星星的 --x/--y 是从这张图的像素里算出来的,
+     只有容器和图**同比**、图又 100% 铺满容器,那组百分比才落在带子上。
+     一旦改成 object-fit:cover 之类会裁切的摆法,图被裁掉多少,星星就偏多少。 */
+.home-sky{position:relative;width:100%;aspect-ratio:820/1230;margin:.4rem 0 .2rem}
+.sky-galaxy{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;
+  pointer-events:none;z-index:0;opacity:0;transition:opacity .5s ease}
+body[data-theme="starry"] .sky-galaxy{opacity:1}
 
-.home-recent{margin-top:2rem;position:relative;z-index:2}
+/* 银河之外补的稀疏微光。密度压得低 —— 银河图自己就带颗粒,
+   这层再铺满,两层颗粒会互相打架糊成噪点。 */
+.sky-dust{position:absolute;inset:0;pointer-events:none;z-index:1;opacity:0}
+body[data-theme="starry"] .sky-dust{opacity:1}
+.sky-dust .sd{position:absolute;border-radius:50%;background:#EAE2FF;
+  opacity:var(--o,.4);animation:cc-twinkle var(--dur,3s) ease-in-out var(--delay,0s) infinite}
+.sky-dust .sd-spark{position:absolute;width:var(--s,10px);height:var(--s,10px);
+  background:radial-gradient(circle,rgba(255,246,220,.95) 0%,rgba(255,246,220,0) 62%);
+  animation:cc-spark 6s ease-in-out var(--delay,0s) infinite}
+.sky-dust .sd-spark::before,.sky-dust .sd-spark::after{content:"";position:absolute;
+  left:50%;top:50%;background:linear-gradient(transparent,rgba(255,246,220,.9),transparent)}
+.sky-dust .sd-spark::before{width:1px;height:220%;transform:translate(-50%,-50%)}
+.sky-dust .sd-spark::after{width:220%;height:1px;transform:translate(-50%,-50%)}
+@keyframes cc-spark{0%,100%{opacity:.15;transform:scale(.7)}50%{opacity:.85;transform:scale(1)}}
+
+/* --- 五个入口:钉在银河上 --- */
+.sky-gates{list-style:none;margin:0;padding:0;position:absolute;inset:0;z-index:2}
+/* ★ 定位的是**星**本身,不是「星+文字」这个整体:
+     整体居中的话,文字一长一短就会把星推得偏离算出来的落点。 */
+/* ★ 只定高、宽度交给图自己(width:auto)。
+     素材是 512×768 的竖图,塞进正方形盒子 contain 会白白缩掉 1/3 ——
+     盒子跟着图的比例走,--size 才等于「图有多高」。 */
+.sky-gate{position:absolute;left:var(--x);top:var(--y);height:var(--size);
+  transform:translate(calc(-50% + var(--nudge,0px)),-50%)}
+.sky-gate button{position:relative;height:100%;width:auto;padding:0;display:block;
+  background:none;border:0;cursor:pointer;color:inherit}
+.sg-star{display:block;height:100%;width:auto;transition:transform .18s ease}
+.sg-star img{height:100%;width:auto;object-fit:contain;display:block}
+body[data-theme="starry"] .sg-star{
+  filter:drop-shadow(0 0 14px rgba(231,196,122,.5)) drop-shadow(0 0 30px rgba(169,140,240,.26));
+}
+/* 文字轻轻挨在星旁边,不做成胶囊按钮 —— 设计稿点名不要「五个一样的大按钮」。
+   只给一道极细的低透明度金线当分隔,不给底色。 */
+.sg-text{position:absolute;top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:.12rem;white-space:nowrap;pointer-events:none}
+.sg-right .sg-text{left:calc(100% + .45rem);text-align:left;
+  padding-left:.55rem;border-left:1px solid rgba(231,196,122,.22)}
+.sg-left .sg-text{right:calc(100% + .45rem);text-align:right;
+  padding-right:.55rem;border-right:1px solid rgba(231,196,122,.22)}
+.sg-title{font-size:.92rem;font-weight:600;letter-spacing:.03em;color:var(--text)}
+.sg-hint{font-size:.68rem;color:var(--muted);letter-spacing:.01em}
+body[data-theme="starry"] .sg-title{text-shadow:0 0 12px rgba(9,14,32,.9)}
+body[data-theme="starry"] .sg-hint{color:#9BA9CF;text-shadow:0 0 10px rgba(9,14,32,.9)}
+.sky-gate button:hover .sg-star{transform:scale(1.07)}
+.sky-gate button:active .sg-star{transform:scale(.95)}
+.sky-gate button:hover .sg-title{color:var(--accent-strong)}
+
+/* --- 非星空主题:银河不出场,入口退回一条朴素的竖列 ---
+   一张深空银河压在米色底上会很脏。不为了好看去绑架主题选择。 */
+body:not([data-theme="starry"]) .home-sky{aspect-ratio:auto;padding:0 1rem}
+body:not([data-theme="starry"]) .sky-gates{position:static;display:flex;
+  flex-direction:column;gap:1.25rem;padding:.6rem 0}
+body:not([data-theme="starry"]) .sky-gate{position:static;transform:none;
+  width:auto;height:auto}
+body:not([data-theme="starry"]) .sky-gate button{display:flex;align-items:center;
+  gap:.85rem;width:100%;height:auto;text-align:left}
+body:not([data-theme="starry"]) .sg-star{height:var(--size);width:auto;flex:0 0 auto}
+body:not([data-theme="starry"]) .sg-text{position:static;transform:none;
+  border:0;padding:0;text-align:left}
+
+.home-recent{margin-top:1.2rem;position:relative;z-index:2;padding:0 1rem}
 .home-recent-head{font-size:.75rem;color:var(--faint);text-align:center;letter-spacing:.2em;margin-bottom:.6rem}
 .home-recent-row{display:flex;justify-content:space-between;align-items:center;gap:.6rem;width:100%;
   padding:.5rem .7rem;margin-bottom:.35rem;border-radius:var(--radius);
@@ -1860,8 +1881,10 @@ body[data-theme="starry"] .gate-star{filter:drop-shadow(0 0 12px rgba(231,196,12
 .rr-mood{font-size:.7rem;color:var(--muted);flex:0 0 auto}
 
 /* 首屏在星空下不要顶栏那条线,让它像一整块夜空 */
-body[data-theme="starry"] .topbar:has(+ .content .home-view){border-bottom-color:transparent}
-@media (prefers-reduced-motion:reduce){ .gate-star{transition:none} }
+@media (prefers-reduced-motion:reduce){
+  .sg-star{transition:none}
+  .sky-dust .sd,.sky-dust .sd-spark{animation:none!important}
+}
 
 /* 首屏是落地页:顶栏让位,页面自己带标题(避免和「记忆页」当初一样标题重复两遍) */
 .topbar.topbar-home{background:transparent;border-bottom-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
