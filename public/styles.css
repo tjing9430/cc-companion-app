@@ -1872,7 +1872,19 @@ body[data-theme="starry"] .topbar:has(+ .content .home-view){border-bottom-color
 }
 .topbar-home-btn:hover{color:var(--accent-strong);transform:scale(1.12)}
 .topbar-home-btn{transition:transform .15s ease}
-/* 首屏自己占满,不留底栏的位置 */
+/* 首屏自己占满:顶栏和底栏都**不留占位**,星河从最上面淌到最下面。
+   ★ 顶栏是整条 display:none,不是只把标题文字藏掉 ——
+     上一版只写了 `.topbar-home .topbar-title-text{display:none}`,
+     文字没了但那条 ~58px 的栏还在,首屏顶上就空一块。**藏内容 ≠ 不占位。**
+   ★ 底栏同理:.sidebar 早就 display:none 了,可 `.main` 上那句
+     `padding-bottom:calc(58px + safe-area)`(手机档给固定底栏留的)没跟着撤,
+     于是底下白留 58px。**隐藏了那个元素,不等于撤掉了为它预留的空间。**
+   ★ 「AI 在线」不会因此丢:首屏自己的 .home-who 就在显示它,不是删掉一个唯一入口。
+   ★ 顶栏没了就得自己让开刘海/状态栏,所以补 safe-area-inset-top;
+     底下同理补 inset-bottom,别让最后一颗星压在home indicator 上。 */
+body:has(.home-view) .topbar{display:none}
 body:has(.home-view) .sidebar{display:none}
-body:has(.home-view) .main{max-height:100vh}
+body:has(.home-view) .main{max-height:100vh;padding-bottom:0}
+body:has(.home-view) .content{padding:calc(.4rem + env(safe-area-inset-top)) 0 0}
+body:has(.home-view) .home-view{padding-bottom:calc(1.5rem + env(safe-area-inset-bottom))}
 
