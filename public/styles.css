@@ -681,7 +681,9 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
 .attachments{display:grid;gap:.45rem;margin-top:.55rem}
 .attachment-image{
   display:block;width:auto;height:auto;
-  max-width:min(320px,64vw);max-height:40vh;
+  /* ★ 约屏宽三分之一(需求方原话)。原来是 64vw —— 一张图占掉三分之二屏,
+     整条消息就只剩图了。34vw 在 390 上 ≈ 133px,缩略图该有的分量。 */
+  max-width:min(200px,34vw);max-height:40vh;
   object-fit:contain;
   background:var(--panel-2);
   border-radius:8px;
@@ -1358,7 +1360,9 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
   .msg-col{max-width:88%;min-width:0}
   .message-row.wide .msg-col{width:88%;flex-basis:88%}
   .bubble{font-size:.92rem}
-  .attachment-image{max-width:72vw}
+  /* ★ 窄屏原来是**放宽**到 72vw —— 屏越小图越占满,方向反了。
+     跟上面统一成三分之一,窄屏略放一点点(38vw)免得缩成邮票。 */
+  .attachment-image{max-width:38vw}
   .quota-panel{padding:.62rem .65rem;gap:.5rem}
   .quota-title{font-size:.86rem;margin-bottom:.2rem}
   .quota-note{font-size:.72rem;line-height:1.32}
