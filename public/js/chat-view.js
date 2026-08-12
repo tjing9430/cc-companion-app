@@ -401,7 +401,12 @@ function renderChatToolsMenu(scope) {
 
 function renderChatSearchBtn(scope) {
   const open = !!(state.chatSearchOpen && state.chatSearchOpen[scope]);
-  return `<button class="fav-filter${open ? ' on' : ''}" type="button" data-action="toggle-chat-search" data-scope="${escAttr(scope)}" aria-label="搜索聊天">🔍</button>`;
+  // ★ 不用 emoji:🔍 在不同系统上是不同的画(苹果彩色放大镜 / 安卓扁平 / Windows 又一版),
+  //   而且大小和基线各家不一样,跟旁边的 ⋯ 永远对不齐。纯 CSS 画的形状到处一模一样。
+  //   镜片 = 圆环(border+border-radius),把手 = 一根旋转 45° 的短线。
+  //   打开时那圈描边慢慢转一下(cc-lens-spin),表示"在搜"——比换颜色更好认,
+  //   而且 prefers-reduced-motion 下自动停,不会变成一个一直在动的干扰源。
+  return `<button class="fav-filter lens-btn${open ? ' on' : ''}" type="button" data-action="toggle-chat-search" data-scope="${escAttr(scope)}" aria-label="搜索聊天"><span class="lens" aria-hidden="true"></span></button>`;
 }
 
 function renderFavFilterBtn(scope) {
