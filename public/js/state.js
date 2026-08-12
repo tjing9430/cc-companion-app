@@ -53,6 +53,9 @@ const state = {
   // 版本号由 /api/bootstrap 送来(服务端从 package.json 现读)。
   // ★ 默认空串:拿不到就**不显示版本那一行**,不摆一个写死的数字冒充。
   appVersion: '',
+  // 这台机器上真正装着的离线缓存桶名(= Service Worker 版本)。
+  // ★ 空串 = 还没查过,不是"没有"。展开「关于」时才去问一次。
+  swVersion: '',
   // 桥的档位/用量快照。available:false = 这个部署没有桥,控制台不摆那块面板。
   bridge: { available: false },
   // 真 console 的 live tail。★ **只活在内存里** —— 不落库、不进 localStorage、

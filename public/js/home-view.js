@@ -89,6 +89,20 @@ const GATES = [
 //    ⇒ 缩放量若改动(比如 12% → 30%),上面那句结论作废,要重新量。
 //    写成「12% 这一档」而不是「无关」,是为了让改这个数的人知道他得回来重跑 ——
 //    写「无关」他就不会回来了。
+// 图没到时那个位置得有东西在 —— 空着会被读成"坏了",有个暗的圆会被读成"还没亮"。
+//
+// ★ 为什么需要这个:那六张图第一次被请求,是在**首屏第一次挂载**的时候。
+//   如果用户先进私聊再跳回首屏,在那一下之前谁都没要过它们 ——
+//   Service Worker 的 stale-while-revalidate 拿不到 cached,只能等网络,
+//   于是入口图标集体空白几百毫秒。预下清单能补上这个空,但**每发一次版就换一次缓存桶**,
+//   新 install 重拉近 1MB,那个窗口里同样的画面会再来一次。
+//   ⇒ 占位底不追缓存时序,它让**任何**缓存状态下的这一下都读起来是良性的。
+//
+// ★ 用 onload 打标记而不是「一直垫在底下」:徽章本身是带透明的,
+//   永久垫一个圆会在每颗星背后加一层它本来没有的光晕 —— 那是改设计,不是兜底。
+//   onerror 不清标记是**故意的**:图真的挂了就该一直显示占位,那正是"没亮"。
+const LIT = 'onload="this.parentNode.classList.add(\'lit\')"';
+
 const BADGE_SCALE = 0.88;
 function starSrc(s, g) {
   return `/assets/badges/${g.tab === 'chat' ? 'private' : g.tab}.webp`;
@@ -175,7 +189,7 @@ function renderHome() {
         ${layoutGates(onRiver.map((g) => ({ ...g, hintText: g.hint(s) }))).map((g) => `
           <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${(g.size * BADGE_SCALE).toFixed(2)}%">
             <button type="button" data-action="tab" data-tab="${g.tab}">
-              <span class="sg-star"><img src="${starSrc(s, g)}" alt=""></span>
+              <span class="sg-star"><img src="${starSrc(s, g)}" alt="" ${LIT}></span>
               <span class="sg-text">
                 <span class="sg-title">${esc(g.title)}</span>
                 <span class="sg-hint">${esc(g.hintText)}</span>
@@ -184,7 +198,7 @@ function renderHome() {
           </li>`).join('')}
         <li class="sky-gate sky-dipper sg-${DIPPER.side}" style="--x:${DIPPER.x}%;--y:${DIPPER.y}%;--size:${DIPPER.size}%">
           <button type="button" data-action="tab" data-tab="${DIPPER.tab}">
-            <span class="sg-star"><img src="${dipperSrc(s)}" alt=""></span>
+            <span class="sg-star"><img src="${dipperSrc(s)}" alt="" ${LIT}></span>
             <span class="sg-text">
               <span class="sg-title">${esc(DIPPER.title)}</span>
               ${overflow.length ? `<span class="sg-hint">还有 ${overflow.length} 个</span>` : ''}

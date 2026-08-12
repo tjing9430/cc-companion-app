@@ -101,7 +101,27 @@ function renderAbout(s) {
       ${state.appVersion ? `<span>v${esc(state.appVersion)}</span>` : ''}
       <p>自己架的 AI 陪伴 App。星盘上空着的位子是留给你的：<br>
          改 <code>public/js/more-view.js</code> 里的 <code>SLOTS</code>，加一行就多一个功能。</p>
+      <p class="md-sw">离线缓存：<code>${esc(state.swVersion || '查询中…')}</code></p>
     </div>`;
 }
 
-export { renderMore, nextTheme, THEME_ORDER, THEME_LABEL, STAR_POINTS, rotateCCW, SLOTS };
+// 查「这台机器上**真的装着**的是哪一版离线缓存」。
+//
+// ★ 为什么不去读 /sw.js 里的版本号:那读到的是**服务器现在发的**那一版,
+//   不是浏览器已经装上的那一版。两者在"发了新版但 install 还没跑完"的窗口里不一样,
+//   而那个窗口恰恰就是要排查的东西 —— 拿服务器的版本去验客户端,等于问了个假问题。
+//   caches.keys() 拿到的是**缓存桶的真名**,它就是装上的那一版。
+// ★ 拿不到就如实说拿不到(浏览器不支持 / 没注册 SW),不填 "unknown" 冒充查过了。
+async function loadSwVersion() {
+  try {
+    if (typeof caches === 'undefined') return '这个浏览器没有缓存 API';
+    const keys = await caches.keys();
+    const mine = keys.filter((k) => k.startsWith('cc-companion'));
+    if (!mine.length) return keys.length ? `没有本 App 的桶（现有 ${keys.length} 个）` : '还没装上';
+    return mine.join('、');
+  } catch (err) {
+    return `查不到（${err && err.name ? err.name : '未知错误'}）`;
+  }
+}
+
+export { renderMore, nextTheme, THEME_ORDER, THEME_LABEL, STAR_POINTS, rotateCCW, SLOTS, loadSwVersion };

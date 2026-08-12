@@ -2333,3 +2333,22 @@ body[data-theme="starry"] .chat-view:where([style*="--chat-bg"], .has-chat-bg) .
 }
 .ts-seg{white-space:nowrap}
 .ts-seg i{font-style:normal;opacity:.5;margin-right:.32rem}
+
+/* 入口图标的占位底 —— 图还没到的那几百毫秒里,那个位置得有东西在。
+   ★ 空白会被读成「坏了」,一个暗的圆会被读成「还没亮」。这一条**不追缓存时序**:
+     不管 Service Worker 处于什么状态(第一次请求 / 刚换缓存桶 / 断网),
+     那一下看起来都是良性的。追时序只能把窗口变窄,变不成零。
+   ★ 只在**没点亮**时出现(img onload 会给 .sg-star 加 .lit)——
+     徽章本身带透明,永久垫一个圆等于给每颗星加一层它本来没有的光晕。 */
+.sg-star:not(.lit)::before{
+  content:"";position:absolute;inset:8%;border-radius:50%;
+  background:radial-gradient(circle at 50% 45%,
+    rgba(190,205,255,.20), rgba(140,160,220,.10) 55%, rgba(140,160,220,0) 72%);
+  animation:sg-breathe 1.8s ease-in-out infinite;
+}
+.sg-star{position:relative}
+@keyframes sg-breathe{0%,100%{opacity:.55}50%{opacity:1}}
+/* 关掉动画的人:占位底静止显示,不呼吸 —— 它的作用是"占住位置",不是"提示加载中" */
+@media (prefers-reduced-motion:reduce){ .sg-star:not(.lit)::before{animation:none} }
+.md-about .md-sw{font-size:.7rem;opacity:.6;margin-top:.35rem}
+.md-about .md-sw code{font-size:.66rem;word-break:break-all}

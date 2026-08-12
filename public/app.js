@@ -17,7 +17,7 @@ import {
 import { renderMarkdown, mdInline, mdSafeUrl } from './js/markdown.js';
 import { hydrateStarry } from './js/starry.js';
 import { renderHome } from './js/home-view.js';
-import { renderMore, nextTheme } from './js/more-view.js';
+import { renderMore, nextTheme, loadSwVersion } from './js/more-view.js';
 import {
   CONSOLE_COMMANDS,
   MAX_ATTACHMENT_BYTES,
@@ -92,6 +92,10 @@ function bindEvents() {
     if (name === 'more-about') {
       state.moreAbout = !state.moreAbout;
       render();
+      // 展开时才去问缓存版本 —— 不展开就不问,别为一行诊断信息在每次进页面时都查一遍。
+      if (state.moreAbout && !state.swVersion) {
+        loadSwVersion().then((v) => { state.swVersion = v; if (state.moreAbout) render(); });
+      }
       return;
     }
     if (name === 'more-theme') {
