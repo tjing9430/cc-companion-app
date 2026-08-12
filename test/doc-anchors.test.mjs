@@ -92,3 +92,40 @@ test('slug 规则跟 GitHub 对得上(改标题的人靠它判断锚点会不会
   assert.equal(slug('编辑面 ≠ 服务面'), '编辑面--服务面');
   assert.equal(slug('Tool permissions (interactive mode) — read this'), 'tool-permissions-interactive-mode--read-this');
 });
+
+// ── README 里的**代码示例**会不会写出代码里根本没有的字段 ─────────────
+//
+// ★ 由来:README 的 `GATES` 示例里挂着 `star: 'star-moon.webp'`,
+//   而那个字段在 5acefed 就删了(图标改成按 tab 名推出来)。
+//   照着抄的人会设一个**没人读的字段**,不报错、不生效,自己还以为配好了。
+//   ⇒ 文档跟代码脱节是"忘了同步"型的错,而"记得同步"这条路今天已经被证伪过好几次。
+//     **能机械检查的就别靠记性。**
+test('★ README 代码示例里的字段,必须在真实数据结构里存在', () => {
+  const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
+  const home = fs.readFileSync(path.join(REPO, 'public/js/home-view.js'), 'utf8');
+  const more = fs.readFileSync(path.join(REPO, 'public/js/more-view.js'), 'utf8');
+
+  // 从 README 的 js 代码块里,把形如 `{ a: ..., b: ... }` 的对象字面量的键抠出来
+  const blocks = [...readme.matchAll(/```js\n([\s\S]*?)```/g)].map((m) => m[1]);
+  const keysIn = (src) => new Set([...src.matchAll(/(?:^|[{,]\s*)([a-zA-Z_$][\w$]*)\s*:/g)].map((m) => m[1]));
+
+  // GATES 那个示例(认得出来:含 side / size)
+  const gateEx = blocks.find((b) => /\bside\s*:/.test(b) && /\bsize\s*:/.test(b));
+  assert.ok(gateEx, 'README 里找不到 GATES 示例了 —— 是不是改了写法?这条测试要跟着改');
+  const gateReal = keysIn(home.slice(home.indexOf('const GATES'), home.indexOf('];', home.indexOf('const GATES'))));
+  for (const k of keysIn(gateEx)) {
+    assert.ok(gateReal.has(k),
+      `README 的 GATES 示例里写了 \`${k}:\`,但 home-view.js 的 GATES 里没有这个字段。\n` +
+      `照着抄的人会设一个没人读的字段 —— 不报错、不生效。要么改 README,要么这个字段该加回代码。`);
+  }
+
+  // SLOTS 那个示例(认得出来:含 action)
+  const slotEx = blocks.find((b) => /\baction\s*:/.test(b) && /\btitle\s*:/.test(b));
+  if (slotEx) {
+    const slotReal = keysIn(more.slice(more.indexOf('const SLOTS'), more.indexOf('];', more.indexOf('const SLOTS'))));
+    for (const k of keysIn(slotEx)) {
+      assert.ok(slotReal.has(k),
+        `README 的 SLOTS 示例里写了 \`${k}:\`,但 more-view.js 的 SLOTS 里没有这个字段。`);
+    }
+  }
+});
