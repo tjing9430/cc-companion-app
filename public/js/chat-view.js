@@ -164,9 +164,18 @@ function renderMessage(message, opts = {}) {
   //   收成一个 `thinking` 小标签之后,气泡宽度重新由正文决定。
   //   ★ 用原生 <details>:点开不需要任何 JS,展开态存在 DOM 属性上,
   //     不会被聊天列表的重渲染冲掉(存在 state 里就会)。
+  // 工具块跟思考链并排,同样默认折叠、同样不参与气泡宽度。
+  // ★ 摘要只说「用了什么、动了哪儿」,**不含文件内容** —— 那一刀在 bridge 侧
+  //   `summarizeToolInput` 用白名单取键做的,前端这儿只负责显示。
+  const toolList = Array.isArray(message.tools) ? message.tools : [];
+  const toolBlock = toolList.length
+    ? `<details class="cot tools"><summary>${toolList.length} tools</summary><div class="cot-body">${
+        toolList.map((t) => `<div class="tool-row"><b>${esc(t.name)}</b>${t.arg ? ` <span>${esc(t.arg)}</span>` : ''}</div>`).join('')
+      }</div></details>`
+    : '';
   const head = `${message.thinking
     ? `<details class="cot"><summary>thinking</summary><div class="cot-body">${esc(message.thinking)}</div></details>`
-    : ''}${renderQuotedParent(message)}`;
+    : ''}${toolBlock}${renderQuotedParent(message)}`;
 
   // ★ 附件**移出气泡**,当作 .msg-col 的兄弟。她的原话:
   //   「文字单独一个文本框,图片不要文本框,就是有和文本框一样的裁剪就行」

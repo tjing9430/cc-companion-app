@@ -240,6 +240,9 @@ function runClaudeTurn(prompt, resume) {
     let finalText = '';   // authoritative reply from the `result` event
     let streamedText = ''; // fallback: accumulated text_delta
     let thinking = '';    // accumulated thinking_delta
+    // ★ 这一轮用过的工具。原来只 postConsole 出去(控制台看得到),**没有随回复带回来** ——
+    //   于是私聊界面永远不知道 agent 干了什么。她要的就是这个。
+    const turnTools = [];
     let newSessionId = '';
     let resultError = '';  // claude-side error -> reject (502) rather than a fake reply
     let stderr = '';
@@ -308,6 +311,7 @@ function runClaudeTurn(prompt, resume) {
           if (block && block.type === 'tool_use') {
             // 带上 input 的一行摘要 —— 只有工具名回答不了「它动了哪个文件」
             const arg = summarizeToolInput(block.input);
+            turnTools.push({ name: block.name, arg });
             postConsole('tool', ASSISTANT_NAME, arg ? `→ ${block.name}  ${arg}` : `→ ${block.name}`);
           }
         }
@@ -363,7 +367,7 @@ function runClaudeTurn(prompt, resume) {
         return reject(new Error(stderr.trim() || `claude exited with code ${code}`));
       }
       if (!content) return reject(new Error('claude returned an empty reply'));
-      resolve({ content, thinking: thinking.trim(), sessionId: newSessionId });
+      resolve({ content, thinking: thinking.trim(), tools: turnTools, sessionId: newSessionId });
     });
 
     child.stdin.on('error', () => { /* ignore EPIPE if the CLI exits before reading */ });
@@ -525,7 +529,7 @@ const server = http.createServer(async (req, res) => {
     const manifest = await syncLibrary({ appUrl: APP_URL, token: APP_AUTH_TOKEN, cwd: process.cwd(), log });
     const fullPrompt = manifest ? `${manifest}\n\n---\n\n${prompt}` : prompt;
     try {
-      const { content, thinking } = await runTurn(fullPrompt);
+      const { content, thinking, tools } = await runTurn(fullPrompt);
       const now = Math.floor(Date.now() / 1000);
       return sendJson(res, 200, {
         id: `chatcmpl-bridge-${now}`,
@@ -535,7 +539,15 @@ const server = http.createServer(async (req, res) => {
         choices: [{
           index: 0,
           // content -> chat bubble; reasoning_content -> the app's thinking block
-          message: { role: 'assistant', content, reasoning_content: thinking || undefined },
+          // content -> 气泡;reasoning_content -> 思考链;cc_tools -> 「它用了什么工具、动了哪儿」
+          // ★ 自定义字段用 cc_ 前缀:OpenAI 的 `tool_calls` 是"请客户端去执行"的意思,
+          //   语义完全不同,借它的名字会让下一个接这个口的人理解反。
+          message: {
+            role: 'assistant',
+            content,
+            reasoning_content: thinking || undefined,
+            cc_tools: (tools && tools.length) ? tools : undefined,
+          },
           finish_reason: 'stop',
         }],
         usage: { prompt_tokens: lastTurnPrompt, completion_tokens: lastTurnOutput, total_tokens: lastTurnPrompt + lastTurnOutput },

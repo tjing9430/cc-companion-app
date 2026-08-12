@@ -196,11 +196,15 @@ export function createInteractiveRunner(opts) {
 
     const startedAt = Date.now();
     let thinking = '', finalText = '', lastGrowth = Date.now(), hangWarned = false, done = false;
+    const turnTools = [];   // ★ 这一轮用过的工具,随回复带回去(原来只 postConsole,私聊看不到)
     const consume = (entries) => {
       if (entries.length) lastGrowth = Date.now();
       const fold = foldTurnEntries(entries);
       if (fold.thinking) { thinking += fold.thinking; postConsole('thinking', assistantName, fold.thinking); }
-      for (const t of fold.tools) postConsole('tool', assistantName, t.arg ? `→ ${t.name}  ${t.arg}` : `→ ${t.name}`);
+      for (const t of fold.tools) {
+        turnTools.push(t);
+        postConsole('tool', assistantName, t.arg ? `→ ${t.name}  ${t.arg}` : `→ ${t.name}`);
+      }
       finalText = appendText(finalText, fold.text); // ALL assistant text (keeps pre-tool transition text)
       if (fold.done) done = true;
     };
@@ -221,7 +225,7 @@ export function createInteractiveRunner(opts) {
 
     const content = finalText.trim();
     if (!content) throw new Error('interactive turn produced no reply text');
-    return { content, thinking: thinking.trim(), sessionId: uuid };
+    return { content, thinking: thinking.trim(), tools: turnTools, sessionId: uuid };
   }
 
   function shutdown() { try { if (child) child.kill('SIGTERM'); } catch { /* ignore */ } }

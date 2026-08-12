@@ -516,6 +516,13 @@ body[data-tab="chat"] .message-row.me .msg-sender{display:none}
   background:rgba(120,120,120,.1);
 }
 .cot>summary::-webkit-details-marker{display:none}
+/* 工具块:跟思考链同一套折叠外观,只把标签换个色,免得两个 summary 长得一模一样
+   分不出哪个是哪个。 */
+.cot.tools>summary{color:var(--accent-strong,var(--muted));opacity:.85}
+.tool-row{font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.7rem;line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tool-row b{font-weight:700}
+.tool-row span{opacity:.7}
 .cot>summary:hover{opacity:1}
 .cot[open]>summary{margin-bottom:.3rem}
 .cot-body{
