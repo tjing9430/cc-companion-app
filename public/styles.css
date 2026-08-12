@@ -2074,6 +2074,15 @@ body:has(.home-view) .main{max-height:100vh;padding-bottom:0}
    这样舞台就能干干净净地写 `100dvh`,不用在这儿把别处的内边距再减一遍
    —— 减法一旦抄两份,那边一改这边就错。 */
 body:has(.home-view) .content{padding:0;display:flex;flex-direction:column}
+/* ★ 聊天页去掉内容区顶部内边距。
+   顶栏是 62% 半透明 + 毛玻璃,它把身后的星野**糊住**了;而它下面这段内边距是完全透明的,
+   星野原样透出、白点清晰地闪 —— 于是同一片背景被切成"糊的"和"清的"两截,
+   中间那道硬边看起来就是**第三样东西**:既不属于标题栏,也不属于聊天流(她的原话)。
+   实测 390 档:顶栏底 54.0 → 聊天流顶 66.8,那 12.8px 就是它。
+   ⇒ 去掉这段空带,气泡直接接住顶栏,那道边界就没有落脚的地方了。
+   只作用在聊天两页:首屏另有规则,记忆/控制台那些页面还需要这段留白。 */
+body[data-tab="chat"] .content,
+body[data-tab="group"] .content{padding-top:0}
 body:has(.home-view) .home-view{padding-bottom:calc(1.5rem + env(safe-area-inset-bottom))}
 
 /* ============ 底部安全区(必须放在文件最后)============
