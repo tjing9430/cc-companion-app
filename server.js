@@ -52,6 +52,15 @@ import { heartbeatTick } from './lib/heartbeat.js';
 
 setSnapshotProvider(streamSnapshot);
 
+// 版本号:启动时从 package.json 读一次。
+// ★ 读不到就是空串,**不编一个默认值** —— 前端拿到空串会把版本那行省掉,
+//   拿到 "0.0.0" 却会一本正经地显示出来。看不见比看见一个假的好。
+const APP_VERSION = (() => {
+  try {
+    return String(JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf8')).version || '');
+  } catch { return ''; }
+})();
+
 const server = http.createServer((req, res) => {
   handleRequest(req, res).catch((err) => {
     const status = err && err.statusCode ? err.statusCode : 500;
@@ -166,6 +175,10 @@ async function handleRequest(req, res) {
       console: latestConsoleEvents(),
       memories: listMemories(url.searchParams.get('q') || ''),
       session: publicSession(),
+      // ★ 版本从 package.json 现读,不在前端写死一个字符串。
+      //   写死的版本号不会报错,只会安静地过期 —— 「关于」上挂一个错版本比不挂更糟:
+      //   用户拿它报 bug,我们照着它去查一个不存在的版本。
+      version: APP_VERSION,
     });
   }
 

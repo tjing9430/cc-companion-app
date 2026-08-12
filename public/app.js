@@ -17,6 +17,7 @@ import {
 import { renderMarkdown, mdInline, mdSafeUrl } from './js/markdown.js';
 import { hydrateStarry } from './js/starry.js';
 import { renderHome } from './js/home-view.js';
+import { renderMore, nextTheme } from './js/more-view.js';
 import {
   CONSOLE_COMMANDS,
   MAX_ATTACHMENT_BYTES,
@@ -81,6 +82,31 @@ function bindEvents() {
     if (name === 'console-view') {
       state.consoleView = action.dataset.view === 'term' ? 'term' : 'flow';
       render();
+    }
+    if (name === 'more-about') {
+      state.moreAbout = !state.moreAbout;
+      render();
+      return;
+    }
+    if (name === 'more-theme') {
+      // ★ 先本地翻、立刻重绘,再把结果送回后端 —— 换主题要**手指一抬就变**。
+      //   等一个来回再翻会有半秒发呆,那半秒里用户会以为没点上、再点一次,于是翻两档。
+      const before = state.settings.theme;
+      state.settings = { ...state.settings, theme: nextTheme(before) };
+      applyTheme();
+      render();
+      try {
+        state.settings = await api('/api/settings', { method: 'POST', body: { ...state.settings } });
+        cacheBootstrap();
+      } catch (err) {
+        // 存不上就翻回去。**别把界面留在一个后端不认的主题上** ——
+        // 下次刷新会自己变回来,那时候用户只会觉得"它自己乱换"。
+        state.settings = { ...state.settings, theme: before };
+        applyTheme();
+        handleBackgroundError(err);
+      }
+      render();
+      return;
     }
     if (name === 'bridge-dial') return;   // select 走 change 事件,不在 click 里处理
     if (name === 'pick-since') {
@@ -953,6 +979,10 @@ function renderTopbar() {
       ? state.settings.appName
       : state.tab === 'group'
       ? state.settings.groupName
+      // ★「更多」不在 tabs 表里(它没有底栏格位,只从首屏那颗北斗进),
+      //   照原来那条 find 会落到兜底的 'App' —— 顶栏顶着 "App" 两个字。
+      : state.tab === 'more'
+      ? '更多'
       : (tabs.find(([id]) => id === state.tab)?.[1] || 'App')));
   const subtitle = mem ? mem.subtitle : {
     home: '',
@@ -961,6 +991,7 @@ function renderTopbar() {
     console: '查看运行事件、回复和调试日志。',
     memory: '保存会被 AI 参考的长期记忆。',
     settings: '调整名字、群聊触发和主题。',
+    more: '北斗上的功能位，空着的留给你自己加。',
   }[state.tab];
   const status = state.offline ? '离线快照' : (state.settings.agent.configured ? 'API 已配置' : '演示模式');
   const live = state.offline ? status : `${streamStatusLabel()} - ${status}`;
@@ -1023,6 +1054,7 @@ function renderTab() {
   if (state.tab === 'group') return renderChat('group', state.group);
   if (state.tab === 'console') return renderConsole();
   if (state.tab === 'memory') return renderMemory();
+  if (state.tab === 'more') return renderMore();
   return renderSettings({ notifySupported, notifyEnabled });
 }
 
@@ -1355,6 +1387,7 @@ function applyBootstrap(data, options = {}) {
   state.events = data.console || data.events || [];
   state.memories = data.memories || [];
   state.session = data.session || state.session;
+  if (data.version) state.appVersion = data.version;
   if (data.quota) {
     state.quota = Object.prototype.hasOwnProperty.call(data.quota, 'data')
       ? { loading: false, data: data.quota.data || null, error: data.quota.error || '', fetched_at: data.quota.fetched_at || '' }

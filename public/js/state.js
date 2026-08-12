@@ -47,6 +47,12 @@ const state = {
   events: [],
   memories: [],
   session: null,
+  // 「更多」页那颗「关于」是否展开。★ 只活在内存里,不入库:
+  // 它是一次浏览的临时状态,存下来只会让下次进页面莫名其妙已经开着。
+  moreAbout: false,
+  // 版本号由 /api/bootstrap 送来(服务端从 package.json 现读)。
+  // ★ 默认空串:拿不到就**不显示版本那一行**,不摆一个写死的数字冒充。
+  appVersion: '',
   // 桥的档位/用量快照。available:false = 这个部署没有桥,控制台不摆那块面板。
   bridge: { available: false },
   // 真 console 的 live tail。★ **只活在内存里** —— 不落库、不进 localStorage、

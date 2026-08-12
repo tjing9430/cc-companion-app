@@ -2199,3 +2199,123 @@ body:has(.home-view) .home-view{padding-top:0;padding-bottom:env(safe-area-inset
 body[data-theme="starry"] .chat-view:where([style*="--chat-bg"], .has-chat-bg) .bubble{
   backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
 }
+
+/* ============ 「更多」页:北斗立起来当功能盘 ============
+   ★ 全部用 md- 前缀新开类,一个既有类都不借。
+     借类的代价这个仓库付过四次(.thinking 撞名撑出 130px 空洞、
+     .event 被日志页和设置页共用、全局 label{margin} 把「+」顶高 4.8px、
+     全局 input{width:100%} 把勾选框拉满)。**新功能一律开新 class。** */
+.more-view{
+  position:relative;min-height:100%;
+  display:flex;flex-direction:column;align-items:center;
+  padding:1.2rem 0 calc(1.4rem + env(safe-area-inset-bottom,0px));
+}
+
+/* 盘子。★ 尺寸按**高**给,宽由宽高比推出来 ——
+   转过 90° 之后长边是竖的,先定高才不会在窄屏上撑破。
+   原图 1389×480,转完就是 480:1389。 */
+.more-dial{
+  position:relative;
+  height:min(68vh,660px);
+  aspect-ratio:480 / 1389;
+  /* ★ 必须可溢出:六段文字是往盘子**外面**排的(盘只有 ~230px 宽,
+       字排在里面会挤成竖排)。overflow 一旦收起来,标签全被裁掉。 */
+  overflow:visible;
+  /* 进场:从「横着、小」转成「竖着、大」。
+     图自己常态是 rotate(-90deg),这里让**盘**从 +90deg 转回 0,
+     两者一叠,起手正好是首屏那个横着的样子,然后逆时针转过来。 */
+  /* ★ **不写 fill-mode**(默认 none):静止态就是这条规则本身 = 最终样子。
+       第一版写的是 `both` —— 于是在**动画根本没跑起来**的环境里
+       (页面不可见 / rAF 被节流 / 无头浏览器),`from` 那一帧被当成了常态,
+       盘子永远停在 rotate(90deg) scale(.34)。我量它的时候量到的就是这个,
+       两轮数字都对不上账,差点去改宽高比。
+       ⇒ 进场动画只负责"进场",**静止的样子不许由它决定**。 */
+  animation:md-rise .62s cubic-bezier(.22,.85,.3,1);
+}
+@keyframes md-rise{
+  from{transform:rotate(90deg) scale(.34);opacity:0}
+  60% {opacity:1}
+  to  {transform:rotate(0) scale(1);opacity:1}
+}
+
+.md-img{
+  position:absolute;top:50%;left:50%;
+  /* 宽 = 盘高(盘宽 × 1389/480 = 盘高),转 90° 后正好铺满盘子 */
+  width:calc(100% * 1389 / 480);height:auto;
+  transform:translate(-50%,-50%) rotate(-90deg);
+  transform-origin:50% 50%;
+  pointer-events:none;user-select:none;
+}
+
+/* 一个功能位 = 星点 + 文字。星点钉在量出来的坐标上,文字往屏幕中间那侧排。 */
+/* ★ 该居中的是**那颗点**,不是「点 + 字」整行。
+     第一版写的是 translate(-50%,-50%),整行居中 —— 于是六段文字全压在星光里,
+     糊成一团。而盒子测量当时给的是"没出屏、两两不相交",**数字全绿、画面不能看**。
+     这是「盒子对得上账 ≠ 视觉对」的又一例:截图一眼就穿帮,数字一个都没报。
+   偏移 = 半颗点(--dot / 2):
+     朝右排 → 整行左挪半颗点,点心正落在坐标上
+     朝左排 → 点在行尾,得挪 (整行宽 - 半颗点) */
+.md-star{
+  position:absolute;left:var(--x);top:var(--y);
+  --dot:26px;
+  transform:translate(calc(var(--dot) / -2),-50%);
+  display:flex;align-items:center;gap:.5rem;
+  background:none;border:0;padding:0;margin:0;
+  color:inherit;font:inherit;text-align:left;cursor:pointer;
+  white-space:nowrap;
+  /* 文字比盘慢一步进场:盘还在转的时候文字是躺着的,让它转完再来。 */
+  /* backwards:延迟期间先按 from 藏着(否则文字会先冒出来再被淡入抹掉再冒出来)。
+     ★ 只藏 opacity,不藏 transform —— 位置由上面那条规则说了算。 */
+  animation:md-label-in .34s ease backwards;
+  animation-delay:calc(.5s + var(--i) * .06s);
+}
+.md-right{flex-direction:row}
+.md-left {flex-direction:row-reverse;transform:translate(calc(var(--dot) / 2 - 100%),-50%)}
+.md-left .md-label{text-align:right}
+/* 进场关键帧必须把**当前这一档的偏移**写进去 —— transform 是整条替换的,
+   写成 translate(-50%,-50%) 会在动画期间把位置弹一下再跳回来。 */
+@keyframes md-label-in{from{opacity:0}to{opacity:1}}
+
+/* 星点本身。图上已经画了星,这里这颗是**点击热区 + 高亮环**,
+   默认几乎透明 —— 不再画第二颗星盖在人家画好的星上。 */
+.md-dot{
+  flex:0 0 auto;width:26px;height:26px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.5),rgba(255,255,255,0) 68%);
+  opacity:.42;transition:opacity .18s ease,transform .18s ease;
+}
+.md-star:hover .md-dot,.md-star:focus-visible .md-dot{opacity:1;transform:scale(1.18)}
+
+/* 字压在银河亮部上会糊 —— 靠描边阴影把它托起来,**不垫暗块**
+   (首屏那一轮的教训:垫暗块会把通透感抹掉)。 */
+.md-label{display:flex;flex-direction:column;gap:.1rem;line-height:1.25;
+  text-shadow:0 1px 3px rgba(0,0,0,.72),0 0 10px rgba(0,0,0,.45)}
+.md-t{font-size:.92rem;font-weight:650;letter-spacing:.02em}
+.md-h{font-size:.68rem;opacity:.7}
+
+/* 空位:虚线圈 + 灰字。**不是 disabled 按钮** —— 它压根不是按钮,
+   读屏不会念出一个点不动的控件。 */
+.md-empty{cursor:default}
+.md-empty .md-dot{
+  background:none;border:1px dashed currentColor;opacity:.3;
+  width:18px;height:18px;margin:4px;
+}
+.md-empty .md-t{font-weight:500;opacity:.5}
+.md-empty .md-h{opacity:.38;font-size:.62rem}
+
+.md-about{
+  margin:1rem 1.2rem 0;padding:.7rem .9rem;max-width:32rem;
+  border:1px solid var(--line,rgba(255,255,255,.14));border-radius:.7rem;
+  font-size:.78rem;line-height:1.6;
+}
+.md-about b{margin-right:.5rem}
+.md-about span{opacity:.6}
+.md-about p{margin:.4rem 0 0;opacity:.78}
+.md-about code{font-size:.72rem;padding:.05rem .25rem;border-radius:.25rem;
+  background:rgba(127,127,127,.16)}
+
+/* ★ 关掉动画的人只是不想看东西动,不是不想用这一页 ——
+     终态必须是**能用的那一帧**,不能停在 scale(.34)。 */
+@media (prefers-reduced-motion:reduce){
+  .more-dial{animation:none}
+  .md-star{animation:none}
+}
