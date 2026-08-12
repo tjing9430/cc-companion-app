@@ -236,4 +236,7 @@ function agentProviderLabel() {
   return state.settings.agent.configured ? '已接入模型' : '演示代理';
 }
 
-export { renderSettings, renderQuotaPanel, agentProviderLabel };
+// ★ quotaWindowValue / quotaResetValue 也导出:控制台「终端」档那条状态行要同一套口径。
+//   自己在那边再写一遍格式化,两处迟早会对不上 —— 到时候同一份额度在两页显示成两个数,
+//   而两边都"没报错"。**同一个数只许有一个算法。**
+export { renderSettings, renderQuotaPanel, agentProviderLabel, quotaWindowValue, quotaResetValue };

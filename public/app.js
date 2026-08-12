@@ -82,6 +82,12 @@ function bindEvents() {
     if (name === 'console-view') {
       state.consoleView = action.dataset.view === 'term' ? 'term' : 'flow';
       render();
+      // 切到终端档时补一次额度 —— 否则状态行要等下一次 refreshCurrent 才有数,
+      // 中间那段空白会被读成"这台没有额度数据",而其实只是还没去问。
+      if (state.consoleView === 'term' && !(state.quota && state.quota.data)) {
+        loadQuota().then(render).catch(handleBackgroundError);
+      }
+      return;
     }
     if (name === 'more-about') {
       state.moreAbout = !state.moreAbout;
@@ -670,7 +676,13 @@ async function refreshCurrent() {
     if (state.tab === 'home') await loadMemories();
     if (state.tab === 'chat') await loadMessages('chat');
     else if (state.tab === 'group') await loadMessages('group');
-    else if (state.tab === 'console') { await loadConsole(); await loadBridgeConfig(); }
+    // ★ 终端档那条状态行要额度数据,而额度原来只在设置页拉。
+    //   只在**终端档**拉:工作流档看不到那条状态行,替它去查一次额度是白花一次往返。
+    else if (state.tab === 'console') {
+      await loadConsole();
+      await loadBridgeConfig();
+      if (state.consoleView === 'term') await loadQuota();
+    }
     else if (state.tab === 'memory') await loadMemories();
     else if (state.tab === 'settings') await loadQuota();
   } catch (err) {

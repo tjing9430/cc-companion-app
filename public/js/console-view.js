@@ -4,6 +4,7 @@
 
 import { esc, escAttr, formatTime } from './util.js';
 import { state, CONSOLE_COMMANDS, ICONS } from './state.js';
+import { quotaWindowValue, quotaResetValue } from './settings-view.js';
 
 function renderConsole() {
   return `
@@ -89,7 +90,53 @@ function renderTerminal() {
       <div class="term-note">运行事件流（不是原始 stdout）</div>
       ${hist || '<div class="empty">还没有事件。</div>'}
       ${tail ? `<div class="term-note term-note-live">↓ 实时原始输出（只在内存里，刷新即空）</div>${tail}` : ''}
-    </div>`;
+    </div>
+    ${renderTermStatus()}`;
+}
+
+// 终端底下那条状态行 —— 对着别人家 CLI 的状态栏做的。
+//
+// ★★ 只显示**真取得到**的东西。别人的 CLI 上有花了多少钱、几点重置、任务清单打勾,
+//    我们这条链上:桥报得出模型和上下文,额度 adapter 报得出余量和刷新时间,
+//    **花费报不出来** —— 那就不摆这一栏。
+//    摆一个永远写着 "$0.00" 的位子,比空着更糟:它看起来像在工作。
+// ★ 每一段都自己判断有没有数据,没有就整段不渲染。
+//   不是渲染成 "—" —— 破折号会让人以为"现在是零",而真相是"我们不知道"。
+function renderTermStatus() {
+  const b = state.bridge || {};
+  const seg = [];
+
+  // 模型:桥没被显式指定时用它报的「实际在跑的那个」,两个都没有就不显示
+  const model = b.model || b.effective_model || '';
+  if (model) seg.push(['模型', model]);
+
+  // 上下文:上一轮送进去的 prompt / 窗口。窗口没声明就**不换算百分比** ——
+  // 按 200k 估出来的百分比看着像真的,其实是我们猜的。面板那儿标了「~」,
+  // 状态行一行字放不下这个注脚,那就干脆只显示绝对值。
+  const prompt = Number(b.usage && b.usage.last_turn_prompt) || 0;
+  const win = Number(b.context_window) || 0;
+  const kk = (n) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
+  if (prompt) {
+    seg.push(['上下文', win ? `${kk(prompt)}/${kk(win)} ${Math.round((prompt / win) * 100)}%` : kk(prompt)]);
+  }
+
+  const turns = Number(b.usage && b.usage.turns) || 0;
+  if (turns) seg.push(['轮次', String(turns)]);
+
+  // 额度:和设置页共用同一套格式化函数(见 settings-view 的导出注释)
+  const q = state.quota || {};
+  const d = q.data;
+  if (d && d.configured !== false) {
+    const five = quotaWindowValue(d.five_hour, d, q.fetched_at);
+    if (five) seg.push(['5h', five]);
+    const reset = quotaResetValue((d.five_hour && d.five_hour.resets_at) || d.resets_at);
+    if (reset) seg.push(['刷新', reset]);
+  }
+
+  if (!seg.length) return '';
+  return `<div class="term-status" role="status">${seg
+    .map(([k, v]) => `<span class="ts-seg"><i>${esc(k)}</i>${esc(String(v))}</span>`)
+    .join('')}</div>`;
 }
 
 function renderConsoleEvent(event) {
@@ -110,4 +157,4 @@ function renderConsoleEvent(event) {
     </article>`;
 }
 
-export { renderConsole, renderConsoleEvent, renderDialPanel, renderTerminal };
+export { renderConsole, renderConsoleEvent, renderDialPanel, renderTerminal, renderTermStatus };

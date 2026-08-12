@@ -2319,3 +2319,17 @@ body[data-theme="starry"] .chat-view:where([style*="--chat-bg"], .has-chat-bg) .
   .more-dial{animation:none}
   .md-star{animation:none}
 }
+
+/* ============ 终端档底下那条状态行 ============
+   ★ 新开 ts- / term-status 前缀,不借 .cv-pill 那套 —— 那是工具条上的**可点控件**,
+     这条是**只读状态**。借过来会连带借到 hover/焦点样式,看起来像能点其实点不动。 */
+.term-status{
+  display:flex;flex-wrap:wrap;gap:.1rem .9rem;
+  padding:.4rem .7rem calc(.4rem + env(safe-area-inset-bottom,0px));
+  border-top:1px solid var(--line,rgba(255,255,255,.12));
+  font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  font-size:.66rem;line-height:1.7;letter-spacing:.02em;
+  opacity:.82;
+}
+.ts-seg{white-space:nowrap}
+.ts-seg i{font-style:normal;opacity:.5;margin-right:.32rem}
