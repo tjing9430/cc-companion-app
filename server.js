@@ -522,6 +522,25 @@ function serveStatic(res, route) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
     return fs.createReadStream(fallback).pipe(res);
   }
+  // ★ 首帧就把主题落在 <body> 上。
+  //   原来 `data-theme` 是 JS 拿到 settings 之后才写的,于是**第一帧是默认主题**
+  //   ——实测 DOMContentLoaded 和第一帧时 body 上都是空的,末态才变成 starry。
+  //   两个后果:①用星空主题的人先看见一帧深色默认皮 ②`.sky-galaxy` 的
+  //   `opacity:0 → 1` 因为**发生了状态变化**而触发过渡,银河是"淡进来"的。
+  //   在这儿注入之后,首帧就是终态:没有错帧,也没有状态变化可过渡。
+  //   ★ 放在服务端而不是 localStorage:第一次访问的人也吃得到。
+  if (requested === '/index.html') {
+    // ⚠️ 主题白名单**一共三份**,改任何一份都要三份一起改:
+    //     lib/state.js(存的时候归一) · public/app.js(前端写 body) · 这里(首帧注入)
+    //   前两份写成 `['light','starry'] ? : 'dark'` —— dark 靠"当兜底"混进来,
+    //   它既是合法选项又是非法值的归宿。这里显式列全,行为一样但读得懂。
+    //   (合并成一处更好,但那要动存储层,排在封笔之后。)
+    const theme = (store.settings && store.settings.theme) || 'dark';
+    const safe = ['dark', 'light', 'starry'].includes(theme) ? theme : 'dark';
+    const html = fs.readFileSync(filePath, 'utf8').replace('<body>', `<body data-theme="${safe}">`);
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
+    return res.end(html);
+  }
   if (requested === '/sw.js') {
     // 前置一行注入版本号;sw.js 里读 self.__CC_CACHE_VERSION__,读不到才用回落值。
     const body = `self.__CC_CACHE_VERSION__=${JSON.stringify(serviceWorkerVersion())};\n`
