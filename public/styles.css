@@ -690,7 +690,12 @@ body[data-theme="dark"] .body-text.md .md-link,
 body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
 .message-row.me .body-text.md .md-link{color:inherit}
 
-.attachments{display:grid;gap:.45rem;margin-top:.55rem}
+/* ★ 附件已经从气泡里搬出来,成了 .msg-col 的直接孩子。
+   `justify-items` 由 .msg-col 管(me→end / 对方→start),所以右对齐不用在这儿再写一遍;
+   但 `justify-content` 得跟着,否则 grid 轨道会被拉满整列宽,图片虽然靠右、
+   它那条透明轨道仍然占满 —— 点击热区会大出一整条,而肉眼看不出来。 */
+.attachments{display:grid;gap:.45rem;margin-top:.35rem;justify-items:inherit}
+.message-row.me .attachments{justify-items:end}
 .attachment-image{
   display:block;width:auto;height:auto;
   /* ★ 约屏宽三分之一(需求方原话)。原来是 64vw —— 一张图占掉三分之二屏,
@@ -701,17 +706,34 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
   border-radius:8px;
   border:1px solid var(--line-soft);
 }
+/* 文件夹样式(需求方原话:「文件也不需要文本框,就做一个文件夹样式」)。
+   ★ 关键是那个**纸夹舌头** —— 少了它就只是个圆角方块,读不出"文件夹"。
+     舌头用 ::before 画在盒子上沿外面,所以要给盒子留 margin-top,不然会被上一条压住。
+   ★ 舌头和主体必须**同一个纯色**:用渐变的话两块拼不上,接缝处会露出一条深浅边。 */
 .attachment-file{
-  display:inline-flex;gap:.55rem;align-items:center;
+  position:relative;
+  display:inline-flex;gap:.5rem;align-items:center;
+  max-width:min(240px,62vw);
+  margin-top:7px;
   color:var(--text);text-decoration:none;
-  border:1px solid var(--line);
-  border-radius:8px;
-  padding:.5rem .7rem;
+  border:0;
+  border-radius:3px 8px 8px 8px;
+  padding:.62rem .8rem;
   background:var(--panel);
   font-size:.85rem;
-  transition:background .15s;
+  box-shadow:0 1px 3px rgba(0,0,0,.14);
+  transition:filter .15s;
 }
-.attachment-file:hover{background:var(--panel-soft)}
+.attachment-file::before{               /* 纸夹舌头 */
+  content:'';position:absolute;left:0;top:-7px;
+  width:44%;max-width:86px;height:8px;
+  border-radius:3px 7px 0 0;
+  background:var(--panel);
+}
+.attachment-file .af-name{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;
+}
+.attachment-file:hover{filter:brightness(1.08)}
 
 /* Composer */
 .composer{display:grid;grid-template-columns:minmax(0,1fr);gap:.45rem}

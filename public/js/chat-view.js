@@ -168,16 +168,28 @@ function renderMessage(message, opts = {}) {
     ? `<details class="cot"><summary>thinking</summary><div class="cot-body">${esc(message.thinking)}</div></details>`
     : ''}${renderQuotedParent(message)}`;
 
+  // ★ 附件**移出气泡**,当作 .msg-col 的兄弟。她的原话:
+  //   「文字单独一个文本框,图片不要文本框,就是有和文本框一样的裁剪就行」
+  //   图片自己就是内容,再套一层带底色和内边距的框,等于给画配了个不必要的相框。
+  //   圆角仍然跟气泡对齐(8px),所以看着还是一家人。
+  //   ★ 右对齐不用单独写:`.message-row.me .msg-col{justify-items:end}` 已经管着
+  //     这一列的所有孩子 —— 附件搬出来之后自动跟着靠右。
+  const atts = attachments.length
+    ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : '';
+  // 没正文也没思考链/引用时不留空气泡 —— 纯图片消息就该只有图。
+  const hasBubble = Boolean(text) || Boolean(head);
+
   if (segments.length <= 1) {
-    const inner = `${head}${text ? `<div class="body-text md">${renderMarkdown(text)}</div>` : ''}${attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : ''}`;
+    const inner = `${head}${text ? `<div class="body-text md">${renderMarkdown(text)}</div>` : ''}`;
     return `
     <article class="${classes}" id="msg-${idAttr}">
       ${avatarHtml(message)}
       <div class="msg-col">
         <div class="msg-sender">${esc(message.sender)}</div>
-        <div class="bubble">
+        ${hasBubble ? `<div class="bubble">
           ${inner}
-        </div>
+        </div>` : ''}
+        ${atts}
         ${footer}
       </div>
     </article>`;
@@ -187,8 +199,7 @@ function renderMessage(message, opts = {}) {
     const first = i === 0;
     const last = i === segments.length - 1;
     const rowClass = `${classes}${first ? '' : ' cont'}`;
-    const inner = `${first ? head : ''}<div class="body-text md">${renderMarkdown(seg)}</div>`
-      + (last && attachments.length ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : '');
+    const inner = `${first ? head : ''}<div class="body-text md">${renderMarkdown(seg)}</div>`;
     return `
     <article class="${rowClass}"${first ? ` id="msg-${idAttr}"` : ''}>
       ${avatarHtml(message)}
@@ -197,6 +208,7 @@ function renderMessage(message, opts = {}) {
         <div class="bubble">
           ${inner}
         </div>
+        ${last ? atts : ''}
         ${last ? footer : ''}
       </div>
     </article>`;
@@ -212,7 +224,8 @@ function renderAttachment(file) {
       : '';
     return `<a class="attachment-link${file.sticker ? ' is-sticker' : ''}" href="${escAttr(url)}" data-action="open-lightbox" data-url="${escAttr(url)}" data-name="${escAttr(file.name || '')}" target="_blank" rel="noreferrer"><img class="attachment-image${file.sticker ? ' is-sticker' : ''}" src="${escAttr(url)}" alt="${escAttr(file.name || 'attachment')}" loading="lazy" decoding="async"${dimensions}></a>`;
   }
-  return `<a class="attachment-file" href="${escAttr(url)}" target="_blank" rel="noreferrer"><span>File</span><span>${esc(file.name || 'attachment')}</span></a>`;
+  // ★ 「File」那个词去掉了 —— 文件夹的形状已经说明它是文件,再写一遍是同一句话讲两次。
+  return `<a class="attachment-file" href="${escAttr(url)}" target="_blank" rel="noreferrer"><span class="af-name">${esc(file.name || 'attachment')}</span></a>`;
 }
 
 function renderStickerPanel(scope) {
