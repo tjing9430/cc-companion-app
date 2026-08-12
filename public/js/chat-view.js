@@ -173,9 +173,15 @@ function renderMessage(message, opts = {}) {
         toolList.map((t) => `<div class="tool-row"><b>${esc(t.name)}</b>${t.arg ? ` <span>${esc(t.arg)}</span>` : ''}</div>`).join('')
       }</div></details>`
     : '';
-  const head = `${message.thinking
+  // ★ 思考链 / 工具块渲在**气泡外面、正上方**,不跟正文共用一个框。
+  //   她的原话:「thinking 和正文信息不要共用一个文本框」「放在文本框外面的上面」。
+  //   道理也站得住:思考不是"他说的话",是"他说这句话之前在想什么" ——
+  //   塞进同一个气泡等于把两种东西说成一种。
+  //   引用(quoted parent)仍留在气泡里:那是这句话的一部分语境,不是另一层。
+  const preBubble = `${message.thinking
     ? `<details class="cot"><summary>thinking</summary><div class="cot-body">${esc(message.thinking)}</div></details>`
-    : ''}${toolBlock}${renderQuotedParent(message)}`;
+    : ''}${toolBlock}`;
+  const head = renderQuotedParent(message);
 
   // ★ 附件**移出气泡**,当作 .msg-col 的兄弟。她的原话:
   //   「文字单独一个文本框,图片不要文本框,就是有和文本框一样的裁剪就行」
@@ -186,6 +192,7 @@ function renderMessage(message, opts = {}) {
   const atts = attachments.length
     ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : '';
   // 没正文也没思考链/引用时不留空气泡 —— 纯图片消息就该只有图。
+  // 只有正文或引用才需要气泡 —— 思考链已经自己在外面了
   const hasBubble = Boolean(text) || Boolean(head);
 
   if (segments.length <= 1) {
@@ -195,6 +202,7 @@ function renderMessage(message, opts = {}) {
       ${avatarHtml(message)}
       <div class="msg-col">
         <div class="msg-sender">${esc(message.sender)}</div>
+        ${preBubble}
         ${hasBubble ? `<div class="bubble">
           ${inner}
         </div>` : ''}
@@ -214,6 +222,7 @@ function renderMessage(message, opts = {}) {
       ${avatarHtml(message)}
       <div class="msg-col">
         ${first ? `<div class="msg-sender">${esc(message.sender)}</div>` : ''}
+        ${first ? preBubble : ''}
         <div class="bubble">
           ${inner}
         </div>

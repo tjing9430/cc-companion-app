@@ -348,7 +348,9 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
 /* ★ 私聊里不在自己气泡上面标自己的名字 —— 一对一的对话里,右边那列只可能是你。
    只限私聊:群聊里发言人是谁仍然要标(那儿不止两个人)。
    靠 body[data-tab] 限定,不改模板 —— 模板是各页共用的。 */
-body[data-tab="chat"] .message-row.me .msg-sender{display:none}
+/* ★ 私聊里**两边都不标名字** —— 一对一的对话,左边是他、右边是你,头像已经说完了。
+   群聊仍然标(那儿不止两个人)。她原话:「私聊界面不要放名字呀,只要头像」。 */
+body[data-tab="chat"] .msg-sender{display:none}
 /* 时间分隔:隔久了在正中间来一条灰色小字。不画横线 —— 聊天流里已经够多方块了,
    再加一条线就是多一层结构;一行浅字足够说明"这里断了一段"。 */
 .time-divider{display:flex;justify-content:center;margin:.85rem 0 .55rem}
