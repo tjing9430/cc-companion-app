@@ -327,11 +327,15 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
   display:grid;
   gap:.18rem;
   width:max-content;
-  max-width:min(640px,76%);
+  /* ★ 需求方:「文本框再窄一点」。原来基准 76%,而窄屏两档覆盖成 82% / 88%
+     —— **屏越小气泡越宽**,方向是反的(跟图片那次同一个毛病),
+     她手机 390 同时命中两档,实际吃到 88%,几乎顶满、没有留白。
+     三处统一 70%,倒挂一并去掉。 */
+  max-width:min(640px,70%);
   min-width:0;
   flex:0 1 auto;
 }
-.message-row.wide .msg-col{width:min(640px,76%);flex-basis:min(640px,76%)}
+.message-row.wide .msg-col{width:min(640px,70%);flex-basis:min(640px,70%)}
 .message-row:not(.me) .msg-col{justify-items:start}
 .message-row.me .msg-col{justify-items:end}
 .msg-sender,
@@ -1408,8 +1412,8 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
   .split{grid-template-columns:1fr}
   .settings-grid{grid-template-columns:1fr}
   .memory-form-grid{grid-template-columns:1fr}
-  .msg-col{max-width:82%;min-width:0}
-  .message-row.wide .msg-col{width:82%;flex-basis:82%}
+  .msg-col{max-width:70%;min-width:0}
+  .message-row.wide .msg-col{width:70%;flex-basis:70%}
   .composer-bar{border-radius:20px}
   .chat-view{gap:.6rem}
 }
@@ -1419,8 +1423,8 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
   .status-pill{max-width:42vw;overflow:hidden;text-overflow:ellipsis}
   .content{padding:.75rem .75rem .6rem}
   .avatar{display:none}
-  .msg-col{max-width:88%;min-width:0}
-  .message-row.wide .msg-col{width:88%;flex-basis:88%}
+  .msg-col{max-width:70%;min-width:0}
+  .message-row.wide .msg-col{width:70%;flex-basis:70%}
   .bubble{font-size:.92rem}
   /* ★ 窄屏原来是**放宽**到 72vw —— 屏越小图越占满,方向反了。
      跟上面统一成三分之一,窄屏略放一点点(38vw)免得缩成邮票。 */

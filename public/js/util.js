@@ -48,8 +48,12 @@ function initials(name) {
   return String(name || '?').trim().slice(0, 2).toUpperCase();
 }
 
+// 「这条要不要占满一整行」——只看**正文**。
+// ★ 原来「有附件就 true」:那条规则成立的前提是**附件渲在气泡里面**,需要横向空间。
+//   附件已经搬到气泡外面了,前提没了,规则却留着 —— 于是"配一句话发张图"的消息,
+//   那句话的气泡被撑到最宽(她:「文字+图片一起发,文字的文本框会很宽」)。
+//   ★ 前提消失时,建立在它上面的规则不会跟着消失,只会安静地继续生效。
 function isWideMessage(text, attachments = []) {
-  if ((attachments || []).length) return true;
   const value = String(text || '');
   return value.includes('\n') || Array.from(value).length > 18;
 }
