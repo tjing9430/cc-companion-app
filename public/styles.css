@@ -2018,6 +2018,19 @@ body[data-theme="starry"] .sky-galaxy{opacity:1}
   background:none;border:0;cursor:pointer;color:inherit}
 .sg-star{display:block;height:100%;width:auto;transition:transform .18s ease}
 .sg-star img{height:100%;width:auto;object-fit:contain;display:block}
+/* ★ **只在没点亮时**给盒子一个兜底宽高比。
+   为什么必须有:整条链是 shrink-to-fit(.sky-gate 是 absolute、button 和 span 都 width:auto),
+   宽度最终由**图的自然尺寸**决定 —— 而图还没到 / 挂了的时候自然尺寸是 0,
+   于是 .sg-star 塌成 0×0,占位圆画在一个零尺寸的框里 = **等于没有**。
+   我第一版占位底(8ba26fb)就是这么「上线了但一次都没生效过」的,
+   靠 canary(把六张图真的拦掉再看)才逮到 —— 光看代码它完全合理。
+   ★ 兜底比例是**量出来的精确值**(五张徽章都是 384×384,北斗 1389×480),
+     所以点亮前后盒子尺寸一模一样,不会跳。
+   ★ 兜底挂在 **span** 上不挂在 img 上:挂 img 上等于给一张坏掉的图一个正经的框,
+     浏览器就会在里面画那个破图图标 —— 实测比空着更难看(我上一版就这样)。
+     挂 span 上,坏图仍然是 0×0 不显示,只剩我们自己那个暗圆。 */
+.sg-star:not(.lit){aspect-ratio:1/1}
+.sky-dipper .sg-star:not(.lit){aspect-ratio:1389/480}
 /* ③ 星星和星河**共享一套光源**:同色系的金/紫光晕。
       上一版星星锐、星河柔,锐度不统一,眼睛一看就知道是两码事。 */
 /* ★ 光晕颜色从**素材里采**,不是自己定:galaxy-d 的亮像素 75% 落在蓝 240–270°,
@@ -2342,8 +2355,19 @@ body[data-theme="starry"] .chat-view:where([style*="--chat-bg"], .has-chat-bg) .
      徽章本身带透明,永久垫一个圆等于给每颗星加一层它本来没有的光晕。 */
 .sg-star:not(.lit)::before{
   content:"";position:absolute;inset:8%;border-radius:50%;
+  /* ★ 一圈**细环** + 一点内晕,不是纯弥散的光斑。
+     纯光斑那一版实测在银河上几乎看不见(它自己就是一片亮的) ——
+     "在 DOM 里、量得到、看不见"等于没做。环有边界,在花底子上才认得出来。 */
+  border:1.5px solid rgba(205,215,255,.34);
+  box-shadow:inset 0 0 10px rgba(150,170,235,.22), 0 0 6px rgba(120,140,210,.18);
   background:radial-gradient(circle at 50% 45%,
-    rgba(190,205,255,.20), rgba(140,160,220,.10) 55%, rgba(140,160,220,0) 72%);
+    rgba(190,205,255,.14), rgba(140,160,220,.06) 60%, rgba(140,160,220,0) 78%);
+  /* ★ 这里**没有** fill-mode,是刻意的。我本来加了一条「晚 .18s 才出现」用来吃掉
+     重建时那一帧闪烁,写法是 `animation:… both` —— 而 both 会让**动画跑不起来的环境**
+     (页面不可见 / rAF 被节流 / 无头)把 from 那一帧当成常态,占位圆永久 opacity:0。
+     同一个坑我今天已经踩过一次(「更多」那个盘停在 rotate(90deg) scale(.34))。
+     ⇒ 闪烁那一帧改由 render() 后的 markLoadedIcons 处理,这里就不需要延迟了。
+     **静止态永远写在规则里,不许由动画的 fill 决定。** */
   animation:sg-breathe 1.8s ease-in-out infinite;
 }
 .sg-star{position:relative}

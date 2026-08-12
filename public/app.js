@@ -940,6 +940,24 @@ function render() {
   // 非 starry 主题时它自己会把东西收干净,不用在这儿判断。
   hydrateStarry(root);
   // (首屏不再需要水合:新素材把银河和夜空画在同一张图里,没有要 JS 撒的星尘了)
+  markLoadedIcons(root);
+}
+
+// 入口图标:DOM 刚重建完,**已经加载好的图立刻补上 .lit**,别等它的 load 事件。
+//
+// ★ 为什么需要这一步:每次 render() 都会把首屏整块重建,新的 <img> 上没有 .lit;
+//   图明明在缓存里(complete=true),但 `.lit` 要等 load 事件那个**任务**才补上 ——
+//   中间那一帧占位圆是亮着的。实测热缓存三轮里两轮抓到 `6 星 / 0 lit / 6 张图已完成` 的采样帧。
+//   ⚠️ 那一帧的可见性其实很低(占位圆画在徽章底下、又不到 60ms),
+//      **但这行代码的成本比"它到底看不看得见"这个问题还低**,就不留着了。
+// ★ 同时它也堵住评审提的那个反向竞态(load 早于监听挂上 → .lit 永远打不上)。
+//   ⚠️ 那个竞态我**没能复现**(冷 1 轮 + 热 3 轮,终态全是 6/6/6)——
+//      内联 onload 是随元素一起解析的,load 又必然异步派发,理论上轮不到它。
+//      写这一行不是因为量到了它,是因为**我的测量证不了"永远不会"**,而这行只要三句。
+function markLoadedIcons(scope) {
+  for (const img of scope.querySelectorAll('.sg-star img')) {
+    if (img.complete && img.naturalWidth > 0) img.parentNode.classList.add('lit');
+  }
 }
 
 function renderLightbox() {
