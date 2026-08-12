@@ -24,8 +24,10 @@ function avatarHtml(message) {
   const fallbackStar = isAssistant ? '/assets/stars/star-private-core.webp' : '/assets/stars/star-group.webp';
   const src = custom || fallbackStar;
   const who = (message && message.sender) || (isAssistant ? s.assistantName : s.userName) || '';
-  // 图挂了就把 img 摘掉,露出底下的首字母 —— 不要一个碎图标杵在那儿
-  return `<div class="avatar has-img">${esc(initials(who))}<img src="${escAttr(src)}" alt="" loading="lazy" onerror="this.remove()"></div>`;
+  // 图挂了就把 img 摘掉,露出底下的首字母 —— 不要一个碎图标杵在那儿。
+  // ★ 连 has-img 一起摘:那个 class 把文字设成了 transparent(挡住名字从透明 PNG 底下透出来),
+  //   不摘的话图挂了会变成**空白头像** —— 兜底静默失效,而且看起来跟"正常"一模一样。
+  return `<div class="avatar has-img">${esc(initials(who))}<img src="${escAttr(src)}" alt="" loading="lazy" onerror="this.remove();this.parentNode&&this.parentNode.classList.remove('has-img')"></div>`;
 }
 
 function renderChat(scope, rows) {
@@ -70,7 +72,33 @@ function renderMessageList(scope, rows) {
   const drafts = state.composerParts[scope] || [];
   const files = state.pending[scope] || [];
   if (!rows.length && !drafts.length && !files.length && !state.uploading[scope]) return '<div class="empty">还没有消息。</div>';
-  return `${rows.map((message) => renderMessage(message)).join('')}${renderComposerDrafts(scope)}`;
+  return `${rows.map((message, i) => `${timeDivider(rows[i - 1], message)}${renderMessage(message)}`).join('')}${renderComposerDrafts(scope)}`;
+}
+
+// 「7月28日 17:30」——24 小时制,不补零到「07月」(中文日期不那么写)。
+function dayTimeLabel(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${hh}:${mm}`;
+}
+
+// 隔得久了,在正中间插一条灰色小字的时间。
+// ★ 判据是**两条消息之间的间隔**,不是"换天了" —— 凌晨 1 点接着 23 点那条聊,
+//   按"换天"会插一条,按间隔不会;而人感觉那是同一场对话。反过来,同一天里
+//   隔了六小时,按"换天"什么都不插,人却早就断片了。**间隔才是人感知的那个量。**
+const DIVIDER_GAP_MS = 30 * 60 * 1000;
+function timeDivider(prev, cur) {
+  if (!cur || !cur.created_at) return '';
+  const now = new Date(cur.created_at).getTime();
+  if (Number.isNaN(now)) return '';
+  if (prev && prev.created_at) {
+    const before = new Date(prev.created_at).getTime();
+    if (!Number.isNaN(before) && now - before < DIVIDER_GAP_MS) return '';
+  }
+  const label = dayTimeLabel(cur.created_at);
+  return label ? `<div class="time-divider"><span>${esc(label)}</span></div>` : '';
 }
 
 function renderQuotedParent(message) {

@@ -738,6 +738,12 @@ async function submitMessage(scope, form) {
   textarea.value = '';
   clearDraft(scope);
   textarea.blur();
+  // ★ 自己发言 = 无条件回到最底下。
+  //   `stickToBottom` 是按"用户有没有往上翻"自动算的:翻上去看旧消息时它变 false,
+  //   于是新消息进来不打扰你。**但那条规则不该管到"你自己刚按下发送"** ——
+  //   人翻上去找东西、顺手回一句,期待的是跳回自己那条,不是留在半空。
+  //   放在乐观插入之后、render 之前:这一帧就带着新气泡滚到底,不用等服务端回。
+  state.stickToBottom[scope] = true;
   render();
   try {
     const result = await api(`/api/${scope}/send`, {

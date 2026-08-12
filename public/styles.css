@@ -345,6 +345,18 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
    只限私聊:群聊里发言人是谁仍然要标(那儿不止两个人)。
    靠 body[data-tab] 限定,不改模板 —— 模板是各页共用的。 */
 body[data-tab="chat"] .message-row.me .msg-sender{display:none}
+/* 时间分隔:隔久了在正中间来一条灰色小字。不画横线 —— 聊天流里已经够多方块了,
+   再加一条线就是多一层结构;一行浅字足够说明"这里断了一段"。 */
+.time-divider{display:flex;justify-content:center;margin:.85rem 0 .55rem}
+.time-divider>span{
+  font-size:.68rem;
+  color:var(--muted);
+  opacity:.72;
+  letter-spacing:.04em;
+  padding:.12rem .5rem;
+  border-radius:var(--radius-pill,999px);
+  background:rgba(120,120,120,.08);
+}
 /* 反馈#4:每条消息底下 复制/回复/☆/撤回/删除 一整排太重 → 默认只露时间+⋮,点开才出 */
 .msg-more{
   margin-left:.3rem;
@@ -1782,7 +1794,11 @@ body[data-theme="starry"] .mem-home{
 /* --- 头像 --- */
 /* 首字母垫在底下,图盖在上面:图挂了 onerror 把 img 摘掉,露出首字母,
    不会留一个碎图标。所以 .avatar 原有的居中文字样式一行都不用改。 */
-.avatar.has-img{position:relative;overflow:hidden}
+/* ★ `color:transparent` 是必须的:首字母是**兄弟文字节点**,img 绝对定位盖在它上面。
+   头像一旦是**带透明区的 PNG**(星球那种),名字就从图底下透出来 ——
+   她真机上看到的「背景居然还有个人名」就是这个。
+   图挂掉时 onerror 会把 has-img 一起摘掉,首字母重新露出来 ⇒ 兜底还在,只是不再和图叠着。 */
+.avatar.has-img{position:relative;overflow:hidden;color:transparent}
 .avatar.has-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit}
 
 .avatar-picks{display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap}
