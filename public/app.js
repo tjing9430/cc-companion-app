@@ -1043,7 +1043,7 @@ function renderTopbar() {
         ${(state.tab === 'chat' || state.tab === 'group') ? renderChatSearchBtn(state.tab) : ''}
         ${(state.tab === 'chat' || state.tab === 'group') ? `<span class="only-wide">${renderFavFilterBtn(state.tab)}</span>` : ''}
         ${(state.tab === 'chat' || state.tab === 'group') ? renderChatToolsMenu(state.tab) : ''}
-        <div class="status-pill" title="${escAttr(live)}"><span class="pill-long">${esc(live)}</span><span class="pill-short">${esc(streamStatusLabel())}</span></div>
+        <div class="status-pill" data-stream="${escAttr(state.streamStatus || 'idle')}" title="${escAttr(live)}"><span class="pill-long">${esc(live)}</span><span class="pill-short">${esc(streamStatusLabel())}</span></div>
       </div>
     </header>`;
 }

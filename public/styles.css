@@ -266,11 +266,10 @@ label{display:block;color:var(--muted);font-size:.78rem;margin:0 0 .3rem;font-we
      42vw 是量出来的:320 上给标题 134px,剩下的够 ✦ + 🔍 + ⋯ + 状态点。 */
   .topbar-title-text{max-width:42vw}
 }
-@media (max-width:400px){
-  .status-pill{padding:0;border:0;background:none;width:10px;height:10px;border-radius:50%;
-    overflow:hidden;text-indent:-999px;background-color:var(--muted)}
-  .status-pill .pill-long,.status-pill .pill-short{display:none}
-}
+/* 状态点(≤400px 只留一个点)的规则**挪到文件末尾**了 —— 见文件底部。
+   ★ 原因:`@media (max-width:1100px)` 里的 `.status-pill{padding:.25rem .55rem}` 在这一行**下面**,
+     而 **CSS 层叠按源码顺序,不按媒体查询谁更窄** —— 那条更宽的规则会把这条更窄的顶掉。
+     实测后果:本该 10×10 的圆点变成 18.7×10 的椭圆(padding 撑的)。 */
 .content{flex:1;min-height:0;overflow:auto;padding:1.1rem 1.5rem 1.25rem}
 
 /* Chat */
@@ -2387,3 +2386,28 @@ body[data-theme="light"] .md-label{
    它该是"次要",不是"看不清"。 */
 body[data-theme="light"] .md-empty .md-t{opacity:.62}
 body[data-theme="light"] .md-empty .md-h{opacity:.5}
+
+@media (max-width:400px){
+  /* ★★ 这条规则原来的注释写着「颜色已经把状态说清楚了,字在 360 以下是负担」——
+     **那句是假的**:从来没有任何规则按状态给它上色,它永远是 var(--muted) 灰。
+     于是 400 以下的用户看到的是一个**不表达任何东西的灰点**,
+     而注释让每个读代码的人都以为这件事有人管了。
+     ⚠️ 它还不是圆的:width:10px 被 flex 基准顶掉,实测 18.7×10 —— 一个灰椭圆。
+     用户原话就是「右上角一个灰椭圆,一直在,没亮起来过」。
+     ⇒ 修法不是删掉它,是**让那句注释变成真的**:按 data-stream 上色。 */
+  .status-pill{padding:0;border:0;background:none;border-radius:50%;
+    width:10px;height:10px;flex:0 0 10px;box-sizing:border-box;min-width:0;max-width:none;
+    overflow:hidden;text-indent:-999px;background-color:var(--muted);
+    transition:background-color .25s ease}
+  .status-pill .pill-long,.status-pill .pill-short{display:none}
+  /* 四个状态四个颜色。★ 灰只留给「待连接」—— 那才是真的"还没亮"。 */
+  .status-pill[data-stream="live"]        {background-color:var(--ok,#6fbf8b)}
+  .status-pill[data-stream="connecting"],
+  .status-pill[data-stream="reconnecting"]{background-color:var(--warn,#d9a441);
+    animation:pill-pulse 1.4s ease-in-out infinite}
+  .status-pill[data-stream="fallback"]    {background-color:var(--warn,#d9a441)}
+}
+/* ★ 无 fill-mode:动画跑不起来时停在规则本身给的颜色,不会变透明消失。
+   (同一个坑今天栽过两次,这里不再犯第三次。) */
+@keyframes pill-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.status-pill{animation:none}}
