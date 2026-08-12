@@ -9,6 +9,12 @@
 const CACHE_VERSION = self.__CC_CACHE_VERSION__ || 'cc-companion-static-dev';
 // 会天天改的代码必须每次拿最新的;其余(图标/manifest)继续走缓存优先
 const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/js/state.js', '/js/console-view.js', '/js/settings-view.js', '/js/memory-view.js', '/js/chat-view.js', '/js/starry.js', '/js/home-view.js', '/styles.css', '/index.html'];
+// ★ 首屏那几张图必须 install 时就预下,不能等页面自己去要。
+//   实测(慢网 400kbps + 禁缓存,连打 8 次):**2 次画面里入口图标是缺的** ——
+//   一次只剩 1 颗、一次一颗都没渲出来。而且**每次缺的不是同一颗**,
+//   说明不是某个文件坏了,是"还没下完就画了"的竞态。
+//   用户看到的就是:银河在、文字在、圆图标一片空白。
+//   ⇒ 放进 install 的预下清单之后,它们在页面第一次要之前就已经躺在缓存里。
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -17,6 +23,14 @@ const STATIC_ASSETS = [
   '/manifest.json',
   '/icons/app-icon.svg',
   '/icons/maskable-icon.svg',
+  // 首屏视觉:背景 + 六个入口徽章
+  '/assets/galaxy-river.webp',
+  '/assets/badges/private.webp',
+  '/assets/badges/group.webp',
+  '/assets/badges/memory.webp',
+  '/assets/badges/console.webp',
+  '/assets/badges/settings.webp',
+  '/assets/badges/bigdipper.webp',
 ];
 
 self.addEventListener('install', (event) => {
