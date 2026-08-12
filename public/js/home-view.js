@@ -49,11 +49,11 @@ import { layoutGates, splitGates } from './river.js';
 //   实测右侧外缘会越界 10%/32%/10%/42%(只有「设置」那颗放得下)。
 //   所以交错让位给了「放得下」。换素材后如果河居中,交错会自己回来。
 const GATES = [
-  { tab: 'chat',     star: 'star3-private.svg',  title: '私聊'    , hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`,   side: 'left', size: 13   },
-  { tab: 'group',    star: 'star3-group.svg',    title: '群聊'    , hint: (s) => `${s.groupName || '小群'}，提到就唤起`, side: 'left', size: 10.5 },
-  { tab: 'memory',   star: 'star3-memory.svg',   title: '记忆库',   hint: () => '珍藏回忆',                              side: 'right', size: 8.5  },
-  { tab: 'console',  star: 'star3-console.svg',  title: '控制台',   hint: () => '看它怎么干活',                          side: 'left', size: 11   },
-  { tab: 'settings', star: 'star3-settings.svg', title: '设置',     hint: () => '名字 · 主题',                           side: 'left', size: 8    },
+  { tab: 'chat',     title: '私聊'    , hint: (s) => `与 ${s.assistantName || 'AI'} 畅聊`,   side: 'left', size: 13   },
+  { tab: 'group',    title: '群聊'    , hint: (s) => `${s.groupName || '小群'}，提到就唤起`, side: 'left', size: 10.5 },
+  { tab: 'memory',   title: '记忆库',   hint: () => '珍藏回忆',                              side: 'right', size: 8.5  },
+  { tab: 'console',  title: '控制台',   hint: () => '看它怎么干活',                          side: 'left', size: 11   },
+  { tab: 'settings', title: '设置',     hint: () => '名字 · 主题',                           side: 'left', size: 8    },
 ];
 
 // 北斗七星:「找不到的功能来这儿」。
@@ -71,7 +71,10 @@ const GATES = [
 //   size 是「占容器高的百分比」,而定稿给的是**宽度** 150px ——
 //   新素材宽高比 2.894,所以 150/2.894 = 51.8px 高,占 844 高的 6.14%。
 //   ★ 换素材必须重算这个数:同样的 size 换个宽高比就是另一个宽度。
-// 图标两套,由 settings.skyIcons 选:'star'(手绘尖角星 SVG)/ 'badge'(徽章 PNG→webp)。
+// 图标只有一套:徽章。手绘星星那套(stars3/*.svg)已删 —— 需求方定的:
+// 「星空主题删掉手绘星星,留下徽章主题」。
+// ★ 顺带把 BADGE_SCALE 也化进 GATES 的 size 里就不必了 —— 那个缩放量是量出来的,
+//   写成常量比揉进表里更容易被下一个人看见和复核。
 // ★ 做成**独立字段**而不是第四个主题值:主题多一个值意味着 styles.css 里 46 条
 //   `[data-theme="starry"]` 选择器每条都要再匹配一次,漏一条就是某档样式静默塌掉。
 //   独立字段只碰这几行,那 46 条一条都不用动。
@@ -88,12 +91,10 @@ const GATES = [
 //    写「无关」他就不会回来了。
 const BADGE_SCALE = 0.88;
 function starSrc(s, g) {
-  return s.skyIcons === 'badge'
-    ? `/assets/badges/${g.tab === 'chat' ? 'private' : g.tab}.webp`
-    : `/assets/stars3/${g.star}`;
+  return `/assets/badges/${g.tab === 'chat' ? 'private' : g.tab}.webp`;
 }
 function dipperSrc(s) {
-  return s.skyIcons === 'badge' ? '/assets/badges/bigdipper.webp' : '/assets/stars3/bigdipper3.svg';
+  return '/assets/badges/bigdipper.webp';
 }
 
 // ★ side:'below' —— 「更多」的字排在北斗**正下方**,不再排在右边。
@@ -169,7 +170,7 @@ function renderHome() {
            它不放在 .home-sky 里面,是因为那层 aria-hidden 且不接事件。 -->
       <ul class="sky-gates">
         ${layoutGates(onRiver.map((g) => ({ ...g, hintText: g.hint(s) }))).map((g) => `
-          <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${(g.size * (s.skyIcons === 'badge' ? BADGE_SCALE : 1)).toFixed(2)}%">
+          <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${(g.size * BADGE_SCALE).toFixed(2)}%">
             <button type="button" data-action="tab" data-tab="${g.tab}">
               <span class="sg-star"><img src="${starSrc(s, g)}" alt=""></span>
               <span class="sg-text">

@@ -24,14 +24,6 @@ function renderSettings({ notifySupported, notifyEnabled }) {
             <option value="starry" ${s.theme === 'starry' ? 'selected' : ''}>星空</option>
           </select>
         </div>
-        ${s.theme === 'starry' ? `
-        <div class="form-row">
-          <label>星空图标</label>
-          <select name="skyIcons">
-            <option value="badge" ${s.skyIcons !== 'star' ? 'selected' : ''}>徽章</option>
-            <option value="star" ${s.skyIcons === 'star' ? 'selected' : ''}>手绘星星</option>
-          </select>
-        </div>` : ''}
         ${Object.prototype.hasOwnProperty.call(s, 'companion_since') ? `
         <div class="form-row">
           <label>陪伴起算日</label>
