@@ -128,3 +128,29 @@ test('★ 状态点按状态上色的规则还在 —— 否则它退回一个�
   assert.match(app, /class="status-pill"\s+data-stream=/,
     'DOM 上没有 data-stream —— CSS 就算写了上色规则也无从下手(这正是当初失效的根因)');
 });
+
+test('★★ 状态点四档状态四个**互不相同**的颜色 —— 圆的绿的但钉死不动,一样答不了用户那句话', () => {
+  // ⚠️ 这条是评审补的,而我原来那三条**只咬到了一半**:
+  //    我验的是「它是不是圆点」(padding/width),没验「它变不变」。
+  //    用户原话是「我也不知道那个灰色椭圆是啥」—— **她问的是"这是什么"**,形状她一个字没提。
+  //    一个圆的、绿的、但颜色钉死的点,同样答不了她。
+  //    ★ 判据要对着**用户那句话**,不是对着我修的那个地方。
+  const states = ['live', 'connecting', 'reconnecting', 'fallback'];
+  const colours = new Map();
+  for (const st of states) {
+    const re = new RegExp(`\\.status-pill\\[data-stream="${st}"\\][^{]*\\{([^}]*)\\}`);
+    const m = css.match(re);
+    assert.ok(m, `${st} 这一档没有上色规则 —— 它会掉回默认灰,和"待连接"分不开`);
+    const bg = /background-color\s*:\s*([^;]+)/.exec(m[1]);
+    assert.ok(bg, `${st} 的规则里没有 background-color`);
+    colours.set(st, bg[1].trim());
+  }
+  // live 必须和三个异常态都不同 —— 这是这个点唯一要回答的问题:「现在正常吗」
+  for (const st of ['connecting', 'reconnecting', 'fallback']) {
+    assert.notEqual(colours.get('live'), colours.get(st),
+      `live 和 ${st} 是同一个颜色 —— 那这个点就分不出正常和异常`);
+  }
+  // idle 故意没有规则:它落回 var(--muted) 灰,而灰**只**留给"还没连上"
+  assert.doesNotMatch(css, /\.status-pill\[data-stream="idle"\]/,
+    'idle 不该有专门的颜色 —— 灰(默认值)就是它的语义,再给一个会让灰失去含义');
+});

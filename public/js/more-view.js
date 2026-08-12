@@ -42,16 +42,16 @@ function rotateCCW(p) {
 //   ——「设置」是例外:它本来就是这颗北斗错点进去的地方,给它一个正经位子。
 const SLOTS = [
   { key: 'settings', title: '设置',   hint: '名字 · 主题 · 桥',  action: 'tab', tab: 'settings' },
-  { key: 'theme',    title: '换主题', hint: (s) => THEME_LABEL[nextTheme(s.theme)] || '换一个', action: 'more-theme' },
   { key: 'about',    title: '关于',   hint: '版本 · 开源',       action: 'more-about' },
 ];
 
-const THEME_ORDER = ['dark', 'light', 'starry'];
-const THEME_LABEL = { dark: '暖深色', light: '奶油白', starry: '星空' };
-function nextTheme(cur) {
-  const i = THEME_ORDER.indexOf(String(cur || 'dark'));
-  return THEME_ORDER[(i + 1) % THEME_ORDER.length];
-}
+// ★ 这里原来有「换主题」那一格 + THEME_ORDER / THEME_LABEL / nextTheme。
+//   需求方原话「删掉吧」—— 理由是它**轮流切**:三个主题要绕回原来那个得点三次,
+//   而每点一次整页重绘、星盘入场动画重放一遍。
+//   ⚠️ 删之前 grep 过消费者:settings-view 那三个 option 是**写死的**,不吃这张表,
+//     所以功能不丢(设置页仍然是直选下拉)。三个符号只服务于这一格,一并删。
+//   ★ 顺带记一笔:动画重放的根因**不是这个钮**,是"每次重绘都重建 .more-dial"。
+//     钮删了那个根因还在 —— 见 .more-dial 的 md-in 那段。
 
 function renderMore() {
   const s = state.settings || {};
@@ -81,7 +81,7 @@ function renderMore() {
 
   return `
     <div class="more-view">
-      <div class="more-dial">
+      <div class="more-dial${state.moreAnim ? ' md-in' : ''}">
         <!-- ★ 图单独转,**盘子不转**。整块一起转的话六段文字也会跟着躺倒,读不了。
              所以:图静态 rotate(-90deg),星点用换算过的坐标摆,文字始终是正的。
              进场那下「从横着转成竖着」是给外层 .more-dial 加的一次性动画
@@ -91,6 +91,11 @@ function renderMore() {
         ${cells}
       </div>
       ${state.moreAbout ? renderAbout(s) : ''}
+      <!-- ★「关于」是**浮层**不是流内元素。
+           原来它排在盘下面,展开就把内容区撑高 81px —— 这一页于是从"不可滚"变成"可滚",
+           用户滚下去读那行桶名,盘的上沿就钻进顶栏后面被切掉。
+           而**让她滚下去读那行桶名的正是我们自己**(为了确认她跑的是哪版)。
+           ⇒ 根治不是给盘加 padding,是让这一页**永远不产生滚动**:浮层不占流。 -->
     </div>`;
 }
 
@@ -124,4 +129,4 @@ async function loadSwVersion() {
   }
 }
 
-export { renderMore, nextTheme, THEME_ORDER, THEME_LABEL, STAR_POINTS, rotateCCW, SLOTS, loadSwVersion };
+export { renderMore, STAR_POINTS, rotateCCW, SLOTS, loadSwVersion };

@@ -9,12 +9,17 @@
 //      「设置」就会从盘顶跳到盘中间,没有任何报错。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // more-view 顺着 state.js 会碰到 localStorage(浏览器全局)。
 // ★ 用**动态 import** 而不是顶上的静态 import:静态 import 会被提升到桩之前执行,
 //   桩就白打了。这一步不是可选的写法偏好 —— 写成静态的,这份测试根本跑不起来。
 globalThis.localStorage = { getItem: () => '', setItem: () => {}, removeItem: () => {} };
-const { STAR_POINTS, rotateCCW, SLOTS, nextTheme, THEME_ORDER } = await import('../public/js/more-view.js');
+const { STAR_POINTS, rotateCCW, SLOTS } = await import('../public/js/more-view.js');
 
 test('素材里量出来的是 6 颗,不是 7', () => {
   // 名字叫「北斗七星」,素材只画了 6 个星核 —— 差额是故意的,不是漏抄。
@@ -48,14 +53,16 @@ test('功能位比星少 —— 余下的是留给开源用户的空位', () => 
   assert.equal(SLOTS[0].tab, 'settings', '「更多」不再直接落进设置页,设置只是盘上的一颗');
 });
 
-test('换主题是循环的,转一圈回到原点,且不会停在原地', () => {
-  let t = 'dark';
-  const seen = [];
-  for (let i = 0; i < THEME_ORDER.length; i++) { t = nextTheme(t); seen.push(t); }
-  assert.equal(t, 'dark', '转一圈应当回到起点');
-  assert.equal(new Set(seen).size, THEME_ORDER.length, '一圈里每个主题都要出现且只出现一次');
-  // 脏值不能把它卡死在同一个主题上 —— 卡死的表现是"点了没反应",最难查
-  assert.notEqual(nextTheme('不是主题'), '不是主题');
-  assert.notEqual(nextTheme(''), '');
-  assert.notEqual(nextTheme(undefined), undefined);
+test('★ 删掉「换主题」那一格之后,设置页的主题下拉必须还在、还是三档', () => {
+  // ★ 这条是「功能没丢」的**唯一证据**。删入口把主干一起带断,今天不是没见过 ——
+  //   而且那种断法很安静:更多页少一格是看得见的,设置页下拉没了得有人专门去点。
+  const sv = readFileSync(path.join(root, 'public/js/settings-view.js'), 'utf8');
+  for (const v of ['dark', 'light', 'starry']) {
+    assert.match(sv, new RegExp(`<option value="${v}"`), `设置页主题下拉少了 ${v} 这一档`);
+  }
+  // 反向:更多页不许再有主题入口(否则等于没删)
+  const mv = readFileSync(path.join(root, 'public/js/more-view.js'), 'utf8');
+  assert.doesNotMatch(mv, /more-theme/, '「换主题」那一格还在(或它的 action 还留着)');
+  const app = readFileSync(path.join(root, 'public/app.js'), 'utf8');
+  assert.doesNotMatch(app, /'more-theme'/, "app.js 里 'more-theme' 的分支是死代码,该清掉");
 });

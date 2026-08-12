@@ -17,7 +17,7 @@ import {
 import { renderMarkdown, mdInline, mdSafeUrl } from './js/markdown.js';
 import { hydrateStarry } from './js/starry.js';
 import { renderHome } from './js/home-view.js';
-import { renderMore, nextTheme, loadSwVersion } from './js/more-view.js';
+import { renderMore, loadSwVersion } from './js/more-view.js';
 import {
   CONSOLE_COMMANDS,
   MAX_ATTACHMENT_BYTES,
@@ -76,6 +76,8 @@ function bindEvents() {
     const name = action.dataset.action;
     if (name === 'tab') {
       state.tab = action.dataset.tab || 'chat';
+      // 只有**进**「更多」那一下才放入场动画;页内任何重绘都不再重放
+      state.moreAnim = state.tab === 'more';
       render();
       await refreshCurrent().catch(handleBackgroundError);
     }
@@ -96,26 +98,6 @@ function bindEvents() {
       if (state.moreAbout && !state.swVersion) {
         loadSwVersion().then((v) => { state.swVersion = v; if (state.moreAbout) render(); });
       }
-      return;
-    }
-    if (name === 'more-theme') {
-      // ★ 先本地翻、立刻重绘,再把结果送回后端 —— 换主题要**手指一抬就变**。
-      //   等一个来回再翻会有半秒发呆,那半秒里用户会以为没点上、再点一次,于是翻两档。
-      const before = state.settings.theme;
-      state.settings = { ...state.settings, theme: nextTheme(before) };
-      applyTheme();
-      render();
-      try {
-        state.settings = await api('/api/settings', { method: 'POST', body: { ...state.settings } });
-        cacheBootstrap();
-      } catch (err) {
-        // 存不上就翻回去。**别把界面留在一个后端不认的主题上** ——
-        // 下次刷新会自己变回来,那时候用户只会觉得"它自己乱换"。
-        state.settings = { ...state.settings, theme: before };
-        applyTheme();
-        handleBackgroundError(err);
-      }
-      render();
       return;
     }
     if (name === 'bridge-dial') return;   // select 走 change 事件,不在 click 里处理
@@ -941,6 +923,9 @@ function render() {
   hydrateStarry(root);
   // (首屏不再需要水合:新素材把银河和夜空画在同一张图里,没有要 JS 撒的星尘了)
   markLoadedIcons(root);
+  // ★ 令牌用完即焚 —— 放在这儿而不是 renderMore 里面,是为了让渲染函数保持"只读 state"。
+  //   (renderMore 里改 state 也能work,但那会让"渲染有副作用"成为这个文件的先例。)
+  if (state.moreAnim) state.moreAnim = false;
 }
 
 // 入口图标:DOM 刚重建完,**已经加载好的图立刻补上 .lit**,别等它的 load 事件。

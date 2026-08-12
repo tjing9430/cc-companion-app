@@ -2242,6 +2242,12 @@ body[data-theme="starry"] .chat-view:where([style*="--chat-bg"], .has-chat-bg) .
        盘子永远停在 rotate(90deg) scale(.34)。我量它的时候量到的就是这个,
        两轮数字都对不上账,差点去改宽高比。
        ⇒ 进场动画只负责"进场",**静止的样子不许由它决定**。 */
+}
+/* ★ 入场动画挂在 **.md-in** 上,不挂在 .more-dial 本身。
+   挂在本身的话,每次 render() 重建元素都会重放一遍 ——
+   用户点一次换主题盘转两次(本地先翻一次 render、后端回来又一次)。
+   .md-in 由「进这一页」那一下发,渲完即清。 */
+.more-dial.md-in{
   animation:md-rise .62s cubic-bezier(.22,.85,.3,1);
 }
 @keyframes md-rise{
@@ -2314,8 +2320,14 @@ body[data-theme="starry"] .chat-view:where([style*="--chat-bg"], .has-chat-bg) .
 .md-empty .md-t{font-weight:500;opacity:.5}
 .md-empty .md-h{opacity:.38;font-size:.62rem}
 
+/* ★ 浮层,不占流。它排在流里的时候,展开会把内容区撑高 81px,
+   这一页就从"不可滚"变成"可滚",用户滚下去读桶名 → 盘的上沿钻进顶栏被切。
+   ⇒ 让这一页**永远不产生滚动**,比给盘加 padding 干净,也不用去猜用户的字号。 */
+.more-view{position:relative;overflow:hidden}
 .md-about{
-  margin:1rem 1.2rem 0;padding:.7rem .9rem;max-width:32rem;
+  position:absolute;left:.9rem;right:.9rem;bottom:calc(.8rem + env(safe-area-inset-bottom,0px));
+  background:var(--panel);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  padding:.7rem .9rem;max-width:32rem;margin:0 auto;
   border:1px solid var(--line,rgba(255,255,255,.14));border-radius:.7rem;
   font-size:.78rem;line-height:1.6;
 }
@@ -2328,7 +2340,7 @@ body[data-theme="starry"] .chat-view:where([style*="--chat-bg"], .has-chat-bg) .
 /* ★ 关掉动画的人只是不想看东西动,不是不想用这一页 ——
      终态必须是**能用的那一帧**,不能停在 scale(.34)。 */
 @media (prefers-reduced-motion:reduce){
-  .more-dial{animation:none}
+  .more-dial.md-in{animation:none}
   .md-star{animation:none}
 }
 
