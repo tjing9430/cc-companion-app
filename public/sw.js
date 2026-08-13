@@ -8,7 +8,7 @@
 // (回落值只在「不经本项目服务端、直接静态托管 public/」时用到,那种部署本来就得自己管缓存。)
 const CACHE_VERSION = self.__CC_CACHE_VERSION__ || 'cc-companion-static-dev';
 // 会天天改的代码必须每次拿最新的;其余(图标/manifest)继续走缓存优先
-const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/js/state.js', '/js/console-view.js', '/js/settings-view.js', '/js/memory-view.js', '/js/chat-view.js', '/js/starry.js', '/js/home-view.js', '/styles.css', '/index.html'];
+const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/js/state.js', '/js/console-view.js', '/js/settings-view.js', '/js/memory-view.js', '/js/chat-view.js', '/js/starry.js', '/js/home-view.js', '/js/stream-format.js', '/styles.css', '/index.html'];
 // ★ 首屏那几张图必须 install 时就预下,不能等页面自己去要。
 //   实测(慢网 400kbps + 禁缓存,连打 8 次):**2 次画面里入口图标是缺的** ——
 //   一次只剩 1 颗、一次一颗都没渲出来。而且**每次缺的不是同一颗**,

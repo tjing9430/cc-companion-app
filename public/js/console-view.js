@@ -5,6 +5,7 @@
 import { esc, escAttr, formatTime } from './util.js';
 import { state, CONSOLE_COMMANDS, ICONS } from './state.js';
 import { quotaWindowValue, quotaResetValue } from './settings-view.js';
+import { formatLines, fmtCost, hhmm } from './stream-format.js';
 
 function renderConsole() {
   return `
@@ -84,22 +85,38 @@ function renderTerminal() {
     const t = String(e.created_at || '').slice(11, 19);
     return `<div class="tl tl-${esc(e.kind || 'event')}"><span class="tl-t">${esc(t)}</span><span class="tl-k">${esc((e.kind || '').padEnd(8))}</span><span class="tl-b">${esc(e.title || '')}${e.body ? ' — ' + esc(String(e.body).slice(0, 300)) : ''}</span></div>`;
   }).join('');
-  const tail = (state.rawTail || []).map((l) => `<div class="tl tl-raw">${esc(l)}</div>`).join('');
+  const raw = state.rawTail || [];
+  // 格式化档:一行 stream-json → 一行 CLI 长相,噪音行(thinking_tokens)直接不出现,
+  // 所以行数会比原始少 —— 少掉的不是"丢了",是本来就不该占屏。
+  // 原始档一个字不动地照抄:格式化解错的时候,只有它能自证。
+  const tail = state.rawFmt
+    ? formatLines(raw).map((r) => `<div class="tl tl-f tl-f-${esc(r.cls)}"><span class="tl-m">${esc(r.mark)}</span><span class="tl-b">${esc(r.text)}</span></div>`).join('')
+    : raw.map((l) => `<div class="tl tl-raw">${esc(l)}</div>`).join('');
+  const fmtBtn = `<button type="button" class="term-fmt" data-action="raw-fmt" title="${escAttr(state.rawFmt ? '切到一个字都没动过的原始 JSON' : '切回 CLI 长相')}">${state.rawFmt ? '看原始' : '看格式化'}</button>`;
+  // ★ 这一段(含切档钮)原来挂在 `tail ?` 底下 —— 有实时输出才出现。
+  //   而原始流只活在内存里、刷新即空,所以**刷完页面这个功能等于不存在**:
+  //   反馈原话「我没有看到啊 / 刷新了好几次都没有看到」。
+  //   哑掉和没做长得一模一样,这条今晚是第二次咬人了。
+  //   ⇒ 头和钮常驻;没数据时说清楚它在等什么,而不是整段消失。
+  const liveEmpty = '<div class="empty term-live-empty">还没有实时输出 —— 发一条消息，或在上面敲条命令，它就从这儿往下滚。</div>';
   return `
     <div class="term-view" data-scroll-list data-scroll-scope="console">
       <div class="term-note">运行事件流（不是原始 stdout）</div>
       ${hist || '<div class="empty">还没有事件。</div>'}
-      ${tail ? `<div class="term-note term-note-live">↓ 实时原始输出（只在内存里，刷新即空）</div>${tail}` : ''}
+      <div class="term-note term-note-live">↓ 实时原始输出（只在内存里，刷新即空）${fmtBtn}</div>
+      ${tail || liveEmpty}
     </div>
     ${renderTermStatus()}`;
 }
 
 // 终端底下那条状态行 —— 对着别人家 CLI 的状态栏做的。
 //
-// ★★ 只显示**真取得到**的东西。别人的 CLI 上有花了多少钱、几点重置、任务清单打勾,
-//    我们这条链上:桥报得出模型和上下文,额度 adapter 报得出余量和刷新时间,
-//    **花费报不出来** —— 那就不摆这一栏。
-//    摆一个永远写着 "$0.00" 的位子,比空着更糟:它看起来像在工作。
+// ★★ 只显示**真取得到**的东西。摆一个永远写着 "$0.00" 的位子,比空着更糟:
+//    它看起来像在工作。
+//    ——原来这儿写着「花费报不出来,那就不摆这一栏」。**那句是错的,已删。**
+//    错在只问了桥的状态接口,没去看原始流:`result` 行自带 `total_cost_usd`,
+//    `rate_limit_event` 行自带 `resetsAt` 和用量百分比。两个数一直在流里躺着,
+//    是我没去接。留着这段是给下一个人看的:「取不到」要写清楚是**哪条路取不到**。
 // ★ 每一段都自己判断有没有数据,没有就整段不渲染。
 //   不是渲染成 "—" —— 破折号会让人以为"现在是零",而真相是"我们不知道"。
 function renderTermStatus() {
@@ -131,6 +148,16 @@ function renderTermStatus() {
     if (five) seg.push(['5h', five]);
     const reset = quotaResetValue((d.five_hour && d.five_hour.resets_at) || d.resets_at);
     if (reset) seg.push(['刷新', reset]);
+  }
+
+  // 从原始流里顺来的两段。★ 标「上轮」不标「花费」:这是最后一条 result 行自报的数,
+  //   我没验过它是本轮还是全会话累计 —— 标成含义确定的那个说法,别让人拿它当账单。
+  const m = state.streamMeta || {};
+  const cost = fmtCost(m.cost_usd);
+  if (cost) seg.push(['上轮', cost]);
+  if (m.resets_at) {
+    const pct = Number.isFinite(m.utilization) ? `${Math.round(m.utilization * 100)}% · ` : '';
+    seg.push(['额度重置', `${pct}${hhmm(m.resets_at)}`]);
   }
 
   if (!seg.length) return '';

@@ -1944,6 +1944,23 @@ body[data-theme="starry"] .term-view{background:rgba(6,10,24,.55)}
 .tl-raw{color:var(--muted);opacity:.85}
 .tl-raw:nth-child(odd){opacity:.75}
 
+/* 格式化档的原始流。★ 首字那一枚符号(●✻⎿⚠)固定宽度另起一列 ——
+   CLI 好读靠的是每行左边缘对齐,符号跟正文挤在一起就散了。
+   ★ 颜色只区分**种类**,不做语法高亮:这是日志不是编辑器,五颜六色反而找不着重点。 */
+.term-fmt{margin-left:.5rem;font:inherit;color:var(--accent);background:none;border:0;
+  padding:0;cursor:pointer;text-decoration:underline dotted;letter-spacing:inherit}
+.tl-f{gap:.4rem;align-items:baseline}
+.tl-f .tl-m{flex:0 0 1em;text-align:center;opacity:.8}
+.tl-f-think{color:var(--faint);font-style:italic}
+.tl-f-think .tl-b{color:inherit}
+.tl-f-tool .tl-b{color:var(--accent-2)}
+.tl-f-res{opacity:.8}
+.tl-f-res .tl-b{color:var(--muted)}
+.tl-f-sys .tl-b,.tl-f-done .tl-b{color:var(--faint)}
+.tl-f-warn .tl-b{color:var(--warn,#d9a441)}
+.tl-f-err .tl-b{color:var(--danger)}
+.tl-f-plain .tl-b{color:var(--muted)}
+
 /* ============ 首屏:沉浸式星河导航页 ============ */
 .home-view{padding:1.1rem 0 2rem;position:relative}
 .home-hero{position:relative;z-index:2;padding:0 1rem}

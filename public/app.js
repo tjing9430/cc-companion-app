@@ -32,6 +32,7 @@ import {
   memoryAuthor,
 } from './js/state.js';
 import { renderConsole, renderConsoleEvent } from './js/console-view.js';
+import { scanMeta } from './js/stream-format.js';
 import { renderSettings, renderQuotaPanel, agentProviderLabel } from './js/settings-view.js';
 import { renderMemory, renderMemoryReader, memoryTabHeading } from './js/memory-view.js';
 import {
@@ -89,6 +90,11 @@ function bindEvents() {
       if (state.consoleView === 'term' && !(state.quota && state.quota.data)) {
         loadQuota().then(render).catch(handleBackgroundError);
       }
+      return;
+    }
+    if (name === 'raw-fmt') {
+      state.rawFmt = !state.rawFmt;
+      render();
       return;
     }
     if (name === 'more-about') {
@@ -1492,6 +1498,9 @@ function connectStream() {
     if (!data || !Array.isArray(data.lines)) return;
     const RAW_CAP = 400;   // 一轮 ~510 行,留最近 400 行够看,再多是白占内存
     state.rawTail = [...(state.rawTail || []), ...data.lines].slice(-RAW_CAP);
+    // 花费和额度重置时间只在这条流里出现 —— 扫描要在**入队时**做,不能挪进渲染:
+    // 环形缓冲会把老行挤掉,那条报花费的 result 行一旦被挤走,渲染时就再也扫不到了。
+    state.streamMeta = scanMeta(data.lines, state.streamMeta);
     // 只有正开着终端档才重绘 —— 否则后台每 120ms 整页重绘是纯浪费
     if (state.tab === 'console' && state.consoleView === 'term') render();
   });

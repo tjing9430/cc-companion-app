@@ -67,6 +67,13 @@ const state = {
   // 刷新即空。这是这条通道的验收项:用户的库不因为它多写一个字节。
   consoleView: 'flow',        // 'flow' 工作流卡片 | 'term' 终端
   rawTail: [],                // 环形:只留最近 N 行
+  // 原始流的显示档。默认**格式化** —— 实测 16 行里 8 行是 thinking_tokens(每涨一个
+  // token 报一次),原样滚出来一半屏幕是废话。但原始档必须留着:格式化解错了的时候,
+  // 唯一能自证的就是那行没被动过的 JSON。
+  rawFmt: true,
+  // 从原始流里顺出来的两个数(花费、额度重置)。桥的状态接口报不出它们,
+  // 但 stream-json 的 result / rate_limit_event 行里本来就有。★ 和 rawTail 一样只在内存里。
+  streamMeta: {},
 
   quota: { loading: false, data: null, error: '', fetched_at: '' },
   pending: { chat: [], group: [] },
