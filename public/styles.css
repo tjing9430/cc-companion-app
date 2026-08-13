@@ -2119,19 +2119,30 @@ body[data-theme="starry"] .home-hero{
   padding-bottom:1.2rem;
 }
 
-/* --- 非星空主题:银河不出场,入口退回一条朴素的竖列 ---
-   一张深空银河压在米色底上会很脏。不为了好看去绑架主题选择。 */
-body:not([data-theme="starry"]) .home-sky{display:none}
-body:not([data-theme="starry"]) .sky-gates{position:static;transform:none;
+/* --- 暖深色 / 奶油白:银河不出场,入口退回一条朴素的竖列 ---
+   一张深空银河压在米色底上会很脏。不为了好看去绑架主题选择。
+   ★★ 2026-08-14:选择器由 `:not(starry)` 收紧成 `:not(starry):not(island)`。
+      原来那条是「**除了星空,其余一律竖列**」—— 加浮岛主题时它会把浮岛的
+      绝对定位构图整个压平成一条竖列,**而且不报任何错**:CSS 没有"选择器管多了"这种错误。
+      这和主题白名单是同一个形状的坑(那儿是漏加一份名单,这儿是没排除新值),
+      都属于「加第 N 个值时,写着 N-1 个值前提的代码静默失效」。 */
+body:not([data-theme="starry"]):not([data-theme="island"]) .home-sky{display:none}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sky-gates{position:static;transform:none;
   aspect-ratio:auto;height:auto;display:flex;flex-direction:column;gap:1.25rem;padding:.6rem 1rem}
-body:not([data-theme="starry"]) .sky-gate{position:static;transform:none;height:auto}
-body:not([data-theme="starry"]) .sky-gate button{display:flex;align-items:center;
+body:not([data-theme="starry"]):not([data-theme="island"]) .sky-gate{position:static;transform:none;height:auto}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sky-gate button{display:flex;align-items:center;
   gap:.85rem;width:100%;height:auto;text-align:left}
-body:not([data-theme="starry"]) .sg-star{height:var(--size);width:auto;flex:0 0 auto}
-body:not([data-theme="starry"]) .sg-text{position:static;transform:none;
+/* ★★ 这里**不能**用 `var(--size)`。--size 是「占容器高的百分比」,而竖列表里
+   父级高度是 auto —— **百分比高度在 auto 父级下解析不出来**,浏览器退回图片的
+   自然尺寸 384px。于是暖深色/奶油白的首屏是三颗占满半屏的巨型徽章。
+   ⚠️ 它一直是这样,不是这次改坏的 —— 但它一直没被发现,因为
+     ① 这两个主题没人天天看 ② 页面**照常渲染、零报错**,只是尺寸荒谬。
+   ★ 百分比只在绝对定位那两档(星空/浮岛)有确定的参照;竖列表这档必须给 px。 */
+body:not([data-theme="starry"]):not([data-theme="island"]) .sg-star{height:56px;width:auto;flex:0 0 auto}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sg-text{position:static;transform:none;
   border:0;padding:0;margin:0;background:none;text-align:left}
-body:not([data-theme="starry"]) .sg-star{height:var(--size);width:auto;flex:0 0 auto}
-body:not([data-theme="starry"]) .sg-text{position:static;transform:none;
+body:not([data-theme="starry"]):not([data-theme="island"]) .sg-star{height:56px;width:auto;flex:0 0 auto}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sg-text{position:static;transform:none;
   border:0;padding:0;text-align:left}
 
 /* 首屏在星空下不要顶栏那条线,让它像一整块夜空 */
@@ -2446,3 +2457,105 @@ body[data-theme="light"] .md-empty .md-h{opacity:.5}
    (同一个坑今天栽过两次,这里不再犯第三次。) */
 @keyframes pill-pulse{0%,100%{opacity:1}50%{opacity:.45}}
 @media (prefers-reduced-motion:reduce){.status-pill{animation:none}}
+
+/* ==========================================================================
+   浮岛主题(island)—— 「星空是夜晚,浮岛是白天的家」
+   ========================================================================== */
+body[data-theme="island"]{
+  color-scheme:light;
+  --bg:#e9f3fc;
+  --bg-soft:#f3f9fe;
+  --panel:rgba(255,255,255,.86);
+  --panel-2:rgba(255,255,255,.95);
+  --panel-soft:rgba(255,255,255,.7);
+  --text:#2c3b4d;
+  --muted:#61798f;
+  --faint:#8ba0b4;
+  --line:rgba(90,130,170,.18);
+  --line-soft:rgba(90,130,170,.11);
+  --accent:#e0846d;              /* 粉屋顶的陶土红 —— 从她那张岛的屋顶采的 */
+  --accent-strong:#cf6f57;
+  --accent-soft:rgba(224,132,109,.16);
+  --accent-ink:#ffffff;
+  --accent-2:#5da3d4;            /* 天空蓝 */
+  --me-bubble:#fde4dc;
+  --me-bubble-ink:#5a2f24;
+  --them-bubble:#ffffff;
+  --them-bubble-ink:#2c3b4d;
+  --danger:#c8604f;
+  --danger-soft:rgba(200,96,79,.15);
+  --pending-bubble:#a9bccd;
+  --pending-bubble-ink:#ffffff;
+  --shadow-sm:0 1px 2px rgba(50,90,130,.07);
+  --shadow-md:0 6px 20px rgba(50,90,130,.10);
+  --shadow-lg:0 18px 44px rgba(50,90,130,.14);
+  /* 天空:纯渐变,零素材。
+     ★ 不再另做一张天空底图 —— 她稿子里的天就是一片蓝到白的渐变加几朵云,
+       CSS 画得出来的东西不值得多下 100KB,也不值得多一个要跟着主题切换的请求。 */
+  background:linear-gradient(180deg,#a9d4f2 0%,#c8e6f8 34%,#e4f2fb 62%,#f4f4ea 100%) fixed;
+}
+body[data-theme="island"] .layout,
+body[data-theme="island"] .main,
+body[data-theme="island"] .content,
+body[data-theme="island"] .message-list{background:transparent}
+
+/* 云:两片超大羽化的白色径向渐变,静止。
+   ★ 不飘 —— 需求方 8/12 明确「不做动画」。这里只是**质感**,不是动效。 */
+body[data-theme="island"] .home-sky::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(46% 13% at 22% 30%, rgba(255,255,255,.85), rgba(255,255,255,0) 70%),
+    radial-gradient(38% 10% at 78% 52%, rgba(255,255,255,.7),  rgba(255,255,255,0) 72%),
+    radial-gradient(52% 12% at 44% 76%, rgba(255,255,255,.6),  rgba(255,255,255,0) 74%);
+}
+
+/* 岛比徽章大得多:徽章那档 clamp 上限 132px 会把竖岛齐腰砍掉。
+   ★ 上下限都放宽,但**必须验过它在 320–430 四档里都不咬**:
+     320 档竖岛 17% × 568 = 96.6px(>52 ✅) · 430 档 17% × 932 = 158.4px(<200 ✅)。
+     clamp 一旦真的介入,几何层算的宽度就和实际不一致 —— 那是静默错位。 */
+body[data-theme="island"] .sky-gate{height:clamp(52px, var(--size), 200px)}
+
+/* 占位盒子的宽高比按**每座岛自己的**来(徽章是正方形,岛不是)。 */
+body[data-theme="island"] .sg-star:not(.lit),
+body[data-theme="island"] .sky-dipper .sg-star:not(.lit){aspect-ratio:var(--ratio, 1)}
+
+/* 岛的投影:淡蓝灰,不是黑。
+   ★ 6515f7d 的教训是「浅底别用黑晕」—— 黑色阴影压在蓝天上会发脏发灰。 */
+body[data-theme="island"] .sg-star{
+  filter:drop-shadow(0 6px 10px rgba(70,120,165,.22)) drop-shadow(0 1px 2px rgba(70,120,165,.14));
+}
+
+/* 标签做成白色小卡,不做描边字。
+   ★★ 这不是我的发挥,是她稿子上画的就是白色圆角卡 —— 而它同时解决了
+      「浅底上文字怎么读得清」:在浅底上加深色描边(6515f7d 那次)会让字发脏,
+      给字一块自己的底才是浅色主题的正解。 */
+body[data-theme="island"] .sg-text{
+  background:rgba(255,255,255,.88);
+  border:1px solid rgba(120,160,195,.22);
+  border-radius:999px;
+  padding:.26rem .6rem;
+  box-shadow:0 2px 8px rgba(60,110,155,.14);
+  gap:0;
+}
+body[data-theme="island"] .sg-title{color:#2c3b4d}
+body[data-theme="island"] .sg-hint{color:#6a819a}
+/* 「更多」在浮岛下不压暗 —— 它是热气球平台岛,压暗看着像坏了。
+   压暗那条是给北斗写的(北斗是"第六个入口不要抢戏"),换了素材前提就没了。 */
+body[data-theme="island"] .sky-dipper .sg-star{opacity:1}
+
+/* ==========================================================================
+   #54 暖深色 / 奶油白 的极简首屏 —— 零新素材,纯 CSS
+   ★ 「最简」的落点:它们没有背景图,所以底就是一层跟着主题变量走的渐变;
+     入口沿用同一套构图表和同一套徽章。不加底图、不加装饰物、不加动画。
+   ========================================================================== */
+/* ★ 挂 .home-stage 不挂 .home-sky:上面那条 `.home-sky{display:none}` 对这两个主题是生效的,
+   把底色写在一个 display:none 的元素上,它一辈子都不会出现 ——
+   我第一版就是这么写的,**CSS 不会为此报任何错**,只会安静地什么都不做。 */
+body[data-theme="dark"] .home-stage,
+body[data-theme="light"] .home-stage{
+  background:radial-gradient(115% 62% at 50% 4%, var(--bg-soft) 0%, var(--bg) 58%, var(--bg) 100%);
+}
+/* 浅底(奶油白)下徽章要一点点分离感,深底(暖深色)下要一点点发光 ——
+   同一个需求两种方向,所以**不能共用一条**。 */
+body[data-theme="light"] .sg-star{filter:drop-shadow(0 4px 8px rgba(120,95,60,.18))}
+body[data-theme="dark"]  .sg-star{filter:drop-shadow(0 0 14px rgba(240,215,170,.20))}

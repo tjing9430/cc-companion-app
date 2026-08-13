@@ -21,6 +21,36 @@
 import { esc, escAttr } from './util.js';
 import { state } from './state.js';
 import { layoutGates, splitGates } from './river.js';
+import { layoutIsles, MORE_SPOT } from './isles.js';
+
+// 浮岛主题的精灵表。
+//
+// ★ 岛↔功能的配对**不是我配的**,是照需求方 8/11 那张界面稿逐个对的:
+//   粉屋顶小屋=私密聊天 · 蓝屋顶小屋=群聊空间 · 风车=记忆库 ·
+//   白圆顶天文台=控制台 · 蓝圆顶塔=设置 · 热气球平台=更多。
+//   (「更多」那座在她稿子里就是热气球平台岛,不是我挑的。)
+//
+// ★ ratio = 图的 宽/高,**量自成品 webp 本身**,不是估的。
+//   它不是装饰性元数据:isles.js 用它算精灵半宽,算错就会出屏。
+//   ★★ 换素材必须同步改这个数 —— 换图不改 ratio,几何层会拿旧比例判"没出屏"。
+// ★ size = 占容器高的百分比。竖岛给小一点、横岛给大一点,
+//   这样六座**看起来**差不多大 —— 统一 size 的话竖岛会比横岛高一倍。
+const ISLES = {
+  chat:     { file: 'private',  ratio: 226 / 340, size: 22 },
+  group:    { file: 'group',    ratio: 340 / 231, size: 13 },
+  memory:   { file: 'memory',   ratio: 233 / 340, size: 20 },
+  console:  { file: 'console',  ratio: 340 / 236, size: 13 },
+  settings: { file: 'settings', ratio: 229 / 340, size: 18 },
+  more:     { file: 'more',     ratio: 333 / 340, size: 11 },
+};
+
+// 首屏的两套几何:
+//   starry → 沿银河路径(坐标量自素材像素,河看得见,所以贴着河走有意义)
+//   其余   → 声明式构图表(isles.js)
+// ★ 暖深色/奶油白也走构图表,**不是顺手统一**:它们没有银河底图,
+//   沿一条看不见的河摆入口,落点就成了没有来源的数字 ——
+//   画面上读起来是"随便撒的",而它确实是随便撒的。
+function isIsleLayout(theme) { return theme !== 'starry'; }
 
 // 五个入口。
 //
@@ -105,10 +135,18 @@ const LIT = 'onload="this.parentNode.classList.add(\'lit\')"';
 
 const BADGE_SCALE = 0.88;
 function starSrc(s, g) {
+  if (s.theme === 'island') return `/assets/island/${ISLES[g.tab].file}.webp`;
   return `/assets/badges/${g.tab === 'chat' ? 'private' : g.tab}.webp`;
 }
 function dipperSrc(s) {
+  if (s.theme === 'island') return '/assets/island/more.webp';
   return '/assets/badges/bigdipper.webp';
+}
+// 图没到时占位盒子的宽高比。徽章是正方形、北斗是 1389/480、浮岛每座各不相同 ——
+// ★ 这个值必须跟真图一致,否则图一到盒子就跳一下(占位的意义正是"不跳")。
+function ratioOf(s, g, isDipper) {
+  if (s.theme === 'island') return ISLES[isDipper ? 'more' : g.tab].ratio;
+  return isDipper ? 1389 / 480 : 1;
 }
 
 // ★ side:'below' —— 「更多」的字排在北斗**正下方**,不再排在右边。
@@ -148,6 +186,25 @@ function renderHome() {
   // 超出上限的入口不会消失,它们归到「更多」那颗北斗名下(并在控制台点名)
   const { onRiver, overflow } = splitGates(GATES);
   const days = daysTogether(s.companion_since);
+  const isle = isIsleLayout(s.theme);
+
+  // 两套几何走同一个出口 —— 下面的模板不需要知道自己在用哪套。
+  // ★ 浮岛主题连 size 一起换:徽章的 size 是照徽章的视觉重量定的,
+  //   套到一座带瀑布的岛上会小得看不清是什么。
+  const laid = isle
+    ? layoutIsles(onRiver.map((g) => ({
+      ...g, hintText: g.hint(s),
+      size: s.theme === 'island' ? ISLES[g.tab].size : g.size,
+      ratio: s.theme === 'island' ? ISLES[g.tab].ratio : 1,
+    })))
+    : layoutGates(onRiver.map((g) => ({ ...g, hintText: g.hint(s) })));
+
+  // 「更多」那一颗:星空下是北斗(钉在空地上),其余主题下是构图表的最后一格。
+  const more = isle
+    ? { ...DIPPER, ...MORE_SPOT, size: s.theme === 'island' ? ISLES.more.size : DIPPER.size }
+    : DIPPER;
+  // ★ 浮岛的精灵不缩:BADGE_SCALE 那 12% 是量给徽章的,套到别的素材上没有依据。
+  const spriteScale = s.theme === 'island' ? 1 : BADGE_SCALE;
 
   return `
     <div class="home-view">
@@ -163,7 +220,7 @@ function renderHome() {
              「背景/星河/星星像三个图层」的根治办法不是把三层调得像一层,
              而是让它**真的只有一层**。所以星尘层、渐变底、预烘光晕全部删掉。 -->
         <div class="sky-inner">
-          <img class="sky-galaxy" src="/assets/galaxy-river.webp" alt="" decoding="async">
+          ${isle ? '' : '<img class="sky-galaxy" src="/assets/galaxy-river.webp" alt="" decoding="async">'}
         </div>
       </div>
 
@@ -186,8 +243,8 @@ function renderHome() {
            所以 --x/--y 这组从图里算出来的百分比仍然精确落在银河上。
            它不放在 .home-sky 里面,是因为那层 aria-hidden 且不接事件。 -->
       <ul class="sky-gates">
-        ${layoutGates(onRiver.map((g) => ({ ...g, hintText: g.hint(s) }))).map((g) => `
-          <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${(g.size * BADGE_SCALE).toFixed(2)}%">
+        ${laid.map((g) => `
+          <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${(g.size * spriteScale).toFixed(2)}%;--ratio:${ratioOf(s, g, false)}">
             <button type="button" data-action="tab" data-tab="${g.tab}">
               <span class="sg-star"><img src="${starSrc(s, g)}" alt="" ${LIT}></span>
               <span class="sg-text">
@@ -196,8 +253,8 @@ function renderHome() {
               </span>
             </button>
           </li>`).join('')}
-        <li class="sky-gate sky-dipper sg-${DIPPER.side}" style="--x:${DIPPER.x}%;--y:${DIPPER.y}%;--size:${DIPPER.size}%">
-          <button type="button" data-action="tab" data-tab="${DIPPER.tab}">
+        <li class="sky-gate sky-dipper sg-${more.side}" style="--x:${more.x}%;--y:${more.y}%;--size:${more.size}%;--ratio:${ratioOf(s, more, true)}">
+          <button type="button" data-action="tab" data-tab="${more.tab}">
             <span class="sg-star"><img src="${dipperSrc(s)}" alt="" ${LIT}></span>
             <span class="sg-text">
               <span class="sg-title">${esc(DIPPER.title)}</span>

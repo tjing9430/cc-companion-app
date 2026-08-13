@@ -86,11 +86,22 @@ test('★ 占位圆的尺寸来源:.sg-star 在**两套布局下都**拿得到�
     '   → 占位圆才有地方画。断在这儿,占位圆一次都不会出现,**而且没有任何报错**。',
   ].join('\n'));
 
-  const plain = lastDeclaration('body:not([data-theme="starry"]) .sg-star', 'height');
+  const plain = lastDeclaration('body:not([data-theme="starry"]):not([data-theme="island"]) .sg-star', 'height');
   assert.ok(plain && plain.value !== 'auto', [
-    '非星空档:.sg-star 的高度没了或变成 auto。',
+    '竖列档(暖深色/奶油白):.sg-star 的高度没了或变成 auto。',
     '这一档不经过 .sky-gate(它就是 auto),.sg-star 直接吃 var(--size)。',
+    '⚠️ 2026-08-14 选择器由 `:not(starry)` 收紧成 `:not(starry):not(island)` —— 浮岛走绝对定位,不该被压成竖列。',
   ].join('\n'));
+
+  // ★ 第三条路径:浮岛。它和星空一样走绝对定位,**但高度是自己那条 clamp**
+  //   (岛比徽章大得多,徽章那档的上限 132px 会把竖岛齐腰砍掉)。
+  //   ⚠️ 这条必须单独钉:如果哪天有人把 island 的 .sky-gate 规则删了,
+  //     它会**掉回** `.sky-gate` 那条基础规则 —— 高度仍然"有值",测试若只问
+  //     「有没有确定高度」会绿,但岛已经被砍矮了。所以这里问的是**它自己那条在不在**。
+  const isle = lastDeclaration('body[data-theme="island"] .sky-gate', 'height');
+  assert.ok(isle && isle.value !== 'auto',
+    '浮岛档:body[data-theme="island"] .sky-gate 的高度规则没了 —— 岛会掉回徽章那档的 132px 上限被砍矮');
+  assert.match(isle.value, /clamp\(/, `浮岛的高度应当是 clamp(下限, var(--size), 上限),实际 "${isle.value}"`);
 });
 
 test('★ .sg-star:not(.lit) 的兜底宽高比还在(它是占位圆唯一的尺寸来源)', () => {

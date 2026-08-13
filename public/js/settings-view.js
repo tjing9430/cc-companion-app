@@ -22,6 +22,7 @@ function renderSettings({ notifySupported, notifyEnabled }) {
             <option value="dark" ${s.theme === 'dark' ? 'selected' : ''}>暖深色</option>
             <option value="light" ${s.theme === 'light' ? 'selected' : ''}>奶油白</option>
             <option value="starry" ${s.theme === 'starry' ? 'selected' : ''}>星空</option>
+            <option value="island" ${s.theme === 'island' ? 'selected' : ''}>浮岛</option>
           </select>
         </div>
         ${Object.prototype.hasOwnProperty.call(s, 'companion_since') ? `

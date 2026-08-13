@@ -558,7 +558,7 @@ function serveStatic(res, route) {
     //   它既是合法选项又是非法值的归宿。这里显式列全,行为一样但读得懂。
     //   (合并成一处更好,但那要动存储层,排在封笔之后。)
     const theme = (store.settings && store.settings.theme) || 'dark';
-    const safe = ['dark', 'light', 'starry'].includes(theme) ? theme : 'dark';
+    const safe = ['dark', 'light', 'starry', 'island'].includes(theme) ? theme : 'dark';
     const html = fs.readFileSync(filePath, 'utf8').replace('<body>', `<body data-theme="${safe}">`);
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
     return res.end(html);
