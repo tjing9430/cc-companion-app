@@ -459,7 +459,7 @@ async function handleConsoleCommand(input) {
     return { ok: true, event, chat: latestMessages('chat') };
   }
   if (command.trim().toLowerCase() === '/help') {
-    const event = addConsoleEvent('command', '/help', '可用命令：/forge 清理本地历史并开一个新的会话段；/quota 查询用量（需配置 QUOTA_ADAPTER_URL）；/heartbeat 让 AI 现在主动说句话；/help 显示本帮助。');
+    const event = addConsoleEvent('command', '/help', '可用命令：/forge 清理本地历史并开一个新的会话段；/quota 查询用量；/heartbeat 让 AI 现在主动说句话；/help 显示本帮助。');
     return { ok: true, event };
   }
   const event = addConsoleEvent('command', command.split(/\s+/, 1)[0] || 'command', command);

@@ -95,12 +95,17 @@ function renderTerminal() {
   const liveEmpty = '<div class="empty term-live-empty">还没有输出 —— 发一条消息，或在上面敲条命令，它就从这儿往下滚。</div>';
   // ★ 滚动 scope 不能和工作流档共用 "console":共用时,在卡片流里翻到哪儿,
   //   切进终端就落在哪儿。终端的落点是**底部**(最新输出 + 状态行),往上翻是 scrollback。
+  // ★ 状态行住在框**里面**(tmux 那样贴着终端底边),不再是页面最底下一条孤儿 ——
+  //   反馈原话「能不能挪在这个框框里面来」。框(边框/底色)从 .term-view 上移到
+  //   .term-frame:滚动的还是 .term-view,状态行钉在框底不跟着滚。
   return `
-    <div class="term-view" data-scroll-list data-scroll-scope="console-term">
-      <div class="term-note term-note-live">原始输出（只留最近一轮的尾巴）${fmtBtn}</div>
-      ${tail || liveEmpty}
-    </div>
-    ${renderTermStatus()}`;
+    <div class="term-frame">
+      <div class="term-view" data-scroll-list data-scroll-scope="console-term">
+        <div class="term-note term-note-live">原始输出（只留最近一轮的尾巴）${fmtBtn}</div>
+        ${tail || liveEmpty}
+      </div>
+      ${renderTermStatus()}
+    </div>`;
 }
 
 // 终端底下那条状态行 —— 对着别人家 CLI 的状态栏做的。
@@ -135,13 +140,29 @@ function renderTermStatus() {
   if (turns) seg.push(['轮次', String(turns)]);
 
   // 额度:和设置页共用同一套格式化函数(见 settings-view 的导出注释)
+  // ★ 她要看的是**用量**:内置 OAuth 源给 used_percent(已用),显示「5h用量 27%」。
+  //   外部 adapter 没这字段时退回旧口径 —— quotaWindowValue 的 headline 是**余量**
+  //   (设置页文案「5h 余量」),所以那条也把标签写实,不许用量余量混着叫。
   const q = state.quota || {};
   const d = q.data;
+  let fiveShown = false;
   if (d && d.configured !== false) {
-    const five = quotaWindowValue(d.five_hour, d, q.fetched_at);
-    if (five) seg.push(['5h', five]);
-    const reset = quotaResetValue((d.five_hour && d.five_hour.resets_at) || d.resets_at);
-    if (reset) seg.push(['刷新', reset]);
+    const used = d.five_hour ? Number(d.five_hour.used_percent) : NaN;
+    if (Number.isFinite(used)) { seg.push(['5h用量', `${Math.round(used)}%`]); fiveShown = true; }
+    else {
+      const five = quotaWindowValue(d.five_hour, d, q.fetched_at);
+      if (five) { seg.push(['5h余量', five]); fiveShown = true; }
+    }
+    // 刷新时刻用 hhmm(看的人的本地时区),不用 quotaResetValue —— 那个是设置页的
+    // 长格式(「8/13, 04:10 PM」),塞进一行状态栏又占地又串风格。5h 窗口永远在
+    // 5 小时内刷新,HH:mm 不会有"哪一天"的歧义。
+    const resetIso = (d.five_hour && d.five_hour.resets_at) || d.resets_at;
+    const resetSec = resetIso ? Date.parse(resetIso) / 1000 : NaN;
+    if (Number.isFinite(resetSec)) seg.push(['刷新', hhmm(resetSec)]);
+    else {
+      const reset = quotaResetValue(resetIso);
+      if (reset) seg.push(['刷新', reset]);
+    }
   }
 
   // 从原始流里顺来的两段。★ 标「上轮」不标「花费」:这是最后一条 result 行自报的数,
@@ -149,7 +170,8 @@ function renderTermStatus() {
   const m = state.streamMeta || {};
   const cost = fmtCost(m.cost_usd);
   if (cost) seg.push(['上轮', cost]);
-  if (m.resets_at) {
+  // quota 那边已经亮了 5h+刷新 时,流里这条只剩重复信息,不再多占一段。
+  if (m.resets_at && !fiveShown) {
     const pct = Number.isFinite(m.utilization) ? `${Math.round(m.utilization * 100)}% · ` : '';
     seg.push(['额度重置', `${pct}${hhmm(m.resets_at)}`]);
   }

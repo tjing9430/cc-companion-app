@@ -89,9 +89,18 @@ function formatLine(raw) {
 
   if (o.type === 'rate_limit_event') {
     const r = o.rate_limit_info || {};
-    const pct = Number.isFinite(Number(r.utilization)) ? `${Math.round(r.utilization * 100)}%` : '';
+    // ★ 真样本(8/13 实测):allowed 状态的事件只有 status/resetsAt/rateLimitType/overage*,
+    //   **没有 utilization** —— 8/12 见过 94% 是接近上限才带的(0~1 刻度)。
+    //   所以百分比只在字段真在时显示;平时的五小时用量由状态行从 /api/quota 拿,
+    //   这一行不揣着一个空数写「用量」骗人。routine 事件也不配 ⚠ —— 橙色留给真警告。
+    const WIN = { five_hour: '五小时窗', seven_day: '七天窗' };
+    const win = WIN[r.rateLimitType] || (r.rateLimitType ? String(r.rateLimitType) : '额度');
+    const pct = Number.isFinite(Number(r.utilization)) ? `${Math.round(Number(r.utilization) * 100)}%` : '';
     const at = hhmm(r.resetsAt);
-    return { mark: '⚠', cls: 'warn', text: `用量 ${pct}${r.rateLimitType ? ` · ${r.rateLimitType}` : ''}${at ? ` · 重置 ${at}` : ''}` };
+    const bad = !!(r.status && r.status !== 'allowed');
+    const warn = bad || !!pct;
+    return { mark: warn ? '⚠' : '●', cls: warn ? 'warn' : 'sys',
+      text: `${win}${pct ? ` · 用量 ${pct}` : ''}${bad ? ` · ${r.status}` : ''}${at ? ` · 重置 ${at}` : ''}` };
   }
 
   if (o.type === 'result') {

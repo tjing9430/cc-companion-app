@@ -1928,11 +1928,14 @@ body[data-theme="starry"] .cv-usage-fill{opacity:.34}
 .cv-tab{font-size:.68rem;padding:0 .55rem;height:20px;border:0;border-radius:var(--radius-pill);
   background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
 .cv-tab.on{background:var(--accent);color:var(--accent-ink)}
+/* 框在 .term-frame 上,滚动在 .term-view 里,状态行钉在框底 —— tmux 的骨架。
+   overflow:hidden 让状态行贴着框的圆角走,不从角上戳出来。 */
+.term-frame{grid-row:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--bg-soft);border:1px solid var(--line-soft);border-radius:var(--radius)}
+body[data-theme="starry"] .term-frame{background:rgba(6,10,24,.55)}
 .term-view{flex:1;min-height:0;overflow:auto;padding:.5rem .6rem;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans Mono",monospace;
-  font-size:.68rem;line-height:1.5;background:var(--bg-soft);
-  border:1px solid var(--line-soft);border-radius:var(--radius)}
-body[data-theme="starry"] .term-view{background:rgba(6,10,24,.55)}
+  font-size:.68rem;line-height:1.5}
 .term-note{color:var(--faint);font-size:.62rem;letter-spacing:.08em;
   padding:.2rem 0 .35rem;border-bottom:1px dashed var(--line-soft);margin-bottom:.35rem}
 .term-note-live{margin-top:.6rem;border-bottom-color:var(--accent);color:var(--accent)}
@@ -2361,13 +2364,15 @@ body[data-theme="starry"] .chat-view:where([style*="--chat-bg"], .has-chat-bg) .
   .md-star{animation:none}
 }
 
-/* ============ 终端档底下那条状态行 ============
+/* ============ 终端框底边那条状态行(tmux 位) ============
    ★ 新开 ts- / term-status 前缀,不借 .cv-pill 那套 —— 那是工具条上的**可点控件**,
-     这条是**只读状态**。借过来会连带借到 hover/焦点样式,看起来像能点其实点不动。 */
+     这条是**只读状态**。借过来会连带借到 hover/焦点样式,看起来像能点其实点不动。
+   ★ 它现在住在 .term-frame 里面贴底,不在页面最底 —— safe-area 垫底那截随之退役。 */
 .term-status{
   display:flex;flex-wrap:wrap;gap:.1rem .9rem;
-  padding:.4rem .7rem calc(.4rem + env(safe-area-inset-bottom,0px));
+  padding:.35rem .6rem;
   border-top:1px solid var(--line,rgba(255,255,255,.12));
+  background:rgba(125,140,180,.07);
   font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
   font-size:.66rem;line-height:1.7;letter-spacing:.02em;
   opacity:.82;
