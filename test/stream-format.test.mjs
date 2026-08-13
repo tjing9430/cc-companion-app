@@ -46,3 +46,15 @@ test('rate_limit_event 非 allowed:状态上屏', () => {
   assert.equal(r.mark, '⚠');
   assert.ok(r.text.includes('rejected'), r.text);
 });
+
+// 桥补的输入侧回显(CLI 的 stream-json 不回显 prompt,8/13 实测;桥在起跑前补这行)
+test('bridge_user_input:输入原话渲染成 > 行', () => {
+  const r = formatLine(JSON.stringify({ type: 'bridge_user_input', text: '能不能把user的输出也放进来' }));
+  assert.equal(r.mark, '>');
+  assert.equal(r.cls, 'user');
+  assert.ok(r.text.includes('能不能把user的输出也放进来'), r.text);
+});
+
+test('bridge_user_input 空白文本:不占一行', () => {
+  assert.equal(formatLine(JSON.stringify({ type: 'bridge_user_input', text: '   ' })), null);
+});

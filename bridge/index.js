@@ -23,7 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInteractiveRunner, summarizeToolInput } from './interactive.js';
-import { buildPrompt } from './prompt.js';
+import { buildPrompt, textOf } from './prompt.js';
 import { syncLibrary } from './library.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -529,6 +529,20 @@ const server = http.createServer(async (req, res) => {
     const body = await readJson(req);
     const prompt = buildPrompt(body.messages).trim();
     if (!prompt) return sendJson(res, 400, { error: { message: 'no user message in request' } });
+    // 终端要看得到输入侧(她说的那句),像 CLI 的 scrollback 一样 —— 但 CLI 的 stream-json
+    // **不回显 prompt**(8/13 实测:user 行只在 tool_result 回灌时出现),桥在起跑前替它补一行。
+    // 只补**最后那条 user 的原话**:manifest/召回上下文是管道内脏,不是"user 的输出",
+    // 灌进终端只会把她的话淹掉。类型名带 bridge_ 前缀自报家门,原始档里分得清这行是谁写的。
+    // 新轮先解除上一轮的哑火(和 runClaudeTurn 里那下语义相同,这行在它前面跑所以自己也得解)。
+    streamBroken = false;
+    const userEcho = (() => {
+      const ms = Array.isArray(body.messages) ? body.messages : [];
+      for (let i = ms.length - 1; i >= 0; i--) {
+        if (ms[i] && ms[i].role === 'user') return textOf(ms[i].content).trim();
+      }
+      return '';
+    })();
+    if (userEcho) teeRaw(JSON.stringify({ type: 'bridge_user_input', text: userEcho.slice(0, 2000) }));
     // Put the 资料库 on disk where the agent can actually open it (retrieval only ever
     // sends a few chunks). Failure here is non-fatal — the turn goes ahead without it.
     const manifest = await syncLibrary({ appUrl: APP_URL, token: APP_AUTH_TOKEN, cwd: process.cwd(), log });

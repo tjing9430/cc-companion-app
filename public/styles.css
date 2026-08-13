@@ -1963,6 +1963,7 @@ body[data-theme="starry"] .term-frame{background:rgba(6,10,24,.55)}
 .tl-f-warn .tl-b{color:var(--warn,#d9a441)}
 .tl-f-err .tl-b{color:var(--danger)}
 .tl-f-plain .tl-b{color:var(--muted)}
+.tl-f-user .tl-b{color:var(--accent)}   /* 输入侧回显:她的话用主色,一屏里先看见她 */
 
 /* ============ 首屏:沉浸式星河导航页 ============ */
 .home-view{padding:1.1rem 0 2rem;position:relative}

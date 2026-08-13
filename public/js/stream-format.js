@@ -78,6 +78,13 @@ function formatLine(raw) {
   }
   if (!o || typeof o !== 'object') return { mark: ' ', cls: 'plain', text: clip(line, 300) };
 
+  // 桥补的输入侧回显(她/触发方的原话)。CLI 的 stream-json 不回显 prompt,
+  // 这行是 bridge 在轮子起跑前写进流的,bridge_ 前缀自报家门(见 bridge/index.js)。
+  if (o.type === 'bridge_user_input') {
+    const t = clip(o.text, 300);
+    return t ? { mark: '>', cls: 'user', text: t } : null;
+  }
+
   if (o.type === 'system') {
     if (o.subtype === 'thinking_tokens') return null;           // 纯噪音，见文件头
     if (o.subtype === 'init') {
