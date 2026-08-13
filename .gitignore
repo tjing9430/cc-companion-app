@@ -13,3 +13,4 @@ data/bridge-session*.json
 # 如果有人直接在仓库根目录跑 bridge(很常见的试用方式),那就是**用户的私密文档
 # 躺在 git 工作区里** —— 一个 `git add -A` 就公开了。这里挡死。
 资料库/
+.asset-backups-badges/
