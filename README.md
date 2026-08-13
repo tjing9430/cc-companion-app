@@ -302,11 +302,13 @@ lib/
 
 API 路由总表、控制台命令的适配器 JSON 协议等长内容都在上面的文档里，README 不再重复。
 
-## Roadmap
+## 没有做的
 
-这些功能在作者自用的上游系统里已经跑着，正按顺序清理进开源版：
+这是一个功能完整的产品——私聊、群聊、记忆库、控制台、主题，装上就能用。
 
-- **跨平台 interactive 模式（v1.2）**：用 `node-pty` 替换 util-linux `script`，让 extended thinking 在 macOS / Windows 也可见
+以下不在这一版里：
+
+- **跨平台 interactive 模式**：用 `node-pty` 替换 util-linux `script`，让 extended thinking 在 macOS / Windows 也可见
 - **珍藏**：长按消息存进命名收藏夹，快照留档，双方共享一个库
 - **心愿瓶**：一边许愿（可带参考文件），另一边认领交付，带进度时间线
 - **影院**：共享放映厅，本地字幕、进度同步，音乐架在路上

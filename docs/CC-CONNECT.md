@@ -57,7 +57,7 @@ Set `BRIDGE_MODE`:
 Why two modes? On a subscription, plaintext chain-of-thought is exposed by the *interactive*
 CLI but not by headless `-p` — a platform behavior, not a bridge choice. Interactive mode
 works around it by reading the transcript. `node-pty` for macOS/Windows interactive support
-is on the [roadmap](../README.md#roadmap) (v1.2); until then, non-Linux users can use `print` mode.
+is [not in this release](../README.md#没有做的); until then, non-Linux users can use `print` mode.
 
 ### Tool permissions (interactive mode) — read this before you file a bug
 
@@ -199,8 +199,8 @@ they run. Use `CLAUDE_MCP_CONFIG` to add servers just for the bridge.
 **Why don't I see thinking blocks?**
 Thinking shows in the default `interactive` mode (Linux/WSL). If it's missing, you're likely
 in `print` mode (`BRIDGE_MODE=print`, which redacts thinking on a subscription) or on a
-platform where interactive mode isn't supported yet (macOS/Windows — see the
-[roadmap](../README.md#roadmap)). Note thinking is also model-driven: simple prompts may not
+platform where interactive mode isn't supported yet (macOS/Windows — see
+[what's not in this release](../README.md#没有做的)). Note thinking is also model-driven: simple prompts may not
 trigger extended thinking at all.
 
 **Does the chat reply stream token-by-token?**
