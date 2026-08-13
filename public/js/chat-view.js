@@ -124,7 +124,6 @@ function renderMessage(message, opts = {}) {
     recalled ? 'recalled' : '',
     message.pending ? 'pending' : '',
     message.failed ? 'failed' : '',
-    isWideMessage(text, attachments) ? 'wide' : '',
     String(state.openMsgActions || '') === String(message.id) ? 'actions-open' : '',
   ].filter(Boolean).join(' ');
   const idAttr = esc(String(message.id));
@@ -198,7 +197,7 @@ function renderMessage(message, opts = {}) {
   if (segments.length <= 1) {
     const inner = `${head}${text ? `<div class="body-text md">${renderMarkdown(text)}</div>` : ''}`;
     return `
-    <article class="${classes}" id="msg-${idAttr}">
+    <article class="${classes}${isWideMessage(text, attachments) ? ' wide' : ''}" id="msg-${idAttr}">
       ${avatarHtml(message)}
       <div class="msg-col">
         <div class="msg-sender">${esc(message.sender)}</div>
@@ -215,7 +214,9 @@ function renderMessage(message, opts = {}) {
   return segments.map((seg, i) => {
     const first = i === 0;
     const last = i === segments.length - 1;
-    const rowClass = `${classes}${first ? '' : ' cont'}`;
+    // ★ wide 按**段**算,不按整条算 —— 整条很长但某一段只有两个字("好的。")时,
+    //   那个气泡不该被连坐铺满(真机上她圈出来的就是这个)。
+    const rowClass = `${classes}${first ? '' : ' cont'}${isWideMessage(seg, []) ? ' wide' : ''}`;
     const inner = `${first ? head : ''}<div class="body-text md">${renderMarkdown(seg)}</div>`;
     return `
     <article class="${rowClass}"${first ? ` id="msg-${idAttr}"` : ''}>
