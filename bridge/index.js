@@ -200,8 +200,11 @@ function flushRaw() {
     body: JSON.stringify({ lines }),
     signal: AbortSignal.timeout(3000),
   }).catch(() => {
-    // 一次失败就闭嘴。App 没起、端点不存在、旧版 App —— 都属于"这个部署没有真流",
-    // 不是错误,更不该反复重试刷日志。桥重启即恢复。
+    // 一次失败就闭嘴**到本轮为止**。App 没起、端点不存在、旧版 App —— 都属于
+    // "这个部署没有真流",不该反复重试刷日志;但也不许永久判死:8/11 那次
+    // 置位后整条流哑了 37 小时,靠人肉发现重启才回来。现在下一轮开跑时归零重试,
+    // 置位那一下留一行痕 —— 沉默和死亡长得一样,留痕才分得开。
+    if (!streamBroken) log('warn', 'console stream post failed; muted for the rest of this turn');
     streamBroken = true;
   });
 }
@@ -228,6 +231,8 @@ async function postConsole(kind, title, body) {
 // (empty string = start a new session).
 function runClaudeTurn(prompt, resume) {
   return new Promise((resolve, reject) => {
+    // 原始流的哑火只许哑一轮:上一轮 POST 失败置的位,到这儿归零再试。
+    streamBroken = false;
     const args = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose'];
     if (resume) args.push('--resume', resume);
     if (runtimeModel) args.push('--model', runtimeModel);

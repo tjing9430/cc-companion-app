@@ -76,15 +76,12 @@ function renderViewToggle() {
   return `<div class="cv-toggle">${tab('flow', '工作流')}${tab('term', '终端')}</div>`;
 }
 
-// 终端档 = 两层。
-// ★ 为什么不是纯 live tail:原始流只在一轮进行时存在,不聊天的时候它是个空黑框。
-//   所以下半屏是**历史**(已有的运行事件,换成终端长相),上面接**实时原始流**。
-//   两层的来源不同,界面上如实标出来,不把历史冒充成原始输出。
+// 终端档 = 原始流,就它一层。
+// ★ 原来还垫着一层「历史事件换终端长相」,理由是原始流只在一轮进行时存在,
+//   平时点开是空黑框。反馈原话把这层否了:「上面这一坨不要,直接就是这个框框
+//   里面的东西」。空框问题改由服务端内存尾巴解决(/api/console/stream/tail):
+//   点开先取最近一轮的尾巴,实况来了接着滚。历史自有工作流档,不在这儿重演。
 function renderTerminal() {
-  const hist = (state.events || []).slice(-120).map((e) => {
-    const t = String(e.created_at || '').slice(11, 19);
-    return `<div class="tl tl-${esc(e.kind || 'event')}"><span class="tl-t">${esc(t)}</span><span class="tl-k">${esc((e.kind || '').padEnd(8))}</span><span class="tl-b">${esc(e.title || '')}${e.body ? ' — ' + esc(String(e.body).slice(0, 300)) : ''}</span></div>`;
-  }).join('');
   const raw = state.rawTail || [];
   // 格式化档:一行 stream-json → 一行 CLI 长相,噪音行(thinking_tokens)直接不出现,
   // 所以行数会比原始少 —— 少掉的不是"丢了",是本来就不该占屏。
@@ -93,21 +90,14 @@ function renderTerminal() {
     ? formatLines(raw).map((r) => `<div class="tl tl-f tl-f-${esc(r.cls)}"><span class="tl-m">${esc(r.mark)}</span><span class="tl-b">${esc(r.text)}</span></div>`).join('')
     : raw.map((l) => `<div class="tl tl-raw">${esc(l)}</div>`).join('');
   const fmtBtn = `<button type="button" class="term-fmt" data-action="raw-fmt" title="${escAttr(state.rawFmt ? '切到一个字都没动过的原始 JSON' : '切回 CLI 长相')}">${state.rawFmt ? '看原始' : '看格式化'}</button>`;
-  // ★ 这一段(含切档钮)原来挂在 `tail ?` 底下 —— 有实时输出才出现。
-  //   而原始流只活在内存里、刷新即空,所以**刷完页面这个功能等于不存在**:
-  //   反馈原话「我没有看到啊 / 刷新了好几次都没有看到」。
-  //   哑掉和没做长得一模一样,这条今晚是第二次咬人了。
-  //   ⇒ 头和钮常驻;没数据时说清楚它在等什么,而不是整段消失。
-  const liveEmpty = '<div class="empty term-live-empty">还没有实时输出 —— 发一条消息，或在上面敲条命令，它就从这儿往下滚。</div>';
+  // ★ 头和切档钮常驻(有没有数据都在) —— 哑掉和没做长得一模一样,这条咬过两次人。
+  //   没数据时说清楚它在等什么,而不是整段消失。
+  const liveEmpty = '<div class="empty term-live-empty">还没有输出 —— 发一条消息，或在上面敲条命令，它就从这儿往下滚。</div>';
   // ★ 滚动 scope 不能和工作流档共用 "console":共用时,在卡片流里翻到哪儿,
-  //   切进终端就落在哪儿 —— 掉在一堆历史中间,实时输出要自己往下扒。
-  //   反馈原话「点击终端之后能不能直接就是终端的东西」。
-  //   终端的正确落点是**底部**(实时流 + 状态行),历史是往上翻才出现的 scrollback。
+  //   切进终端就落在哪儿。终端的落点是**底部**(最新输出 + 状态行),往上翻是 scrollback。
   return `
     <div class="term-view" data-scroll-list data-scroll-scope="console-term">
-      <div class="term-note">运行事件流（不是原始 stdout）</div>
-      ${hist || '<div class="empty">还没有事件。</div>'}
-      <div class="term-note term-note-live">↓ 实时原始输出（只在内存里，刷新即空）${fmtBtn}</div>
+      <div class="term-note term-note-live">原始输出（只留最近一轮的尾巴）${fmtBtn}</div>
       ${tail || liveEmpty}
     </div>
     ${renderTermStatus()}`;

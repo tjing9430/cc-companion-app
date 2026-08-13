@@ -93,6 +93,7 @@ function bindEvents() {
       if (state.consoleView === 'term' && !(state.quota && state.quota.data)) {
         loadQuota().then(render).catch(handleBackgroundError);
       }
+      if (state.consoleView === 'term') loadRawTail();
       return;
     }
     if (name === 'raw-fmt') {
@@ -676,7 +677,7 @@ async function refreshCurrent() {
     else if (state.tab === 'console') {
       await loadConsole();
       await loadBridgeConfig();
-      if (state.consoleView === 'term') await loadQuota();
+      if (state.consoleView === 'term') { await loadQuota(); await loadRawTail(); }
     }
     else if (state.tab === 'memory') await loadMemories();
     else if (state.tab === 'settings') await loadQuota();
@@ -723,6 +724,21 @@ async function loadMemories() {
   state.error = '';
   cacheBootstrap();
   render();
+}
+
+// 终端档开屏先取最近一轮的尾巴 —— 原始流只在轮子跑着时才往外推,不取这一把,
+// 平时点开永远是空框(反馈原话「这里面一直没有数据」)。
+// 只在本地还一片空白时取:SSE 已经喂过数据就不取,免得同一批行进两遍。
+async function loadRawTail() {
+  if ((state.rawTail || []).length) return;
+  try {
+    const data = await api('/api/console/stream/tail');
+    if (!Array.isArray(data.lines) || !data.lines.length) return;
+    if ((state.rawTail || []).length) return;   // 取的路上 SSE 先到了 —— 它的更新,让它
+    state.rawTail = data.lines.slice(-400);
+    state.streamMeta = scanMeta(data.lines, state.streamMeta);
+    if (state.tab === 'console' && state.consoleView === 'term') render();
+  } catch { /* 尾巴取不到不挡终端本体,下次进档再试 */ }
 }
 
 async function loadQuota() {

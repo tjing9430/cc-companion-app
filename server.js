@@ -27,7 +27,7 @@ import {
   publicSettings, publicSession, applySettingsRename, agentStatus, flushStore,
 } from './lib/state.js';
 import { sseClients, handleSseStream, streamScopeForRoute, broadcastSse, writeSse, setSnapshotProvider } from './lib/sse.js';
-import { addConsoleEvent, latestConsoleEvents } from './lib/console.js';
+import { addConsoleEvent, latestConsoleEvents, pushRawLines, rawTailLines } from './lib/console.js';
 import {
   addMessage, latestMessages, addSticker, deleteSticker,
   setMessageFavorite, recallMessage, deleteMessage, clearMessages,
@@ -318,14 +318,23 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, latestConsoleEvents(Number(url.searchParams.get('limit') || 120)));
   }
 
-  // 真 console 的原始流入口。**只广播,不落库** —— 这是验收项不是风格:
+  // 真 console 的原始流入口。**只广播 + 内存尾巴,不落库** —— 这是验收项不是风格:
   // 一轮 ~510 行 / ~120KB,灌进 store 的话,一个 148KB 的库一轮就翻倍。
-  // 所以这里既不 addConsoleEvent 也不 saveStore,连 store 都不碰。
+  // 所以这里既不 addConsoleEvent 也不 saveStore,连 store 都不碰;尾巴只住进程内存。
   if (req.method === 'POST' && route === '/api/console/stream') {
     const body = await readJson(req);
     const lines = Array.isArray(body && body.lines) ? body.lines.slice(0, 200) : [];
-    if (lines.length) broadcastSse('console-stream', { lines: lines.map((l) => String(l).slice(0, 4000)) });
+    if (lines.length) {
+      const clean = lines.map((l) => String(l).slice(0, 4000));
+      pushRawLines(clean);
+      broadcastSse('console-stream', { lines: clean });
+    }
     return endNoContent(res);
+  }
+
+  // 终端档开屏取一次:最近一轮的尾巴(上面那个内存环),之后 SSE 接着往下滚。
+  if (req.method === 'GET' && route === '/api/console/stream/tail') {
+    return sendJson(res, 200, { lines: rawTailLines() });
   }
 
   if (req.method === 'POST' && route === '/api/console/events') {
