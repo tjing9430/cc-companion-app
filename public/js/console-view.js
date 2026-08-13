@@ -99,8 +99,12 @@ function renderTerminal() {
   //   哑掉和没做长得一模一样,这条今晚是第二次咬人了。
   //   ⇒ 头和钮常驻;没数据时说清楚它在等什么,而不是整段消失。
   const liveEmpty = '<div class="empty term-live-empty">还没有实时输出 —— 发一条消息，或在上面敲条命令，它就从这儿往下滚。</div>';
+  // ★ 滚动 scope 不能和工作流档共用 "console":共用时,在卡片流里翻到哪儿,
+  //   切进终端就落在哪儿 —— 掉在一堆历史中间,实时输出要自己往下扒。
+  //   反馈原话「点击终端之后能不能直接就是终端的东西」。
+  //   终端的正确落点是**底部**(实时流 + 状态行),历史是往上翻才出现的 scrollback。
   return `
-    <div class="term-view" data-scroll-list data-scroll-scope="console">
+    <div class="term-view" data-scroll-list data-scroll-scope="console-term">
       <div class="term-note">运行事件流（不是原始 stdout）</div>
       ${hist || '<div class="empty">还没有事件。</div>'}
       <div class="term-note term-note-live">↓ 实时原始输出（只在内存里，刷新即空）${fmtBtn}</div>

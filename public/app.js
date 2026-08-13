@@ -84,6 +84,9 @@ function bindEvents() {
     }
     if (name === 'console-view') {
       state.consoleView = action.dataset.view === 'term' ? 'term' : 'flow';
+      // 每次**进**终端档都落到底部(实时流+状态行) —— 终端的东西在底下,
+      // 上次翻到 scrollback 半截的位置不带进这一次。工作流档的位置照旧各记各的。
+      if (state.consoleView === 'term') state.stickToBottom['console-term'] = true;
       render();
       // 切到终端档时补一次额度 —— 否则状态行要等下一次 refreshCurrent 才有数,
       // 中间那段空白会被读成"这台没有额度数据",而其实只是还没去问。
