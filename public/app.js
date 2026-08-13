@@ -84,6 +84,9 @@ function bindEvents() {
     }
     if (name === 'console-view') {
       state.consoleView = action.dataset.view === 'term' ? 'term' : 'flow';
+      // 档位落 localStorage(state.js 开机读):不落的话刷新必回工作流档,
+      // 对住在终端档的人等于「终端每次刷新就消失」。
+      try { localStorage.setItem('cc_console_view', state.consoleView); } catch { /* 私密模式拿不到就算了 */ }
       // 每次**进**终端档都落到底部(实时流+状态行) —— 终端的东西在底下,
       // 上次翻到 scrollback 半截的位置不带进这一次。工作流档的位置照旧各记各的。
       if (state.consoleView === 'term') state.stickToBottom['console-term'] = true;
@@ -98,6 +101,7 @@ function bindEvents() {
     }
     if (name === 'raw-fmt') {
       state.rawFmt = !state.rawFmt;
+      try { localStorage.setItem('cc_raw_fmt', state.rawFmt ? '1' : '0'); } catch { /* 同上 */ }
       render();
       return;
     }

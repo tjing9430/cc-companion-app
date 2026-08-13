@@ -38,6 +38,11 @@ const ICONS = {
   sticker: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="6.7"/><circle class="sk-eye" cx="7.7" cy="8.5" r=".9" fill="currentColor" stroke="none"/><circle class="sk-eye sk-eye2" cx="12.3" cy="8.5" r=".9" fill="currentColor" stroke="none"/><path class="sk-mouth" d="M7.4 11.9c.7.9 1.6 1.4 2.6 1.4s1.9-.5 2.6-1.4"/></svg>',
 };
 
+// UI 档位偏好(localStorage)。读失败(隐私模式/配额满)按默认走,不挡启动。
+function uiPref(key, fallback) {
+  try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+}
+
 const state = {
   // 落地页。老用户下一次打开也会先看到它 —— 它是入口不是新功能,四个星直达原来的地方。
   tab: 'home',
@@ -63,14 +68,16 @@ const state = {
   swVersion: '',
   // 桥的档位/用量快照。available:false = 这个部署没有桥,控制台不摆那块面板。
   bridge: { available: false },
+  // 控制台档位。★ 这是**使用姿势**不是会话数据,落 localStorage:不落的话刷新必回
+  // 工作流档,对住在终端档里的人等于「终端每次刷新就消失」(2026-08-13 原话)。
+  consoleView: uiPref('cc_console_view', 'flow') === 'term' ? 'term' : 'flow',   // 'flow' 工作流卡片 | 'term' 终端
   // 真 console 的 live tail。★ **只活在内存里** —— 不落库、不进 localStorage、
   // 刷新即空。这是这条通道的验收项:用户的库不因为它多写一个字节。
-  consoleView: 'flow',        // 'flow' 工作流卡片 | 'term' 终端
   rawTail: [],                // 环形:只留最近 N 行
   // 原始流的显示档。默认**格式化** —— 实测 16 行里 8 行是 thinking_tokens(每涨一个
   // token 报一次),原样滚出来一半屏幕是废话。但原始档必须留着:格式化解错了的时候,
-  // 唯一能自证的就是那行没被动过的 JSON。
-  rawFmt: true,
+  // 唯一能自证的就是那行没被动过的 JSON。档位偏好和 consoleView 一样落 localStorage。
+  rawFmt: uiPref('cc_raw_fmt', '1') !== '0',
   // 从原始流里顺出来的两个数(花费、额度重置)。桥的状态接口报不出它们,
   // 但 stream-json 的 result / rate_limit_event 行里本来就有。★ 和 rawTail 一样只在内存里。
   streamMeta: {},
