@@ -6,7 +6,22 @@
 // 所以这里逐条钉住:外链不行、data URL 不行、路径穿越不行、别的字段一个都别想捎带。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeAvatar } from '../lib/state.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+// ★★ 这三行不是仪式,少了就会往**仓库里的 data/** 建库写盘。
+//   `lib/state.js` 在被 import 的那一刻就 `mkdirSync(DATA_DIR)` 并打开存储,
+//   而 DATA_DIR 不设环境变量时 = 仓库目录下的 data/ ——
+//   在部署树里跑,那是用户的活库(sqlite 后端下实测会造出 114KB 的 app.db,
+//   和正在服务的进程并发共持同一颗库)。
+//   这份测试只想要一个**纯函数** normalizeAvatar,却把整个存储层拖了进来。
+// ★★ 必须是 `await import()`,**不能改回静态 import**:
+//   ESM 的 import 会被提升 —— 在模块体第一行之前就执行完了,
+//   那时候再设 process.env.DATA_DIR **已经太晚**,隔离等于没写。
+//   (同仓 companion-since / doc-recall-floor / fact-key-recall 都是这个写法,照抄它们。)
+process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'avatar-'));
+const { normalizeAvatar } = await import('../lib/state.js');
 
 test('只放行本机 /uploads/ 下的资源引用', () => {
   assert.equal(normalizeAvatar('/uploads/1786370830370-eb6f7da81fb8.png'), '/uploads/1786370830370-eb6f7da81fb8.png');

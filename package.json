@@ -8,7 +8,9 @@
     "dev": "node server.js",
     "start": "node server.js",
     "bridge": "node bridge/index.js",
+    "pretest": "node scripts/data-guard.mjs snapshot",
     "test": "node --test",
+    "posttest": "node scripts/data-guard.mjs check",
     "check": "node scripts/check.mjs"
   },
   "engines": {
