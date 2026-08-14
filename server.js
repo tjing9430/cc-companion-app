@@ -341,7 +341,14 @@ async function handleRequest(req, res) {
     const body = await readJson(req);
     const lines = Array.isArray(body && body.lines) ? body.lines.slice(0, 200) : [];
     if (lines.length) {
-      const clean = lines.map((l) => String(l).slice(0, 4000));
+      // 这刀是**内存上限**(谁都能 POST 到这个口),留着;但切完要留个记号。
+      // 原来是无声硬切:一条 4000+ 的 JSON 被切成半个,前端 parse 不了,
+      // 只好把它当普通文本原样吐出来 —— 她 8/14 圈的那坨乱码就是这么来的。
+      // 带上标记,前端才分得清「这是坏掉的行」和「这本来就是一行文本」。
+      const clean = lines.map((l) => {
+        const s = String(l);
+        return s.length > 4000 ? `${s.slice(0, 4000)}…[截断]` : s;
+      });
       pushRawLines(clean);
       broadcastSse('console-stream', { lines: clean });
     }

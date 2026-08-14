@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { createInteractiveRunner, summarizeToolInput } from './interactive.js';
 import { buildPrompt, textOf } from './prompt.js';
 import { syncLibrary } from './library.js';
+import { screenSafe } from './screen-safe.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..');
@@ -182,7 +183,9 @@ let streamBroken = false;   // 连续失败就整条停掉,不再浪费任何时
 
 function teeRaw(line) {
   if (streamBroken || !line) return;
-  streamQueue.push(line.length > 4000 ? `${line.slice(0, 4000)}…[截断]` : line);
+  const safe = screenSafe(line);
+  if (!safe) return;
+  streamQueue.push(safe);
   if (streamQueue.length > STREAM_MAX_QUEUE) streamQueue = streamQueue.slice(-STREAM_MAX_QUEUE);
   if (streamQueue.length >= 40) return flushRaw();
   if (!streamTimer) streamTimer = setTimeout(flushRaw, 120);

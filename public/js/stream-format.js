@@ -73,7 +73,15 @@ function formatLine(raw) {
   try {
     o = JSON.parse(line);
   } catch {
-    // 不是 JSON —— CLI 偶尔往 stdout 写的警告行属于这一类，照原样给它一行
+    // ★ 分两种情况,别混成一种。
+    //   ① 以 `{` 开头却解不开 = 一条**被截断的 JSON**(上游 4000 字硬切)。
+    //      原样吐出去就是她 8/14 圈的那坨半截 base64 —— 300 个字符的乱码,
+    //      对读的人是负价值:占屏幕、看不懂、还盖住上下文。给一行短的告诉她这儿断了。
+    //   ② 不以 `{` 开头 = CLI 往 stdout 写的警告/提示行,是**真内容**,照旧原样给。
+    //      fail-open 保的是这一类(见文件头),不是保坏掉的 JSON。
+    if (line.startsWith('{')) {
+      return { mark: '…', cls: 'plain', text: `[这行太长被截断了，看不出内容 · ${line.length} 字符]` };
+    }
     return { mark: ' ', cls: 'plain', text: clip(line, 300) };
   }
   if (!o || typeof o !== 'object') return { mark: ' ', cls: 'plain', text: clip(line, 300) };
@@ -87,6 +95,9 @@ function formatLine(raw) {
 
   if (o.type === 'system') {
     if (o.subtype === 'thinking_tokens') return null;           // 纯噪音，见文件头
+    // 一轮里 15 条,内容只有 status:"requesting" —— 屏幕上落成孤零零一个词「status」,
+    // 既不说明发生了什么也不能点。CLI 自己也不显示它。(真样本:她 8/14 那轮的落盘尾巴)
+    if (o.subtype === 'status') return null;
     if (o.subtype === 'init') {
       const n = Array.isArray(o.tools) ? o.tools.length : 0;
       return { mark: '●', cls: 'sys', text: `会话开始 · ${o.model || '?'} · ${short(o.cwd)}${n ? ` · ${n} tools` : ''}` };
