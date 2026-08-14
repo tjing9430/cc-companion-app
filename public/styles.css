@@ -2581,7 +2581,9 @@ body[data-theme="island"] .sky-dipper .sg-star{opacity:1}
 
 /* --- 浮岛主题的「更多」:水晶球岛阵(2×2) ---
    每格同一座岛,SVG 图标嵌在玻璃球心,名字药丸挂岛底下。
-   ★ 球心 (50%, 24%) 是拿 10% 网格叠在素材上量的;换素材要重量。 */
+   ★ 球心 (50%, 16.5%):最初在素材上量出 24%,上线后她真机截图抓出图标压在球下沿 ——
+     玻璃球底下那圈**白石基座**跟球一样亮,"球的下缘"被我读深了一截,球心拉低了 8 个点。
+     真值从她的截图逐格量:球顶 2%、球底 32%。量圆心先把不是圆的亮东西剔出去;换素材要重量。 */
 body[data-theme="island"] .mv-isles{padding:1.4rem 1.2rem 2rem;overflow-y:auto}
 .orb-grid{list-style:none;margin:0 auto;padding:0;max-width:420px;
   display:grid;grid-template-columns:1fr 1fr;gap:1.1rem .9rem}
@@ -2591,7 +2593,7 @@ body[data-theme="island"] .mv-isles{padding:1.4rem 1.2rem 2rem;overflow-y:auto}
 .orb-isle{position:relative;display:block;width:100%}
 .orb-isle img{width:100%;height:auto;display:block;transition:transform .18s ease;
   filter:drop-shadow(0 8px 14px rgba(70,120,165,.22))}
-.orb-ico{position:absolute;left:50%;top:24%;transform:translate(-50%,-50%);
+.orb-ico{position:absolute;left:50%;top:16.5%;transform:translate(-50%,-50%);
   width:24%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;
   border-radius:50%;color:#5da3d4}
 .orb-ico svg{width:100%;height:100%}
