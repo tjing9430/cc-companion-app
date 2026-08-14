@@ -657,9 +657,9 @@ body[data-theme="starry"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   color:var(--them-bubble-ink);
   border:1px solid var(--line-soft);
   border-radius:8px 8px 8px 3px;
-  /* 左右 .8rem→.55rem:她说「文字和文本框左右间距有点大」。
-     竖直方向不动 —— 上下留白是行距的一部分,收了会挤;横向纯粹是边距。 */
-  padding:.55rem .55rem .6rem;
+  /* 两轮收紧:8/11 左右 .8→.55;8/14 她「上下左右都特别特别大」→ 四向一起收
+     (.55/.6 → .4/.45)。上一版「竖直是行距一部分不动」的说法她当面否了,以她的眼睛为准。 */
+  padding:.4rem .45rem .45rem;
   box-shadow:var(--shadow-sm);
   overflow-wrap:anywhere;
 }
@@ -949,7 +949,9 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
 .composer-field .sticker-toggle svg{width:20px;height:20px}
 .composer-attach{
   position:relative;display:inline-grid;place-items:center;
-  border-color:var(--line);background:var(--panel);
+  /* 跟胶囊同一套玻璃(变量没开就落回原实心),别在透明输入区里剩一颗实心疙瘩 */
+  border-color:var(--glass-line, var(--line));background:var(--glass-bg, var(--panel));
+  backdrop-filter:var(--glass-filter, none);-webkit-backdrop-filter:var(--glass-filter, none);
   margin:0;   /* ★全局 label{margin:0 0 .3rem} 会漏进来:「+」是 <label>,flex-end 对齐 margin 盒 → 比别的高 4.8px(用户两轮都说没对齐,就是它) */
 }
 .composer-attach input[type=file]{
@@ -1802,11 +1804,13 @@ body[data-theme="starry"] .message-list{background:transparent}
 /* 星野在最底层,内容照常在上面 */
 body[data-theme="starry"] .layout{position:relative;z-index:1}
 
-/* --- 玻璃拟态:只给顶栏、输入栏、侧栏/底栏 三处。
-       定稿如此,别扩大到每条气泡 —— backdrop-filter 一多,低端机就顶不住了。 --- */
+/* --- 玻璃拟态:只给顶栏、侧栏/底栏。
+       定稿如此,别扩大到每条气泡 —— backdrop-filter 一多,低端机就顶不住了。
+       ★ 8/14 她圈着输入区问「为啥不是直接透出背景,而是有一坨东西」——
+       .composer 从这组里摘掉:整条输入区不再垫玻璃板,壁纸直接透上来,
+       玻璃只留给 .composer-field 那颗胶囊自己(--glass-* 那套)。 --- */
 body[data-theme="starry"] .topbar,
-body[data-theme="starry"] .sidebar,
-body[data-theme="starry"] .composer{
+body[data-theme="starry"] .sidebar{
   background:rgba(16,22,44,.62);
   backdrop-filter:blur(14px) saturate(1.2);
   -webkit-backdrop-filter:blur(14px) saturate(1.2);
