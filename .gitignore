@@ -9,6 +9,19 @@ data/bridge-session*.json
 .env.bak*
 *.bak
 
+# ★ 聊天记录的真库。8/11 存储层从 json 换成 sqlite 之后,数据落在 data/app.db ——
+#   而挡住旧格式的那行(data/app-data.json)只认旧文件名,新库**一直裸着**。
+#   它没被提交过纯粹是因为没人跑 `git add -A`;换句话说,防线是运气不是规则。
+#   -shm/-wal 是 sqlite 的同伴文件,里面同样是真实内容,一起挡。
+data/*.db
+data/*.db-shm
+data/*.db-wal
+# 迁移时留下的 json 快照:文件名是 app-data.json.bak-<日期>,尾巴不是 .bak,
+# 所以上面那条 `*.bak` 和 `data/app-data.json` 两道都漏过它。
+data/app-data.json.bak*
+# 终端最近输出的落盘尾巴 —— 重启不丢是给用户的,不是给仓库的。
+data/console-tail.json
+
 # bridge 的资料库镜像:它把用户在 App 里上传的文档写成真文件,落在 bridge 的工作目录下。
 # 如果有人直接在仓库根目录跑 bridge(很常见的试用方式),那就是**用户的私密文档
 # 躺在 git 工作区里** —— 一个 `git add -A` 就公开了。这里挡死。
