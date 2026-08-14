@@ -40,7 +40,15 @@ const TEXT_PAD = 21.2;
 //   这里的 OVERLAP 必须和 CSS 那两行同源:CSS 改咬合深度,这个数要跟着改,
 //   否则盒子量的是一个线上不存在的版式。
 const OVERLAP = 1.3 * 16;
-const LABEL_H = 0.92 * 16 * 1.3 + 0.68 * 16 * 1.3 + 0.26 * 16 * 2 + 2;
+// ★★ 行高 1.6 是**量的不是拍的**:styles.css body{font:1rem/1.6} —— 藏在 font 简写里,
+//   grep line-height 搜不到(小匠 8/14 晨抓的:旧值 1.3 让每个标签矮算 7.7px,判得比现实松;
+//   松出的第一个真洞就是 320 档「设置×更多」两行态相叠,86.5→88.5 那次搬家还的)。
+//   量于 0814;styles.css 改字号/行高,这几个数要跟着重量 —— #68 会把它换成从 CSS 现解析。
+const LABEL_H = 0.92 * 16 * 1.6 + 0.68 * 16 * 1.6 + 0.26 * 16 * 2 + 2;   // 51.28
+// 「更多」标签按**两行取最坏** ← home-view.js overflow 分支:第 7 个入口进来那天
+// 会多吐一行「还有 N 个」(.sky-dipper 档字号 .82/.64rem)。行数不写在 CSS 里,
+// 是结构假设,派生不出来 —— 注明它是假设。
+const MORE_LABEL_H = 0.82 * 16 * 1.6 + 0.64 * 16 * 1.6 + 0.26 * 16 * 2 + 2;   // 47.69
 
 // 手抄自 home-view.js 的 ISLES。★ 手抄件会漂,所以下面有一条 drift 守卫钉着两边。
 const GATES = [
@@ -83,8 +91,8 @@ function boxes(dev, gates = GATES, more = MORE_SPOT, moreSize = MORE.size) {
     name: '更多',
     isl: misl,
     txt: more.side === 'left'
-      ? [misl[0] + OVERLAP - mtw, misl[0] + OVERLAP, mcy - LABEL_H / 2, mcy + LABEL_H / 2]
-      : [misl[1] - OVERLAP, misl[1] - OVERLAP + mtw, mcy - LABEL_H / 2, mcy + LABEL_H / 2],
+      ? [misl[0] + OVERLAP - mtw, misl[0] + OVERLAP, mcy - MORE_LABEL_H / 2, mcy + MORE_LABEL_H / 2]
+      : [misl[1] - OVERLAP, misl[1] - OVERLAP + mtw, mcy - MORE_LABEL_H / 2, mcy + MORE_LABEL_H / 2],
   });
   return out;
 }

@@ -47,10 +47,21 @@ const STATIC_ASSETS = [
   '/assets/island/orb.webp',
 ];
 
+// ★ 8/14 还了 addAll 那笔债(群账 #67):addAll 是**全有全无** —— 弱网下 20 个文件
+//   挂 1 个,install 整个作废,用户静默卡在旧版,比"某张图第一次走网络"贵得多。
+//   改成逐个 add + allSettled:挂掉的只是不进预缓存(之后按需走网络照样能用),
+//   install 永远成功。这正是 8/14 凌晨「岛图暂不进清单」裁决里写的解锁条件 ——
+//   失败面问题消解后,island 七张随本次一起进了 STATIC_ASSETS(纯收益)。
+// ★ 挂掉几张在控制台报一声数目:预缓存缺张不是错,但一声不吭会让
+//   「怎么还闪占位圆」查不到头 —— 沉默和死亡长得一样。
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION)
-      .then((cache) => cache.addAll(STATIC_ASSETS))
+      .then((cache) => Promise.allSettled(STATIC_ASSETS.map((u) => cache.add(u))))
+      .then((results) => {
+        const missed = results.filter((r) => r.status === 'rejected').length;
+        if (missed) console.warn(`[sw] 预缓存缺了 ${missed}/${results.length} 个,已放行(按需再取)`);
+      })
       .then(() => self.skipWaiting())
   );
 });
