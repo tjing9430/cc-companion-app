@@ -246,7 +246,52 @@ function renderAttachment(file) {
     return `<a class="attachment-link${file.sticker ? ' is-sticker' : ''}" href="${escAttr(url)}" data-action="open-lightbox" data-url="${escAttr(url)}" data-name="${escAttr(file.name || '')}" target="_blank" rel="noreferrer"><img class="attachment-image${file.sticker ? ' is-sticker' : ''}" src="${escAttr(url)}" alt="${escAttr(file.name || 'attachment')}" loading="lazy" decoding="async"${dimensions}></a>`;
   }
   // ★ 「File」那个词去掉了 —— 文件夹的形状已经说明它是文件,再写一遍是同一句话讲两次。
-  return `<a class="attachment-file" href="${escAttr(url)}" target="_blank" rel="noreferrer"><span class="af-name">${esc(file.name || 'attachment')}</span></a>`;
+  const name = file.name || 'attachment';
+  const ext = fileExtLabel(name, file.url);
+  const canPreview = isPreviewable(name, file.type);
+  const sub = [file.size ? formatFileSize(file.size) : '', canPreview ? '点击预览' : '点击下载']
+    .filter(Boolean).join(' · ');
+  // 能预览的走壳里的预览层(preventDefault),不能预览的保留原来的新标签页下载。
+  const hook = canPreview
+    ? ` data-action="preview-file" data-url="${escAttr(url)}" data-name="${escAttr(name)}" data-ext="${escAttr(ext)}"`
+    : '';
+  return `<a class="attachment-file${canPreview ? ' can-preview' : ''}" href="${escAttr(url)}"${hook} target="_blank" rel="noreferrer">
+    <span class="af-icon" aria-hidden="true">${esc(ext)}</span>
+    <span class="af-body">
+      <span class="af-name">${esc(name)}</span>
+      ${sub ? `<span class="af-sub">${esc(sub)}</span>` : ''}
+    </span>
+  </a>`;
+}
+
+// 扩展名徽章:最多四个字符,免得 .markdown 把卡片撑开。没有扩展名就画个通用文件符号。
+function fileExtLabel(name, url) {
+  const source = String(name || '') || String(url || '');
+  const match = source.match(/\.([A-Za-z0-9]{1,8})$/);
+  if (!match) return '文件';
+  const ext = match[1].toUpperCase();
+  return ext.length > 4 ? ext.slice(0, 4) : ext;
+}
+
+// 能在 App 里当文本读的类型。
+// ★ 有扩展名就**只认扩展名**,不给 mime 翻案的机会:服务端存的 mime 跟着上传方给的走,
+//   一个 archive.zip 被上传成 text/* 就会被当文本打开(自测里真撞到了,一屏乱码)。
+//   名字说它是 zip,那就按 zip 待它。mime 只在文件名压根没有扩展名时兜底。
+const PREVIEW_EXT = /\.(md|markdown|txt|text|log|json|jsonl|ya?ml|toml|ini|conf|cfg|env|csv|tsv|js|mjs|cjs|ts|tsx|jsx|py|rb|go|rs|java|c|h|cc|cpp|cs|php|swift|kt|sh|bash|zsh|sql|css|scss|html?|xml|svg|diff|patch|gitignore)$/i;
+function isPreviewable(name, type) {
+  const named = String(name || '');
+  if (/\.[A-Za-z0-9]{1,8}$/.test(named)) return PREVIEW_EXT.test(named);
+  const mime = String(type || '').toLowerCase();
+  return mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml';
+}
+
+// 附件显示的是**字节**。util 的 formatDocSize 在 1KB 以下写「N 字」——
+// 那是给资料库的字数用的,搬到二进制大小上会读成"这文件才 105 个字",差着三倍。
+function formatFileSize(size) {
+  const n = Number(size) || 0;
+  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
 }
 
 function renderStickerPanel(scope) {

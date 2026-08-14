@@ -327,6 +327,20 @@ function bindEvents() {
       render();
       return;
     }
+    if (name === 'preview-file') {
+      event.preventDefault();
+      openFilePreview({
+        url: action.dataset.url,
+        name: action.dataset.name || '',
+        ext: action.dataset.ext || '',
+      });
+      return;
+    }
+    if (name === 'close-file-preview') {
+      state.filePreview = null;
+      render();
+      return;
+    }
     if (name === 'toggle-notify') {
       if (notifyEnabled()) {
         localStorage.removeItem('cc-notify');
@@ -643,6 +657,11 @@ function bindEvents() {
     if (event.key === 'Escape' && state.lightbox) {
       state.lightbox = null;
       render();
+      return;
+    }
+    if (event.key === 'Escape' && state.filePreview) {
+      state.filePreview = null;
+      render();
     }
   });
 
@@ -946,7 +965,8 @@ function render() {
       </section>
     </div>
     ${renderMemoryReader()}
-    ${renderLightbox()}`;
+    ${renderLightbox()}
+    ${renderFilePreview()}`;
   scrollLists();
   // 星空主题的动态零件(背景星野 / 页头主星的环和珠子)要在 DOM 落地之后挂。
   // 非 starry 主题时它自己会把东西收干净,不用在这儿判断。
@@ -985,6 +1005,73 @@ function renderLightbox() {
       <button type="button" class="lightbox-close" data-action="close-lightbox" aria-label="关闭">×</button>
     </div>
   </div>`;
+}
+
+/* 文件预览层。8/14 她圈着一条 .md 说「文件发出来长这样有点草率」——
+   在这之前文件卡片点下去只会新开一个标签页(手机上等于跳出 App 去下载),
+   想看一眼里面写了什么得先离开聊天。这里就地读:md 走聊天同一套 markdown,
+   其它文本走等宽原文。二进制根本不给这个入口(卡片那边就不挂 data-action)。 */
+const FILE_PREVIEW_LIMIT = 256 * 1024;   // 超出只读前 256KB,手机上再多也是卡住自己
+function renderFilePreview() {
+  const fp = state.filePreview;
+  if (!fp) return '';
+  let body;
+  if (fp.status === 'loading') {
+    body = '<div class="fp-hint">读取中…</div>';
+  } else if (fp.status === 'error') {
+    body = `<div class="fp-hint fp-error">打不开这个文件${fp.error ? `：${esc(fp.error)}` : ''}</div>`;
+  } else if (!String(fp.text || '').trim()) {
+    body = '<div class="fp-hint">空文件</div>';
+  } else if (fp.isMarkdown) {
+    // ★ 借气泡那套 .body-text.md 的皮:标题/列表/表格/代码块的样式全挂在它下面,
+    //   自己再写一份必然漏掉几样(第一版就漏了表格边框和代码块底色,截图里裸成一堆字)。
+    body = `<div class="fp-md body-text md">${renderMarkdown(fp.text)}</div>`;
+  } else {
+    body = `<pre class="fp-code"><code>${esc(fp.text)}</code></pre>`;
+  }
+  return `<div class="file-preview" role="dialog" aria-label="文件预览">
+    <div class="fp-scrim" data-action="close-file-preview"></div>
+    <div class="fp-panel">
+      <div class="fp-head">
+        <span class="fp-badge" aria-hidden="true">${esc(fp.ext || '文件')}</span>
+        <span class="fp-title">${esc(fp.name || '')}</span>
+        <a class="fp-raw" href="${escAttr(fp.url)}" target="_blank" rel="noreferrer">原文</a>
+        <button type="button" class="fp-close" data-action="close-file-preview" aria-label="关闭">×</button>
+      </div>
+      <div class="fp-body">
+        ${body}
+        ${fp.truncated ? '<div class="fp-hint fp-truncated">文件较大，只显示了前 256KB，剩下的点「原文」看</div>' : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+async function openFilePreview({ url, name, ext }) {
+  state.filePreview = {
+    url,
+    name,
+    ext,
+    status: 'loading',
+    text: '',
+    isMarkdown: /\.(md|markdown)$/i.test(name || ''),
+    truncated: false,
+  };
+  render();
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = await res.text();
+    // 竞态:读的过程中她可能已经关掉了、或点开了另一个文件。认 url 再落文本。
+    if (!state.filePreview || state.filePreview.url !== url) return;
+    state.filePreview.truncated = raw.length > FILE_PREVIEW_LIMIT;
+    state.filePreview.text = state.filePreview.truncated ? raw.slice(0, FILE_PREVIEW_LIMIT) : raw;
+    state.filePreview.status = 'ready';
+  } catch (err) {
+    if (!state.filePreview || state.filePreview.url !== url) return;
+    state.filePreview.status = 'error';
+    state.filePreview.error = err && err.message ? err.message : '';
+  }
+  render();
 }
 
 // Incremental update: re-render ONLY the message list for a chat scope, leaving the composer

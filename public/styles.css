@@ -797,6 +797,85 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;
 }
 .attachment-file:hover{filter:brightness(1.08)}
+/* 8/14 她发截图说「文件发出来长这样有点草率」——原来卡片里只有一个文件名,
+   在星空壁纸上就是一小块灰方块。补两样东西:左边一枚扩展名徽章(一眼看出是什么文件)、
+   名字底下一行大小 + 「点击预览」(告诉她这东西点得动)。文件夹的舌头留着,那是她当初点的形状。 */
+.attachment-file{align-items:stretch;max-width:min(280px,72vw)}
+.attachment-file .af-icon{
+  flex:none;display:flex;align-items:center;justify-content:center;
+  width:2.1rem;height:2.1rem;border-radius:6px;
+  background:rgba(255,255,255,.22);
+  font-size:.62rem;font-weight:700;letter-spacing:.02em;
+  color:var(--text);opacity:.9;
+}
+.attachment-file .af-body{
+  display:flex;flex-direction:column;justify-content:center;gap:.12rem;min-width:0;
+}
+.attachment-file .af-sub{
+  font-size:.7rem;opacity:.6;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.attachment-file.can-preview{cursor:pointer}
+/* 星空下别再是灰方块:跟顶栏/输入胶囊同一套玻璃,壁纸从底下透上来 */
+body[data-theme="starry"] .attachment-file,
+body[data-theme="starry"] .attachment-file::before{
+  background:var(--glass-bg);
+  backdrop-filter:var(--glass-filter);-webkit-backdrop-filter:var(--glass-filter);
+}
+body[data-theme="starry"] .attachment-file{
+  border:1px solid var(--glass-line);
+  box-shadow:var(--glass-highlight),0 2px 10px rgba(0,0,0,.22);
+  color:#f4f1ff;
+}
+body[data-theme="starry"] .attachment-file::before{border:1px solid var(--glass-line);border-bottom:0}
+body[data-theme="starry"] .attachment-file .af-icon{background:rgba(255,255,255,.16);color:#f4f1ff}
+
+/* 文件预览层:点文件卡片就地读,不再把她踢出 App 去下载 */
+.file-preview{position:fixed;inset:0;z-index:85;display:flex;align-items:center;justify-content:center;
+  animation:lightbox-in .16s ease}
+.fp-scrim{position:absolute;inset:0;background:rgba(12,10,8,.7);cursor:zoom-out}
+.fp-panel{
+  position:relative;z-index:1;
+  display:flex;flex-direction:column;
+  width:min(760px,94vw);max-height:min(84vh,900px);
+  border-radius:14px;overflow:hidden;
+  background:var(--panel);color:var(--text);
+  box-shadow:0 18px 60px rgba(0,0,0,.45);
+}
+.fp-head{
+  display:flex;align-items:center;gap:.55rem;
+  padding:.7rem .85rem;flex:none;
+  border-bottom:1px solid var(--line-soft);
+}
+.fp-badge{
+  flex:none;display:flex;align-items:center;justify-content:center;
+  min-width:2.1rem;height:1.7rem;padding:0 .4rem;border-radius:6px;
+  background:rgba(255,255,255,.2);font-size:.62rem;font-weight:700;
+}
+.fp-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}
+.fp-raw{flex:none;font-size:.78rem;color:inherit;opacity:.75;text-decoration:underline}
+.fp-close{
+  flex:none;border:none;background:rgba(255,255,255,.16);color:inherit;
+  width:1.8rem;height:1.8rem;border-radius:50%;font-size:1.05rem;line-height:1;cursor:pointer;
+}
+.fp-body{flex:1;min-height:0;overflow:auto;padding:.9rem 1rem 1.2rem;-webkit-overflow-scrolling:touch}
+.fp-md{font-size:.9rem;line-height:1.65}
+.fp-md :first-child{margin-top:0}
+.fp-code{
+  margin:0;font-size:.78rem;line-height:1.6;
+  white-space:pre;overflow-x:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.fp-hint{padding:.6rem 0;font-size:.82rem;opacity:.7}
+.fp-error{color:#c0392b;opacity:1}
+.fp-truncated{border-top:1px solid var(--line-soft);margin-top:.9rem}
+body[data-theme="starry"] .fp-panel{
+  background:rgba(16,22,44,.72);
+  backdrop-filter:blur(20px) saturate(1.3);-webkit-backdrop-filter:blur(20px) saturate(1.3);
+  border:1px solid var(--glass-line);color:#f4f1ff;
+}
+body[data-theme="starry"] .fp-head{border-bottom-color:rgba(255,255,255,.14)}
+body[data-theme="starry"] .fp-error{color:#ffb4a8}
 
 /* Composer */
 .composer{display:grid;grid-template-columns:minmax(0,1fr);gap:.45rem}
