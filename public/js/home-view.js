@@ -162,6 +162,35 @@ const DIPPER = { tab: 'more', title: '更多', hint: '', x: 30, y: 56, size: 6.1
 // 原因是判据变了:以前只要"不溢出",现在还要满足左右交错的节奏,
 // 而且两个条件在最窄的那档手机上会打架 —— 得解一次,不能每次现猜。
 
+// 远景小岛(浮岛主题专属):同一批素材缩到 4% 上下、糊 1.3px、压半透 ——
+// 她目标图里的纵深就是这么来的:近岛清晰、远处还沉着几座小的。
+// ★ 位置避开三样东西:Hero 文案(左上)、六座近岛、以及各自的标签药丸。
+//   挑的是三块用四档盒子核过的真空档,不是随手撒的。
+// ★ 纯装饰:进不了焦点链、读屏不念、点不到 —— 它们在 .home-sky 里,那层 aria-hidden。
+const FAR_ISLES = [
+  { file: 'console',  x: 80, y: 14, size: 4.2 },
+  { file: 'group',    x: 16, y: 38, size: 4.8 },
+  { file: 'settings', x: 84, y: 47, size: 3.6 },
+];
+
+// 云间小径:一条虚线沿六座岛蛇形串下来 —— 目标图里岛和岛之间那条发光的路。
+// ★ viewBox 是 90×160,**必须**和容器的 aspect-ratio(900/1600)同比 ——
+//   同比时 SVG 的缩放是均匀的,虚线每一截才一样长;
+//   写成 0 0 100 100 再 preserveAspectRatio:none,竖向段的点会被拉成横向段的 1.78 倍。
+// ★ pathLength="100":把整条路径归一成 100 个单位,dasharray 按它计 ——
+//   于是「一共约 38 颗点」这件事不随几何变;改落点表不用回来重调虚线密度。
+function trailPath(pts) {
+  if (pts.length < 2) return '';
+  const P = pts.map((p) => ({ x: p.x * 0.9, y: p.y * 1.6 }));
+  let d = `M ${P[0].x.toFixed(1)} ${P[0].y.toFixed(1)}`;
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1], b = P[i];
+    const my = ((a.y + b.y) / 2).toFixed(1);
+    d += ` C ${a.x.toFixed(1)} ${my}, ${b.x.toFixed(1)} ${my}, ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+  }
+  return d;
+}
+
 function greeting() {
   const h = new Date().getHours();
   if (h < 5) return '夜深了';
@@ -206,6 +235,15 @@ function renderHome() {
   // ★ 浮岛的精灵不缩:BADGE_SCALE 那 12% 是量给徽章的,套到别的素材上没有依据。
   const spriteScale = s.theme === 'island' ? 1 : BADGE_SCALE;
 
+  // 浮岛专属的两层远景:小径沿「近岛们 + 更多」的真实落点画,坐标同源,
+  // 改落点表小径自动跟着走 —— 不存在第二份要人肉同步的路径坐标。
+  const isleDeco = s.theme === 'island' ? `
+          <svg class="sky-trail" viewBox="0 0 90 160" aria-hidden="true">
+            <path d="${trailPath([...laid, more])}" pathLength="100"/>
+          </svg>
+          ${FAR_ISLES.map((f) => `<img class="sky-far" src="/assets/island/${f.file}.webp" alt="" decoding="async"
+            style="--x:${f.x}%;--y:${f.y}%;--h:${f.size}%">`).join('')}` : '';
+
   return `
     <div class="home-view">
       <!-- ★ 第一屏是一个固定高度的舞台:银河/Hero/入口都在它里面绝对定位。
@@ -220,7 +258,7 @@ function renderHome() {
              「背景/星河/星星像三个图层」的根治办法不是把三层调得像一层,
              而是让它**真的只有一层**。所以星尘层、渐变底、预烘光晕全部删掉。 -->
         <div class="sky-inner">
-          ${isle ? '' : '<img class="sky-galaxy" src="/assets/galaxy-river.webp" alt="" decoding="async">'}
+          ${isle ? isleDeco : '<img class="sky-galaxy" src="/assets/galaxy-river.webp" alt="" decoding="async">'}
         </div>
       </div>
 
@@ -234,7 +272,11 @@ function renderHome() {
             <div class="home-sub">${esc(s.agent && s.agent.configured ? '温柔陪伴中' : '演示模式')}</div>
           </div>
         </div>
-        <h1 class="home-greet">${esc(greeting())}，${esc(s.userName || '你')}</h1>
+        <!-- ★ 没填昵称就只问好,不硬凑一个「你」字出来(8/14 反馈:「下午好,你」那个「你」光秃秃的)。
+             ★★ 判空不够:后端 lib/state.js 的出厂默认就是字符串「你」,没填过昵称的库里存的
+                **就是**这个字 —— 所以这里把「等于出厂默认」也当没填。改后端默认会波及
+                chat.js 的发送人回落和改名迁移,风险大于收益,不动它。 -->
+        <h1 class="home-greet">${esc(greeting())}${s.userName && s.userName !== '你' ? `，${esc(s.userName)}` : ''}</h1>
         ${days ? `<p class="home-days">已陪伴你 <b>${days}</b> 天</p>` : ''}
         <p class="home-ask">今天想和 ${esc(s.assistantName || 'AI')} 聊些什么？</p>
       </div>

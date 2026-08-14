@@ -119,3 +119,48 @@ test('★★ 红线②:tee 的结构守卫 —— 不许 await、必须吞错、
     '★ 队列必须真的被截断 —— 下游堵住时宁可丢日志,不能涨内存');
   assert.ok(/streamBroken\s*=\s*true/.test(src), '★ 失败一次就该闭嘴,不反复重试刷日志');
 });
+
+test('★ 8/14:尾巴落独立小文件 —— 重启回来还在,主库照样一个字节不长', async () => {
+  // 起因:8/14 凌晨部署重启,内存环清空,她昨天那 44 行终端记录没了(「为什么今天又什么都没了」)。
+  // 尾巴现在落 DATA_DIR/console-tail.json:重启后 GET tail 必须还给得出来。
+  // ★ 「零落库」红线不因此松动 —— 这里连主库一起量:两种后端的文件都不许长。
+  // ★ STORE_BACKEND 显式清空:本机 .env 带着它,漏清的话这条测的就是另一台机器。
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cstream-restart-'));
+  const env = { ...process.env, DATA_DIR: dir, APP_AUTH_TOKEN: 't', EMBEDDING_MODEL: '', MEMORY_EXTRACT_EVERY: '0', STORE_BACKEND: '' };
+  const boot = async () => {
+    const port = await freePort();
+    const child = spawn(process.execPath, ['server.js'], { cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'], env: { ...env, PORT: String(port) } });
+    const base = `http://127.0.0.1:${port}`;
+    for (let i = 0; i < 150; i++) {
+      try { const r = await fetch(base + '/', { headers: { 'x-app-token': 't' } }); if (r.ok) break; } catch { /* 等 */ }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return { child, base };
+  };
+  const kill = (child) => new Promise((r) => { child.on('exit', r); child.kill('SIGKILL'); setTimeout(r, 3000); });
+  const sizeOf = (name) => { try { return fs.statSync(path.join(dir, name)).size; } catch { return 0; } };
+
+  const a = await boot();
+  try {
+    assert.equal((await push(a.base, ['第一轮的尾巴', '第二行'])).status, 204);
+    // 写盘是 500ms 合并 —— 等它落地。900ms 不是拍的:500 合并 + 400 余量。
+    await new Promise((r) => setTimeout(r, 900));
+    assert.ok(fs.existsSync(path.join(dir, 'console-tail.json')), '★ 独立尾巴文件没落盘');
+  } finally { await kill(a.child); }
+
+  const b = await boot();
+  try {
+    const tail = await (await fetch(`${b.base}/api/console/stream/tail`, { headers: { 'x-app-token': 't' } })).json();
+    assert.deepEqual(tail.lines.slice(-2), ['第一轮的尾巴', '第二行'], '★ 重启回来尾巴丢了 —— 落盘/回读有一头没生效');
+    // 红线在持久化世界里的对应形状:**同一进程内**再灌一把,主库一个字节不长。
+    // ★ 不拿「重启前后库同大小」当判据 —— 第二次开机本来就会写点正常的开机账
+    //   (会话号之类),那不是这条通道的字节。第一版就这么断言的,红的是开机不是尾巴。
+    const before = sizeOf('app-data.json') + sizeOf('app.db');
+    assert.equal((await push(b.base, ['重启后的新行'])).status, 204);
+    await new Promise((r) => setTimeout(r, 900));
+    assert.equal(sizeOf('app-data.json') + sizeOf('app.db'), before, '★ 尾巴落盘不许连带主库长大');
+  } finally {
+    await kill(b.child);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

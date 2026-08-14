@@ -58,8 +58,54 @@ const SLOTS = [
 //   ★ 顺带记一笔:动画重放的根因**不是这个钮**,是"每次重绘都重建 .more-dial"。
 //     钮删了那个根因还在 —— 见 .more-dial 的 md-in 那段。
 
+// ==========================================================================
+// 浮岛主题的「更多」:水晶球岛阵。
+//
+// 需求方 8/14 原话:「这个是更多里面的小岛」「放svg图标放在中间小圈圈里面的」「不放在首屏」。
+// 每格 = 同一座水晶球岛(orb.webp,她发的透明底成图),SVG 图标嵌在玻璃球心,名字挂岛下面。
+// ★ 球心的落点 (50%, 24%) 是**量出来的**,不是目测:拿 10% 网格叠在成图上读的,
+//   球体横跨 x 32–68%、纵跨 y 6–42%。换素材必须重量这两个数(还有 CSS 里的 --ico-y)。
+// ★ 功能位沿用同一张 SLOTS 表 —— 北斗盘和岛阵是同一批入口的两件衣服,
+//   加功能仍然只改 SLOTS 一处,两个主题一起长出来。
+// ★ 空位照旧明摆着(静态说明,不是 disabled 按钮),理由同北斗盘:留白的盘是设计前提。
+const ORB_ICONS = {
+  settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  about:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+  empty:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>',
+};
+
+// 2×2 的岛阵。格数取「够摆下 SLOTS + 至少一个明摆的空位」的最小偶数 ——
+// 现在是 2 实位 + 2 空位;SLOTS 长到 4 之后自动变 4+2,不用回来改这儿。
+function renderMoreIsles(s) {
+  const total = Math.max(4, Math.ceil((SLOTS.length + 1) / 2) * 2);
+  const cells = Array.from({ length: total }, (_, i) => {
+    const slot = SLOTS[i];
+    if (!slot) {
+      return `<li class="orb-cell orb-empty">
+          <span class="orb-isle"><img src="/assets/island/orb.webp" alt="" decoding="async"><span class="orb-ico">${ORB_ICONS.empty}</span></span>
+          <span class="orb-name"><b>空位</b><i>自己加</i></span>
+        </li>`;
+    }
+    const hint = typeof slot.hint === 'function' ? slot.hint(s) : slot.hint;
+    const attrs = slot.tab ? ` data-tab="${escAttr(slot.tab)}"` : '';
+    return `<li class="orb-cell">
+        <button type="button" data-action="${escAttr(slot.action)}"${attrs}>
+          <span class="orb-isle"><img src="/assets/island/orb.webp" alt="" decoding="async"><span class="orb-ico oi-${escAttr(slot.key)}">${ORB_ICONS[slot.key] || ORB_ICONS.empty}</span></span>
+          <span class="orb-name"><b>${esc(slot.title)}</b><i>${esc(hint)}</i></span>
+        </button>
+      </li>`;
+  }).join('');
+  return `
+    <div class="more-view mv-isles">
+      <ul class="orb-grid">${cells}</ul>
+      ${state.moreAbout ? renderAbout(s) : ''}
+    </div>`;
+}
+
 function renderMore() {
   const s = state.settings || {};
+  // 浮岛主题穿岛阵这件衣服;北斗盘留给星空(和暖深色/奶油白 —— 它们没有岛素材)。
+  if (s.theme === 'island') return renderMoreIsles(s);
   // 星按**盘上从上到下**排序再发位子 —— 用测出来的坐标排,不靠数组顺序碰运气。
   const stars = STAR_POINTS.map(rotateCCW).sort((a, b) => a.y - b.y);
   const cells = stars.map((pt, i) => {

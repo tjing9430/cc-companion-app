@@ -35,9 +35,11 @@ const ASPECT = 900 / 1600;
 const TITLE_PX = 0.92 * 16;
 const HINT_PX = 0.68 * 16;
 const TEXT_PAD = 21.2;
-const GAP = 0.3 * 16;
-const BELOW_GAP = 0.25 * 16;
-const BELOW_LABEL_H = 0.82 * 16 * 1.35 + 0.26 * 16 * 2 + 2;
+// ★ 8/14 起标签**咬进岛边 1.3rem**(styles.css 的 .sg-left/.sg-right island 覆写),
+//   不再悬在岛外 .3rem —— 「标注和属于它的小岛放在一起」。
+//   这里的 OVERLAP 必须和 CSS 那两行同源:CSS 改咬合深度,这个数要跟着改,
+//   否则盒子量的是一个线上不存在的版式。
+const OVERLAP = 1.3 * 16;
 const LABEL_H = 0.92 * 16 * 1.3 + 0.68 * 16 * 1.3 + 0.26 * 16 * 2 + 2;
 
 // 手抄自 home-view.js 的 ISLES。★ 手抄件会漂,所以下面有一条 drift 守卫钉着两边。
@@ -65,20 +67,24 @@ function boxes(dev, gates = GATES, more = MORE_SPOT, moreSize = MORE.size) {
       Math.max(g.title.length * TITLE_PX, g.hintText.length * HINT_PX) + TEXT_PAD);
     const isl = [cx - wPx / 2, cx + wPx / 2, cy - hPx / 2, cy + hPx / 2];
     const txt = g.side === 'right'
-      ? [isl[1] + GAP, isl[1] + GAP + tw, cy - LABEL_H / 2, cy + LABEL_H / 2]
-      : [isl[0] - GAP - tw, isl[0] - GAP, cy - LABEL_H / 2, cy + LABEL_H / 2];
+      ? [isl[1] - OVERLAP, isl[1] - OVERLAP + tw, cy - LABEL_H / 2, cy + LABEL_H / 2]
+      : [isl[0] + OVERLAP - tw, isl[0] + OVERLAP, cy - LABEL_H / 2, cy + LABEL_H / 2];
     return { name: g.title, isl, txt };
   });
-  // 「更多」:标签排在正下方,不在左右
+  // 「更多」:8/14 起标签也在旁边(side right),和五座主岛同一套式子 ——
+  // 下方标签那套(BELOW_*)随之退役:竖向多吃一条标签高,就是旧版屏底越界的根源。
   const mh = clampH(moreSize, dev.h);
   const mw = mh * MORE.ratio;
   const mcx = left + (more.x / 100) * cw;
   const mcy = (more.y / 100) * dev.h;
   const misl = [mcx - mw / 2, mcx + mw / 2, mcy - mh / 2, mcy + mh / 2];
+  const mtw = MORE.title.length * TITLE_PX + TEXT_PAD;
   out.push({
     name: '更多',
     isl: misl,
-    txt: [mcx - 40, mcx + 40, misl[3] + BELOW_GAP, misl[3] + BELOW_GAP + BELOW_LABEL_H],
+    txt: more.side === 'left'
+      ? [misl[0] + OVERLAP - mtw, misl[0] + OVERLAP, mcy - LABEL_H / 2, mcy + LABEL_H / 2]
+      : [misl[1] - OVERLAP, misl[1] - OVERLAP + mtw, mcy - LABEL_H / 2, mcy + LABEL_H / 2],
   });
   return out;
 }
@@ -111,13 +117,14 @@ test('四档手机:不出屏 · 岛不压岛 · 标签不压标签', () => {
   assert.deepEqual(bad, [], `\n${bad.join('\n')}`);
 });
 
-test('★ 阳性对照:把「更多」放回 y=91%,必须报越出屏底', () => {
-  // ★ 91 不是编的 —— 是我这一版**真的写过**的值。CDP 截图上「更多」两个字只剩上半截,
-  //   而当时的测试全绿,因为它只量了横向。后来改到 88 仍在 320×568 上越界 3.6px,
-  //   那一版**测试是红的** —— 现在这组 y/x/size 是拿这条判据搜出来的,不是看图调的。
-  const bad = DEVICES.flatMap((d) => violations(d, GATES, { ...MORE_SPOT, y: 91 }, MORE.size));
+test('★ 阳性对照:把「更多」压到 y=97%,必须报越出屏底', () => {
+  // ★ 8/14 前这条用的是 y=91 —— 那时标签在岛**正下方**,岛底+标签一起越界。
+  //   标签挪到旁边后竖向少吃一条标签高,91% 已经真的放得下了(320 档岛底 548 < 568):
+  //   对照值跟着版式走,不然它红的就不是「判据没牙」而是「世界变了」。
+  //   97% 时 320 档岛底 582 > 568,是所有档里最先破的那一档。
+  const bad = DEVICES.flatMap((d) => violations(d, GATES, { ...MORE_SPOT, y: 97 }, MORE.size));
   assert.ok(bad.some((x) => x.includes('底缘')),
-    '把「更多」放回 91% 居然没报越界 —— 这条竖向判据没有牙');
+    '把「更多」压到 97% 居然没报越界 —— 这条竖向判据没有牙');
 });
 
 test('★ 阳性对照:把六座岛堆到同一小块上,必须报相撞', () => {

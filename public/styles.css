@@ -2499,15 +2499,51 @@ body[data-theme="island"] .main,
 body[data-theme="island"] .content,
 body[data-theme="island"] .message-list{background:transparent}
 
-/* 云:两片超大羽化的白色径向渐变,静止。
-   ★ 不飘 —— 需求方 8/12 明确「不做动画」。这里只是**质感**,不是动效。 */
+/* 云海:一组静止的羽化白斑 + 屏底一条渐厚的云带。
+   ★ 不飘 —— 需求方 8/12 明确「不做动画」。这里只是**质感**,不是动效。
+   ★ 8/14 加厚:她目标图的天不是「渐变 + 三朵云」,是整片有纵深的云海 ——
+     远处云淡、近处(屏底)云浓,「更多」那座热气球平台就泊在云带里。
+     全部用渐变画,零素材零请求:首屏刚减掉的体积不能又吃回去。
+   ★ 云在 .home-sky(z0)上,岛和标签在 .sky-gates(z2)—— 云永远垫在岛后面,
+     不会糊到任何可点的东西。 */
 body[data-theme="island"] .home-sky::after{
   content:'';position:absolute;inset:0;pointer-events:none;
   background:
-    radial-gradient(46% 13% at 22% 30%, rgba(255,255,255,.85), rgba(255,255,255,0) 70%),
-    radial-gradient(38% 10% at 78% 52%, rgba(255,255,255,.7),  rgba(255,255,255,0) 72%),
-    radial-gradient(52% 12% at 44% 76%, rgba(255,255,255,.6),  rgba(255,255,255,0) 74%);
+    linear-gradient(to top, rgba(255,255,255,.92) 0%, rgba(255,255,255,.5) 8%, rgba(255,255,255,0) 20%),
+    radial-gradient(44% 9%  at 10% 97%, rgba(255,255,255,.9),  rgba(255,255,255,0) 70%),
+    radial-gradient(50% 10% at 86% 94%, rgba(255,255,255,.85), rgba(255,255,255,0) 72%),
+    radial-gradient(40% 8%  at 20% 26%, rgba(255,255,255,.8),  rgba(255,255,255,0) 70%),
+    radial-gradient(30% 7%  at 82% 35%, rgba(255,255,255,.6),  rgba(255,255,255,0) 72%),
+    radial-gradient(46% 9%  at  8% 55%, rgba(255,255,255,.55), rgba(255,255,255,0) 74%),
+    radial-gradient(36% 8%  at 92% 64%, rgba(255,255,255,.55), rgba(255,255,255,0) 74%),
+    radial-gradient(54% 10% at 42% 78%, rgba(255,255,255,.5),  rgba(255,255,255,0) 74%);
 }
+
+/* 云间小径:虚线沿岛蛇形串下来。坐标由 home-view 从真实落点算,这里只管长相。
+   ★ 点的数量由 pathLength="100" 归一,这儿的 dasharray 是「每 2.6 个单位一颗点」——
+     全程约 38 颗,不随落点表变。 */
+body[data-theme="island"] .sky-trail{position:absolute;inset:0;width:100%;height:100%}
+body[data-theme="island"] .sky-trail path{
+  fill:none;stroke:rgba(255,255,255,.95);stroke-width:1.05;
+  stroke-linecap:round;stroke-dasharray:.01 2.2;
+  filter:drop-shadow(0 0 2.5px rgba(255,255,255,.95));
+}
+
+/* 远景小岛:糊一档、压半透、略降饱和 —— 站到天的深处去。
+   ★ 高度单位是容器高的百分比,和近岛同一坐标系。 */
+body[data-theme="island"] .sky-far{
+  position:absolute;left:var(--x);top:var(--y);height:var(--h);width:auto;
+  transform:translate(-50%,-50%);
+  filter:blur(1.3px) saturate(.75) brightness(1.05);opacity:.55;
+}
+
+/* 标注跟岛走(8/14:「标注能不能和属于它的小岛放在一起」):
+   药丸从「悬在岛旁 .3rem」改成**咬进岛边 1.3rem** —— 她目标图里白药丸就压着岛沿。
+   ★ 只动浮岛主题:星空的星星小,咬 1.3rem 会把整颗星盖掉。
+   ★ 几何层(isles.js maxOffsetOn)仍按「文字全在岛外」算保留量 —— 比真实多留 1.6rem,
+     方向是安全的(只会更不容易出屏),所以不必跟着改公式。 */
+body[data-theme="island"] .sg-right .sg-text{left:calc(100% - 1.3rem)}
+body[data-theme="island"] .sg-left .sg-text{right:calc(100% - 1.3rem)}
 
 /* 岛比徽章大得多:徽章那档 clamp 上限 132px 会把竖岛齐腰砍掉。
    ★ 上下限都放宽,但**必须验过它在 320–430 四档里都不咬**:
@@ -2542,6 +2578,36 @@ body[data-theme="island"] .sg-hint{color:#6a819a}
 /* 「更多」在浮岛下不压暗 —— 它是热气球平台岛,压暗看着像坏了。
    压暗那条是给北斗写的(北斗是"第六个入口不要抢戏"),换了素材前提就没了。 */
 body[data-theme="island"] .sky-dipper .sg-star{opacity:1}
+
+/* --- 浮岛主题的「更多」:水晶球岛阵(2×2) ---
+   每格同一座岛,SVG 图标嵌在玻璃球心,名字药丸挂岛底下。
+   ★ 球心 (50%, 24%) 是拿 10% 网格叠在素材上量的;换素材要重量。 */
+body[data-theme="island"] .mv-isles{padding:1.4rem 1.2rem 2rem;overflow-y:auto}
+.orb-grid{list-style:none;margin:0 auto;padding:0;max-width:420px;
+  display:grid;grid-template-columns:1fr 1fr;gap:1.1rem .9rem}
+.orb-cell button{display:flex;flex-direction:column;align-items:center;width:100%;
+  background:none;border:0;padding:0;cursor:pointer;color:inherit}
+.orb-cell.orb-empty{display:flex;flex-direction:column;align-items:center;opacity:.62}
+.orb-isle{position:relative;display:block;width:100%}
+.orb-isle img{width:100%;height:auto;display:block;transition:transform .18s ease;
+  filter:drop-shadow(0 8px 14px rgba(70,120,165,.22))}
+.orb-ico{position:absolute;left:50%;top:24%;transform:translate(-50%,-50%);
+  width:24%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;color:#5da3d4}
+.orb-ico svg{width:100%;height:100%}
+.oi-settings{color:#5da3d4}
+.oi-about{color:#e8a25f}
+.orb-empty .orb-ico{color:#a9bccd;border:1.5px dashed rgba(150,175,195,.75);width:20%;padding:2%}
+/* 名字药丸:和首屏标签同一件衣服 —— 两页读起来是一套。
+   ★ margin-top 是负的:岛底下垂着水瀑,名字往上收一点才像挂在岛上,不是掉在岛下面。 */
+.orb-name{display:flex;flex-direction:column;align-items:center;gap:.02rem;
+  background:rgba(255,255,255,.88);border:1px solid rgba(120,160,195,.22);
+  border-radius:999px;padding:.28rem .85rem;box-shadow:0 2px 8px rgba(60,110,155,.14);
+  margin-top:-9%;position:relative}
+.orb-name b{font-size:.9rem;font-weight:600;color:#2c3b4d;letter-spacing:.03em}
+.orb-name i{font-style:normal;font-size:.64rem;color:#6a819a}
+.orb-cell button:hover .orb-isle img{transform:scale(1.04)}
+.orb-cell button:active .orb-isle img{transform:scale(.97)}
 
 /* ==========================================================================
    #54 暖深色 / 奶油白 的极简首屏 —— 零新素材,纯 CSS
