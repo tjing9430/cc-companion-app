@@ -1736,7 +1736,18 @@ body[data-theme="starry"]{
   --shadow-lg:0 18px 44px rgba(0,0,0,.5);
   /* 深空底:demo 里那条,原样 */
   background:radial-gradient(120% 80% at 75% -10%, #1C2440 0%, #141B2D 40%, #0E1220 75%, #0B1020 100%) fixed;
+  /* 聊天背景:她 8/14 选定的星夜(金星弯月云海,900×1600 原图压到 810 宽 45KB)。
+     ★ .chat-view::before 那个槽位就是给它留的 —— 图没到之前零行为变化,现在图到了。
+     ★ strength 开到 .9 不是违背"压到很淡"的原注 —— 那条写的是"底不抢内容"的默认;
+       这张是她**点名要看见**的画,而且画本身就是深色,气泡 78% 底 + 2px 毛玻璃扛得住可读性。
+       她看完嫌吵再往下调。 */
+  --chat-bg:url("/assets/chat-bg-starry.webp");
+  --chat-bg-strength:.9;
 }
+/* 星空下聊天页恒有背景图 ⇒ 气泡毛玻璃直接跟主题走。
+   (下面那条 :where([style*="--chat-bg"]) 只认**行内**样式,主题变量走不进它 —— 保留给
+   其它主题临时挂图用,星空自己这条在此。) */
+body[data-theme="starry"] .bubble{backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
 /* 底色已经画在 body 上,里层容器就别再糊一层不透明底把它盖掉 */
 body[data-theme="starry"] .layout,
 body[data-theme="starry"] .main,

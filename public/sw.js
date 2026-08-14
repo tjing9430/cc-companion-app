@@ -45,6 +45,8 @@ const STATIC_ASSETS = [
   '/assets/island/settings.webp',
   '/assets/island/more.webp',
   '/assets/island/orb.webp',
+  // 星空聊天背景(8/14 她选定的星夜图,45KB)
+  '/assets/chat-bg-starry.webp',
 ];
 
 // ★ 8/14 还了 addAll 那笔债(群账 #67):addAll 是**全有全无** —— 弱网下 20 个文件
