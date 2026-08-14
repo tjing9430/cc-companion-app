@@ -6,6 +6,7 @@ import { esc, escAttr, formatTime } from './util.js';
 import { state, CONSOLE_COMMANDS, ICONS } from './state.js';
 import { quotaWindowValue, quotaResetValue } from './settings-view.js';
 import { formatLines, fmtCost, hhmm } from './stream-format.js';
+import { renderWorkflow } from './workflow-view.js';
 
 function renderConsole() {
   return `
@@ -24,10 +25,7 @@ function renderConsole() {
           <button class="composer-btn composer-send" type="submit" aria-label="发送命令" title="发送命令" ${state.offline ? 'disabled' : ''}>${ICONS.send}</button>
         </div>
       </form>
-      ${state.consoleView === 'term' ? renderTerminal() : `
-      <div class="event-list" data-scroll-list data-scroll-scope="console">
-        ${state.events.length ? state.events.map((event) => renderConsoleEvent(event)).join('') : '<div class="empty">还没有控制台事件。</div>'}
-      </div>`}
+      ${state.consoleView === 'term' ? renderTerminal() : renderWorkflow()}
     </div>`;
 }
 

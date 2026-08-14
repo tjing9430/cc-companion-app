@@ -1295,6 +1295,61 @@ body[data-theme="starry"] .fp-error{color:#ffb4a8}
   background:var(--panel);
   font-size:.74rem;
 }
+/* 工作流档:一步一行的等宽流水。
+   需求原话「结构化流水:工具名+参数一条、thinking 一条带时长、回复一条,等宽可折叠」。
+   ★ 等宽是这一档的骨架 —— 每行左边缘对齐,标签/名字/正文/数各占固定的列,
+     眼睛顺着一条竖边往下扫就能读出「它这一轮做了几步」。比例字体一散,这个能力就没了。
+   ★ 折叠只给**真的长**的行(超 120 字或含换行)。给每行都挂个箭头,点开是空的,
+     那个箭头就成了噪音。 */
+/* ★ 和终端档一样住在一个框里。第一版没框:等宽小字直接压在星空壁纸上,
+     云和星星从字缝里透上来,一屏字全是花的 —— 实测截图里几乎读不出内容。 */
+.fw-list{
+  display:grid;grid-template-columns:minmax(0,1fr);gap:0;max-width:900px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans Mono",monospace;
+  font-size:.72rem;line-height:1.55;
+  /* ★ 不自己 overflow:auto —— 滚动归外面那个容器管(替掉的 .event-list 就没有),
+     自己再开一层滚动会出现「框里滚一下、框外再滚一下」的双滚条。 */
+  padding:.35rem .55rem;
+  background:var(--bg-soft);border:1px solid var(--line-soft);border-radius:var(--radius);
+}
+/* 终端档那层 .55 是给整屏密集字用的;这一档行稀、字小,.55 底下的云会从字缝里顶上来。
+   实测截图上一屏字发花,所以这里压到 .78 再加一层模糊 —— 可读性优先于透。 */
+body[data-theme="starry"] .fw-list{
+  background:rgba(6,10,24,.78);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-color:rgba(255,255,255,.14);
+}
+.fw-row{min-width:0;border-bottom:1px solid var(--line-soft)}
+.fw-row:last-child{border-bottom:0}
+.fw-line{
+  display:flex;align-items:baseline;gap:.4rem;width:100%;min-width:0;
+  padding:.3rem .1rem;text-align:left;
+  font:inherit;color:inherit;background:none;border:0;cursor:pointer;
+}
+.fw-line.fw-flat{cursor:default}
+.fw-caret{flex:0 0 .8rem;color:var(--faint)}
+.fw-label{
+  flex:0 0 auto;min-width:2.6rem;
+  color:var(--muted);opacity:.75;letter-spacing:.04em;
+}
+.fw-name{flex:0 0 auto;color:var(--accent-2);font-weight:600}
+/* 正文只留一行:流水档回答的是「做了哪几步」,一步的全文点开再看 */
+.fw-text{flex:1;min-width:0;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fw-meta{flex:0 0 auto;color:var(--faint)}
+/* 展开的全文自己封顶:一条长回复能有几千字,不封顶的话点开一条,
+   底下所有步骤全被推出屏幕 —— 流水档就不成流水了。 */
+.fw-body{
+  margin:0;padding:.1rem 0 .5rem 1.2rem;
+  color:var(--muted);font:inherit;
+  white-space:pre-wrap;overflow-wrap:anywhere;
+  max-height:38vh;overflow:auto;-webkit-overflow-scrolling:touch;
+}
+/* 颜色只分种类,不做语法高亮 —— 和终端档同一条规矩 */
+.fw-k-error .fw-text{color:var(--danger)}
+.fw-k-received .fw-label,.fw-k-received .fw-text{color:var(--accent)}
+.fw-k-thinking .fw-text,.fw-k-generating .fw-text{color:var(--muted);font-style:italic}
+body[data-theme="starry"] .fw-row{border-bottom-color:rgba(255,255,255,.10)}
+
 /* 用户选的 B 版:时间轴。去掉一格格卡片,左边一条线+彩点分类,首屏能看的条数从 8 → 14 */
 .event-list{display:grid;grid-template-columns:minmax(0,1fr);gap:0;max-width:900px;margin-left:.15rem}
 /* ⚠️ 日志条目的 kind 类一律带 k- 前缀:裸 kind 名会跟别处的类撞。
