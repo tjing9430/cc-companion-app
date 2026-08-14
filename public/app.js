@@ -235,6 +235,13 @@ function bindEvents() {
         handleBackgroundError(err);
       }
     }
+    if (name === 'fp-html-mode') {
+      if (state.filePreview) {
+        state.filePreview.htmlMode = state.filePreview.htmlMode === 'source' ? 'render' : 'source';
+        render();
+      }
+      return;
+    }
     if (name === 'toggle-event') {
       const id = action.dataset.id;
       if (!state.openEvents) state.openEvents = {};
@@ -1022,6 +1029,16 @@ function renderFilePreview() {
     body = `<div class="fp-hint fp-error">打不开这个文件${fp.error ? `：${esc(fp.error)}` : ''}</div>`;
   } else if (!String(fp.text || '').trim()) {
     body = '<div class="fp-hint">空文件</div>';
+  } else if (fp.isHtml && fp.htmlMode !== 'source') {
+    // ★ 8/14 她问「html 也可以看吗」——能点开,但原来只给源码。一个网页看源码
+    //   等于把菜谱端上桌。这里直接把它渲染出来。
+    // ★ 走 src= 不走 srcdoc:srcdoc 要把整份 HTML 塞进一个属性里转义,大文件还会
+    //   撞上 256KB 那道读取上限;src 是浏览器自己去取,原样、完整。
+    // ★ sandbox 只给 allow-scripts,**不给** allow-same-origin —— 两个一起给等于
+    //   没有沙箱(页面能反过来摸这个 App 的 token/localStorage)。单给脚本时它跑在
+    //   一个不透明源里,自己玩自己的。
+    body = `<iframe class="fp-frame" src="${escAttr(fp.url)}" sandbox="allow-scripts"
+      referrerpolicy="no-referrer" title="${escAttr(fp.name || '网页预览')}"></iframe>`;
   } else if (fp.isMarkdown) {
     // ★ 借气泡那套 .body-text.md 的皮:标题/列表/表格/代码块的样式全挂在它下面,
     //   自己再写一份必然漏掉几样(第一版就漏了表格边框和代码块底色,截图里裸成一堆字)。
@@ -1035,6 +1052,7 @@ function renderFilePreview() {
       <div class="fp-head">
         <span class="fp-badge" aria-hidden="true">${esc(fp.ext || '文件')}</span>
         <span class="fp-title">${esc(fp.name || '')}</span>
+        ${fp.isHtml ? `<button type="button" class="fp-raw fp-mode" data-action="fp-html-mode">${fp.htmlMode === 'source' ? '看页面' : '看源码'}</button>` : ''}
         <a class="fp-raw" href="${escAttr(fp.url)}" target="_blank" rel="noreferrer">原文</a>
         <button type="button" class="fp-close" data-action="close-file-preview" aria-label="关闭">×</button>
       </div>
@@ -1054,6 +1072,10 @@ async function openFilePreview({ url, name, ext }) {
     status: 'loading',
     text: '',
     isMarkdown: /\.(md|markdown)$/i.test(name || ''),
+    // 网页默认渲染成页面;想看源码在头上切一下。判据只认扩展名 ——
+    // 和 isPreviewable 那儿同一条规矩(上传方给的 mime 不可信)。
+    isHtml: /\.html?$/i.test(name || ''),
+    htmlMode: 'render',
     truncated: false,
   };
   render();

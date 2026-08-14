@@ -872,6 +872,13 @@ body[data-theme="starry"] .attachment-file .af-icon{background:rgba(255,255,255,
   white-space:pre;overflow-x:auto;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
+/* 网页预览:铺满预览层的可用高度。★ 底色写死白 —— 网页默认就画在白纸上,
+   让星空主题的深色透上来的话,一个只设了深色字的页面会黑字压深底,一片糊。 */
+.fp-frame{
+  display:block;width:100%;height:min(72vh,780px);
+  border:0;border-radius:8px;background:#fff;
+}
+.fp-mode{font:inherit;border:0;background:none;cursor:pointer}
 .fp-hint{padding:.6rem 0;font-size:.82rem;opacity:.7}
 .fp-error{color:#c0392b;opacity:1}
 .fp-truncated{border-top:1px solid var(--line-soft);margin-top:.9rem}
