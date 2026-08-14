@@ -1,4 +1,5 @@
 {
+  "_comment": "两处 /ABSOLUTE/PATH/TO 换成你自己的绝对路径:前者指向本仓库,后者是分身唯一被允许读的工作目录。别往这个文件里写任何 token —— 分身有 Read,它读得到。",
   "mcpServers": {
     "ccc-tools": {
       "command": "node",

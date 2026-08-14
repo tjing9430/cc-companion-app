@@ -20,7 +20,13 @@ import readline from 'node:readline';
 
 const APP_URL = String(process.env.CCC_APP_URL || 'http://127.0.0.1:8787').replace(/\/+$/, '');
 const APP_TOKEN = String(process.env.CCC_APP_TOKEN || process.env.APP_AUTH_TOKEN || '');
-const WORKSPACE = fs.realpathSync(process.env.CCC_WORKSPACE || '/ABSOLUTE/PATH/TO/agent-workspace');
+// ★ 没有兜底默认值:workspace 是这个进程唯一被允许读的地方,写死一个路径等于给
+//   "配错了也照跑"开门 —— 而配错的方向永远是**读到了不该读的目录**。缺就停。
+if (!process.env.CCC_WORKSPACE) {
+  process.stderr.write('[ccc-tools] 缺 CCC_WORKSPACE:请在 mcp-config.json 的 env 里指向分身的工作目录\n');
+  process.exit(1);
+}
+const WORKSPACE = fs.realpathSync(process.env.CCC_WORKSPACE);
 const MAX_BYTES = 6 * 1024 * 1024; // dataURL 膨胀 ~1.37x 后仍要过 server 的 payload 上限
 
 const MIME_BY_EXT = {
