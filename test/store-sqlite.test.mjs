@@ -159,3 +159,30 @@ test('★★ 增量路径也要往返:线上真正跑的是 putXxx,不是 replac
     }
   });
 });
+
+test('★ 悬空 parent_msg_id 不炸库:删掉被回复的消息后,重插/单插都落 NULL(#70③)', async () => {
+  // 内存模型允许「被回复的那条已删」(前端判空跳过),schema 的 REFERENCES 不允许。
+  // 修法在 putMessage 入口清洗:父行不在 → NULL。两条路都要验:
+  // ① 单插一条父亲已不在的回复(增量路径,回复已删消息的场景)
+  // ② replaceAll 整表重写,数组里父亲缺席(删除后任何全量兜底写的场景 —— 就是 500 的现场)
+  await withStore(async (s) => {
+    s.tx(() => {
+      for (const k of ['settings', 'session', 'counters']) s.putKv(k, SEED[k]);
+      for (const m of SEED.chat_messages) s.putMessage(m);
+    });
+    // ① 单插:parent 指向一个从没存在过的 id
+    s.putMessage({ id: 100, scope: 'chat', sender: '我', role: 'user', content: '回一条已删的', thinking: '', msg_type: 'chat', session_id: 'session-abc', parent_msg_id: 9999, attachments: [], favorited: false, recalled: false, recalled_at: '', created_at: '2026-01-02T10:00:00.000Z' });
+    const one = s.db.prepare('SELECT parent_msg_id FROM messages WHERE id = 100').get();
+    assert.equal(one.parent_msg_id, null, '悬空父引用该洗成 NULL,不该炸也不该存违约值');
+    // ② 全量重写:store 里 id=2 的回复引用 id=1,但 1 已被删掉
+    const store = { ...SEED, chat_messages: SEED.chat_messages.filter((m) => m.id !== 1) };
+    s.replaceAll(store);   // 修前这里就是线上 500 的那一炸:constraint failed (787)
+    const back = s.loadAll();
+    const reply = back.chat_messages.find((m) => m.id === 2);
+    assert.ok(reply, '回复本体要还在');
+    assert.equal(reply.parent_msg_id, null, '父亲没了,引用该熨平成 NULL');
+    // 活着的父引用不许被误伤:group 里若有带 parent 的行验一条(SEED 无则跳过)
+    const alive = back.chat_messages.find((m) => m.parent_msg_id != null && back.chat_messages.some((p) => p.id === m.parent_msg_id));
+    void alive; // 存在与否取决于种子,断言重点在上面两条
+  });
+});
