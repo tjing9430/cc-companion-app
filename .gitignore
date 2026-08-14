@@ -27,3 +27,8 @@ data/console-tail.json
 # 躺在 git 工作区里** —— 一个 `git add -A` 就公开了。这里挡死。
 资料库/
 .asset-backups-badges/
+
+# 你自己那份 MCP 配置。仓库里的 bridge/mcp-config.json 是**模板**(路径写成占位符),
+# 照着改一份 .local.json 放这儿,再让 CLAUDE_MCP_CONFIG 指向它 ——
+# 这样你的绝对路径不会跟着提交跑出去,模板也不会被你的本地改动覆盖。
+bridge/mcp-config.local.json
