@@ -36,6 +36,18 @@ t('段落切分', 'a\n\nb', (o) => (o.match(/<p>/g) || []).length === 2 || `应�
 t('段内换行→br', 'a\nb', has('<br>'));
 t('列表里也能粗体', '- **重点**', has('<strong>重点</strong>'));
 
+// ── 表格(8/14 她真机抓的:AI 回的对比表在气泡里裸成竖线木板)──
+t('GFM 表格', '|缺的功能|说明|\n|---|---|\n|工具使用展示|显示调了什么工具|',
+  all(has('<table class="md-tbl">'), has('<th>缺的功能</th>'), has('<td>工具使用展示</td>')));
+t('表格带空格和冒号分隔线', '| a | b |\n| :--- | ---: |\n| 1 | 2 |', all(has('<th>a</th>'), has('<td>2</td>')));
+t('没有分隔线不算表,竖线原样可见', '|a|b|\n|c|d|', all(lacks('<table'), has('|a|b|')));
+t('单行竖线不算表', '|就一行|', all(lacks('<table'), has('|就一行|')));
+t('身子比头宽:补空表头,不吃内容', '|a|b|\n|---|---|\n|1|2|3|', all(has('<td>3</td>'), has('<th></th>')));
+t('身子比头窄:补空格子', '|a|b|\n|---|---|\n|1|', all(has('<td>1</td>'), has('<td></td>')));
+t('表格单元格里可以粗体', '|a|b|\n|---|---|\n|**重**|2|', has('<td><strong>重</strong></td>'));
+t('表格前后的段落照常', '前言\n|a|b|\n|---|---|\n|1|2|\n后记', all(has('<p>前言</p>'), has('<table'), has('<p>后记</p>')));
+t('表格单元格 XSS 转义', '|x|<script>alert(1)</script>|\n|---|---|\n|1|2|', all(lacks('<script'), has('&lt;script&gt;')));
+
 // ── XSS(重点)──
 t('script 被转义', '<script>alert(1)</script>', all(lacks('<script'), has('&lt;script&gt;')));
 t('img onerror 被转义', '<img src=x onerror=alert(1)>', all(lacks('<img'), has('&lt;img')));

@@ -714,6 +714,34 @@ body[data-theme="starry"] .message-row.me .msg-time{color:rgba(243,222,205,.6)}
   max-width:100%;
 }
 .body-text.md .md-pre:last-child{margin-bottom:0}
+/* markdown 表格(8/14 她抓的:AI 回的对比表在气泡里裸成一排排竖线)。
+   跟 .md-pre 一个思路:窄气泡里不硬挤,包一层横滚。 */
+.body-text.md .md-tbl-wrap{
+  margin:.4em 0 .55em;
+  overflow-x:auto;
+  max-width:100%;
+}
+.body-text.md .md-tbl-wrap:last-child{margin-bottom:0}
+.body-text.md .md-tbl{
+  border-collapse:collapse;
+  font-size:.86em;
+  min-width:max-content;    /* 列宽由内容定,窄屏靠外层横滚,不把字挤成竖条 */
+}
+.body-text.md .md-tbl th,
+.body-text.md .md-tbl td{
+  border:1px solid var(--line-soft);
+  padding:.28em .55em;
+  text-align:left;
+  vertical-align:top;
+  white-space:normal;
+  min-width:4.5em;
+  max-width:16em;           /* 单列别无限吃宽:长说明列折行,表还能横着看全 */
+  overflow-wrap:anywhere;
+}
+.body-text.md .md-tbl th{
+  background:var(--panel-soft);
+  font-weight:700;
+}
 .body-text.md .md-pre code{
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   font-size:.86em;
