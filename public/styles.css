@@ -1737,7 +1737,7 @@ body[data-theme="starry"]{
   /* 深空底:demo 里那条,原样 */
   background:radial-gradient(120% 80% at 75% -10%, #1C2440 0%, #141B2D 40%, #0E1220 75%, #0B1020 100%) fixed;
   /* 聊天背景:她 8/14 选定的星夜(金星弯月云海,900×1600 原图压到 810 宽 45KB)。
-     ★ .chat-view::before 那个槽位就是给它留的 —— 图没到之前零行为变化,现在图到了。
+     ★ 壁纸层在文件尾「私聊/群聊的背景图」一节:挂 body 的 fixed 全屏层,只认这个变量。
      ★ strength 开到 .9 不是违背"压到很淡"的原注 —— 那条写的是"底不抢内容"的默认;
        这张是她**点名要看见**的画,而且画本身就是深色,气泡 78% 底 + 2px 毛玻璃扛得住可读性。
        她看完嫌吵再往下调。 */
@@ -2238,15 +2238,20 @@ body:has(.home-view) .home-view{padding-top:0;padding-bottom:env(safe-area-inset
 
    用法:在主题里(或 body 上)设 `--chat-bg:url("/assets/chat-bg.webp")` 即可。 */
 .chat-view{position:relative}
-.chat-view::before{
+/* ★ 8/14 她验收:「背景没有充满全屏,我左右两边都是空的」——上一版层挂在 .chat-view 上,
+   inset:0 只铺到 .content 的内边距为止,四周露一圈页面底色。
+   改挂 body 上 position:fixed 铺满整个视口(顶栏和输入行后面也有,微信壁纸那种全屏)。
+   层序抄 .starfield 那套现成的:壁纸 z0;starry 已有 .layout{z-index:1} 把内容抬上去;
+   .starfield 是 body 里更晚的节点,同为 z0 按树序盖在壁纸上闪 —— 星点落在她这张图上,正好。
+   :has(.chat-view) 限定只在聊天页生效(:has 仓库已在用,见上面 safe-area 那条)。 */
+body[data-theme="starry"]:has(.chat-view)::before{
   content:"";
-  position:absolute;inset:0;z-index:0;pointer-events:none;
+  position:fixed;inset:0;z-index:0;pointer-events:none;
   background-image:var(--chat-bg, none);
   background-size:cover;background-position:center;
-  /* 压到很淡:它是**底**,不是内容。太实会跟气泡抢注意力 */
   opacity:var(--chat-bg-strength, .38);
 }
-/* 内容必须在背景之上,否则消息会被盖住 */
+/* 内容必须在背景之上,否则消息会被盖住(对壁纸层来说已由 .layout z1 兜底,这条留给行内挂图路径) */
 .chat-view > *{position:relative;z-index:1}
 
 /* 可读性:**不在气泡下垫暗块**(首屏那一轮的教训 —— 垫暗块会把通透感抹掉),
