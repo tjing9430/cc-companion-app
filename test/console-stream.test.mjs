@@ -41,17 +41,35 @@ const push = (base, lines) => fetch(`${base}/api/console/stream`, {
   body: JSON.stringify({ lines }),
 });
 
+// 主库尺寸:两种后端的文件都算,缺哪个记 0。
+// ★ 8/14 前这里只 stat app-data.json —— STORE_BACKEND=sqlite 下它不存在,ENOENT 直接抛,
+//   测试红的不是「红线破了」,是**那次检查压根没跑起来**(#70①,小匠判的:
+//   「红了=破了」和「改绿=没事」两个读法都错,正确读法是"没量过")。
+// ★ app.db-wal 必须一起算:sqlite 开的是 WAL,新写入先落 -wal、之后才折回主库 ——
+//   只量 app.db,漏进 wal 的字节就是量不到的。-shm 是 mmap 簿记,尺寸不表数据,不算。
+const storeSize = (dir) => ['app-data.json', 'app.db', 'app.db-wal']
+  .reduce((sum, f) => { try { return sum + fs.statSync(path.join(dir, f)).size; } catch { return sum; } }, 0);
+
 test('★★ 红线①:灌 600 行原始流,库一个字节都不许长', async () => {
   await withApp(async (base, dir) => {
-    const file = path.join(dir, 'app-data.json');
-    const before = fs.statSync(file).size;
+    const before = storeSize(dir);
+    assert.ok(before > 0, '主库文件一个都没找到 —— storeSize 量了个寂寞,这条测试没在测东西');
     const beforeEvents = (await (await fetch(`${base}/api/console/events?limit=999`, { headers: { 'x-app-token': 't' } })).json()).length;
     const line = JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', delta: { text: 'x' } } });
     for (let i = 0; i < 3; i++) assert.equal((await push(base, Array(200).fill(line))).status, 204);
     await new Promise((r) => setTimeout(r, 400));
-    assert.equal(fs.statSync(file).size, before, '★ 库长大了 —— 这条通道必须是零写入');
+    assert.equal(storeSize(dir), before, '★ 库长大了 —— 这条通道必须是零写入');
     const afterEvents = (await (await fetch(`${base}/api/console/events?limit=999`, { headers: { 'x-app-token': 't' } })).json()).length;
     assert.equal(afterEvents, beforeEvents, '★ 原始流不许变成 console 事件');
+    // ★ 常驻阳性对照:走一条**该**落库的通道(console 事件),尺子必须读出增长。
+    //   没有这半,上面那两个 equal 在"尺子量错文件"时照样绿 —— 这次就是这么瞒过去的。
+    const grown = await fetch(`${base}/api/console/events`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-app-token': 't' },
+      body: JSON.stringify({ kind: 'note', title: '阳性对照', body: '这条就该把库写大' }),
+    });
+    assert.equal(grown.status, 201);
+    await new Promise((r) => setTimeout(r, 400));
+    assert.ok(storeSize(dir) > before, '★ 落库通道写了一条,尺子却没读出增长 —— 尺子没牙');
   });
 });
 
