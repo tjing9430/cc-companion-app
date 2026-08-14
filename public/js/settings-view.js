@@ -3,7 +3,7 @@
 // 这里当参数收 —— 渲染模块不直接问浏览器要状态。
 
 import { esc, escAttr, formatDateTime } from './util.js';
-import { state } from './state.js';
+import { state, protectedAssetUrl } from './state.js';
 
 function renderSettings({ notifySupported, notifyEnabled }) {
   const s = state.settings;
@@ -44,7 +44,7 @@ function renderSettings({ notifySupported, notifyEnabled }) {
                ['assistant_avatar', s.assistantName, '/assets/stars/star-private-core.webp']].map(([f, who, dflt]) => `
               <div class="avatar-pick">
                 <button type="button" class="avatar-pick-btn" data-action="pick-avatar" data-field="${f}" title="点一下换图">
-                  <img src="${escAttr(s[f] || dflt)}" alt="">
+                  <img src="${escAttr(protectedAssetUrl(s[f] || dflt))}" alt="">
                 </button>
                 <span class="avatar-pick-who">${esc(who || '')}</span>
                 ${s[f] ? `<button type="button" class="avatar-pick-clear" data-action="clear-avatar" data-field="${f}">默认</button>` : ''}

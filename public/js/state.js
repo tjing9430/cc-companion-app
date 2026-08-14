@@ -125,8 +125,21 @@ function memoryAuthor(memory) {
   return String(memory && memory.author || state.settings.assistantName || 'AI').trim();
 }
 
+// /uploads/ 在服务端也走鉴权(server.js 对 /api/ 和 /uploads/ 一并把门),裸 src 会 401。
+// 它碰 state.token,所以住 state 这层。8/14 她报「上传头像有问题」——上传全程成功,
+// 是头像三处渲染(聊天/设置/首页)在裸拼 src:开了口令的真机上图挂 401 → onerror
+// 摘图退回首字母,看起来就是"传了没生效"。附件和贴纸一直包着走,头像漏了;
+// 测试实例不开鉴权,所以这个洞在测试里永远不现形 —— 只有她的真机会炸。
+function protectedAssetUrl(url) {
+  const value = String(url || '');
+  if (!state.token || !value.startsWith('/uploads/')) return value;
+  const separator = value.includes('?') ? '&' : '?';
+  return `${value}${separator}token=${encodeURIComponent(state.token)}`;
+}
+
 export {
   memoryAuthor,
+  protectedAssetUrl,
   CONSOLE_COMMANDS,
   MAX_ATTACHMENT_BYTES,
   SMALL_IMAGE_BYTES,

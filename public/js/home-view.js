@@ -19,7 +19,7 @@
 //     二是这两样都是假的 —— 没有付费档、这版也没有通知功能。
 //     **摆一个点不动的铃铛比不摆更差。**
 import { esc, escAttr } from './util.js';
-import { state } from './state.js';
+import { state, protectedAssetUrl } from './state.js';
 import { layoutGates, splitGates } from './river.js';
 import { layoutIsles, MORE_SPOT } from './isles.js';
 
@@ -268,7 +268,7 @@ function renderHome() {
       <div class="home-hero">
         <div class="home-who">
           <div class="home-avatar">${s.assistant_avatar
-            ? `<img src="${escAttr(s.assistant_avatar)}" alt="">`
+            ? `<img src="${escAttr(protectedAssetUrl(s.assistant_avatar))}" alt="">`
             : '<img src="/assets/stars/star-private-core.webp" alt="">'}</div>
           <div>
             <div class="home-status"><i class="dot"></i>${esc(s.assistantName || 'AI')} 在线</div>

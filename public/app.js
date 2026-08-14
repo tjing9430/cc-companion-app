@@ -30,6 +30,7 @@ import {
   ICONS,
   state,
   memoryAuthor,
+  protectedAssetUrl,
 } from './js/state.js';
 import { renderConsole, renderConsoleEvent } from './js/console-view.js';
 import { scanMeta } from './js/stream-format.js';
@@ -1906,20 +1907,6 @@ function applyTheme() {
 
 
 
-/* Markdown light renderer —— 起因是 AI 的回复里 **粗体** / - 列表 / # 标题 都以原文露出来了。
-   Safety model: esc() the whole string FIRST, then run regexes over the escaped text.
-   Any <script> in the source is already &lt;script&gt; by then, so the tags this
-   function inserts are the only HTML in the output.
-   Scope kept deliberately narrow (not the full spec): bold / italic / inline code /
-   code fence / links, plus "- list" and "# heading". No tables,
-   blockquotes, images, or nested lists. */
-
-
-
-
-function protectedAssetUrl(url) {
-  const value = String(url || '');
-  if (!state.token || !value.startsWith('/uploads/')) return value;
-  const separator = value.includes('?') ? '&' : '?';
-  return `${value}${separator}token=${encodeURIComponent(state.token)}`;
-}
+/* Markdown 渲染已整体搬去 js/markdown.js(现在也支持表格);
+   protectedAssetUrl 搬去 js/state.js —— 三个视图模块都要用它包 /uploads/ 的 src,
+   留在壳里只有壳够得着,头像就是这么漏的。 */

@@ -22,7 +22,9 @@ function avatarHtml(message) {
   const isAssistant = message && message.role === 'assistant';
   const custom = isAssistant ? s.assistant_avatar : s.user_avatar;
   const fallbackStar = isAssistant ? '/assets/stars/star-private-core.webp' : '/assets/stars/star-group.webp';
-  const src = custom || fallbackStar;
+  // ★ 必须包 token:/uploads/ 服务端有鉴权,裸 src 在开口令的实例上 401 → onerror
+  //   摘图退回首字母,自定义头像看起来"传了没生效"(8/14 她真机报的,测试实例不开鉴权测不出)。
+  const src = shell.protectedAssetUrl(custom || fallbackStar);
   const who = (message && message.sender) || (isAssistant ? s.assistantName : s.userName) || '';
   // 图挂了就把 img 摘掉,露出底下的首字母 —— 不要一个碎图标杵在那儿。
   // ★ 连 has-img 一起摘:那个 class 把文字设成了 transparent(挡住名字从透明 PNG 底下透出来),
