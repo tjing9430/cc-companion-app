@@ -270,6 +270,22 @@ async function handleRequest(req, res) {
     return handleSend(res, 'chat', await readJson(req));
   }
 
+  /* 分身发文件给她:落一条 assistant 消息带附件。
+     不走 handleSend —— 那是 user 角色入口,还会触发 generateAgentReply
+     (分身发文件→又唤起分身回复,自问自答)。这里只插消息,SSE 照常推。 */
+  if (req.method === 'POST' && route === '/api/chat/agent-file') {
+    const body = await readJson(req);
+    const upload = await saveUpload({ name: body.name, data: body.data });
+    const message = addMessage('chat', {
+      sender: store.settings.assistantName,
+      role: 'assistant',
+      content: cleanString(body.note, ''),
+      attachments: [upload],
+      msg_type: 'chat',
+    });
+    return sendJson(res, 201, { ok: true, message_id: message.id, url: upload.url });
+  }
+
   if (req.method === 'POST' && route === '/api/group/send') {
     return handleSend(res, 'group', await readJson(req));
   }
