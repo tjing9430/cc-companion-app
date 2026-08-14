@@ -800,7 +800,9 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
 /* 8/14 她发截图说「文件发出来长这样有点草率」——原来卡片里只有一个文件名,
    在星空壁纸上就是一小块灰方块。补两样东西:左边一枚扩展名徽章(一眼看出是什么文件)、
    名字底下一行大小 + 「点击预览」(告诉她这东西点得动)。文件夹的舌头留着,那是她当初点的形状。 */
-.attachment-file{align-items:stretch;max-width:min(280px,72vw)}
+/* 8/14 晚她又说「能不能把文件放得长一点」——原来只有 280px 上限、且按内容收缩,
+   短名字("给同事.md")就缩成一小块。给个下限让它稳定成一条,上限同步放宽。 */
+.attachment-file{align-items:stretch;min-width:min(268px,74vw);max-width:min(340px,86vw)}
 .attachment-file .af-icon{
   flex:none;display:flex;align-items:center;justify-content:center;
   width:2.1rem;height:2.1rem;border-radius:6px;
@@ -817,17 +819,21 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
 }
 .attachment-file.can-preview{cursor:pointer}
 /* 星空下别再是灰方块:跟顶栏/输入胶囊同一套玻璃,壁纸从底下透上来 */
-body[data-theme="starry"] .attachment-file,
-body[data-theme="starry"] .attachment-file::before{
+body[data-theme="starry"] .attachment-file{
   background:var(--glass-bg);
   backdrop-filter:var(--glass-filter);-webkit-backdrop-filter:var(--glass-filter);
-}
-body[data-theme="starry"] .attachment-file{
   border:1px solid var(--glass-line);
   box-shadow:var(--glass-highlight),0 2px 10px rgba(0,0,0,.22);
   color:#f4f1ff;
 }
-body[data-theme="starry"] .attachment-file::before{border:1px solid var(--glass-line);border-bottom:0}
+/* 8/14 21:17 她:「这个文件为什么好像有两层一样」
+   根因:玻璃主题下舌头和主体各画各的 1px 亮边、各做各的 backdrop-filter。
+   舌头是半透明的,盖不住主体自己的 border-top —— 那条亮线从舌头正中间横穿过去,
+   一个文件夹就被看成两块叠着的板。772 行那条注释其实早写了前提:
+   「舌头和主体必须同一个纯色」,而玻璃不是纯色,注定拼不上。
+   纯色主题(纸/暗)照旧留舌头;星空下收成一整块玻璃:一条轮廓、一次模糊。 */
+body[data-theme="starry"] .attachment-file::before{display:none}
+body[data-theme="starry"] .attachment-file{margin-top:0;border-radius:10px}
 body[data-theme="starry"] .attachment-file .af-icon{background:rgba(255,255,255,.16);color:#f4f1ff}
 
 /* 文件预览层:点文件卡片就地读,不再把她踢出 App 去下载 */
