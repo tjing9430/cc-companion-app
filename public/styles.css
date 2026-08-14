@@ -1808,10 +1808,13 @@ body[data-theme="starry"] .layout{position:relative;z-index:1}
        定稿如此,别扩大到每条气泡 —— backdrop-filter 一多,低端机就顶不住了。
        ★ 8/14 她圈着输入区问「为啥不是直接透出背景,而是有一坨东西」——
        .composer 从这组里摘掉:整条输入区不再垫玻璃板,壁纸直接透上来,
-       玻璃只留给 .composer-field 那颗胶囊自己(--glass-* 那套)。 --- */
+       玻璃只留给 .composer-field 那颗胶囊自己(--glass-* 那套)。
+       ★ 8/14 二轮她点「顶栏也做成玻璃质感」——.62 在深壁纸上闷成实心板,
+       透感全靠 blur 吃进来的纹理;降到 .30 让星云和月亮真的透上来,
+       白字压在 blur 过的深壁纸上仍够读。 --- */
 body[data-theme="starry"] .topbar,
 body[data-theme="starry"] .sidebar{
-  background:rgba(16,22,44,.62);
+  background:rgba(16,22,44,.30);
   backdrop-filter:blur(14px) saturate(1.2);
   -webkit-backdrop-filter:blur(14px) saturate(1.2);
 }
