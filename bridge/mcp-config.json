@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ccc-tools": {
+      "command": "node",
+      "args": ["/ABSOLUTE/PATH/TO/cc-companion-app/bridge/mcp-tools.js"],
+      "env": {
+        "CCC_WORKSPACE": "/ABSOLUTE/PATH/TO/agent-workspace"
+      }
+    }
+  }
+}

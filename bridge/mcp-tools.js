@@ -8,9 +8,10 @@
  *
  * 安全边界(动之前想清楚再动):
  *   - 只允许发 CCC_WORKSPACE 里的文件 —— realpath 后前缀校验,symlink 逃逸也拦。
- *   - APP token 从本进程 env 拿(mcp-config.json 的 env 字段注入),
- *     沙箱 settings.json 同时 deny 了分身对 mcp-config.json 的读 ——
- *     分身能用这只手,摸不到手里的钥匙。
+ *   - APP token 走 env 继承(桥 loadDotEnv → claude CLI → 本进程),配置文件里
+ *     一个密钥都不写。★ 别把 token 写进 mcp-config.json:分身有 Read,
+ *     沙箱 deny 表里没有 cc-companion-app —— 写进去它就读得到。
+ *     (同理 .env 本身也在它的可读范围内,那是既有状态,单独记账别在这儿假装挡住了)
  *   - stdout 是协议通道,一个字的日志都不能混进来;要说话走 stderr。
  */
 import fs from 'node:fs';
@@ -18,7 +19,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 const APP_URL = String(process.env.CCC_APP_URL || 'http://127.0.0.1:8787').replace(/\/+$/, '');
-const APP_TOKEN = String(process.env.CCC_APP_TOKEN || '');
+const APP_TOKEN = String(process.env.CCC_APP_TOKEN || process.env.APP_AUTH_TOKEN || '');
 const WORKSPACE = fs.realpathSync(process.env.CCC_WORKSPACE || '/ABSOLUTE/PATH/TO/agent-workspace');
 const MAX_BYTES = 6 * 1024 * 1024; // dataURL 膨胀 ~1.37x 后仍要过 server 的 payload 上限
 
