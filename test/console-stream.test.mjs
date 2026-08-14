@@ -41,35 +41,54 @@ const push = (base, lines) => fetch(`${base}/api/console/stream`, {
   body: JSON.stringify({ lines }),
 });
 
-// 主库尺寸:两种后端的文件都算,缺哪个记 0。
-// ★ 8/14 前这里只 stat app-data.json —— STORE_BACKEND=sqlite 下它不存在,ENOENT 直接抛,
-//   测试红的不是「红线破了」,是**那次检查压根没跑起来**(#70①,小匠判的:
-//   「红了=破了」和「改绿=没事」两个读法都错,正确读法是"没量过")。
-// ★ app.db-wal 必须一起算:sqlite 开的是 WAL,新写入先落 -wal、之后才折回主库 ——
-//   只量 app.db,漏进 wal 的字节就是量不到的。-shm 是 mmap 簿记,尺寸不表数据,不算。
-const storeSize = (dir) => ['app-data.json', 'app.db', 'app.db-wal']
-  .reduce((sum, f) => { try { return sum + fs.statSync(path.join(dir, f)).size; } catch { return sum; } }, 0);
+// 主库**内容指纹**:红线①的判据,第三版。
+// ★ 版本考古,三把尺子一把比一把接近效果本身:
+//   v1  stat app-data.json          → sqlite 下 ENOENT,检查压根没跑(#70①)
+//   v2  字节 app-data.json+db+wal   → 字节仍是**代理**:小匠实测 checkpoint 会把 -wal
+//       截断回 0,真写 300 行总字节反而净减 49KB —— 泄漏可被抵消成假绿,
+//       阳性对照也可能被同一机制搞成偶发红
+//   v3  内容指纹(现在这把)          → 效果本身:库里**存了什么**。checkpoint 搬字节
+//       不搬内容;行数会漏掉 UPDATE 型泄漏(往已有行里塞流水),内容哈希连它也咬
+// ★ sqlite 侧动态枚举 sqlite_master 的用户表 —— 新表自动进指纹,不用回来登记。
+// ★ readOnly 打开:观测者不许给被观测的库添一个字节。
+import crypto from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
+function storeFingerprint(dir) {
+  const parts = [];
+  const jf = path.join(dir, 'app-data.json');
+  if (fs.existsSync(jf)) parts.push('json:' + JSON.stringify(JSON.parse(fs.readFileSync(jf, 'utf8'))));
+  const dbf = path.join(dir, 'app.db');
+  if (fs.existsSync(dbf)) {
+    const db = new DatabaseSync(dbf, { readOnly: true });
+    try {
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
+      for (const t of tables) {
+        parts.push(`${t.name}:` + JSON.stringify(db.prepare(`SELECT * FROM "${t.name}" ORDER BY rowid`).all()));
+      }
+    } finally { db.close(); }
+  }
+  if (!parts.length) return null;   // 一个库文件都没有:让断言自己红,别拿空指纹装"量过了"
+  return crypto.createHash('sha256').update(parts.join('|')).digest('hex');
+}
 
-test('★★ 红线①:灌 600 行原始流,库一个字节都不许长', async () => {
+test('★★ 红线①:灌 600 行原始流,库里的内容一个字都不许变', async () => {
   await withApp(async (base, dir) => {
-    const before = storeSize(dir);
-    assert.ok(before > 0, '主库文件一个都没找到 —— storeSize 量了个寂寞,这条测试没在测东西');
-    const beforeEvents = (await (await fetch(`${base}/api/console/events?limit=999`, { headers: { 'x-app-token': 't' } })).json()).length;
+    const before = storeFingerprint(dir);
+    assert.ok(before, '主库文件一个都没找到 —— 指纹量了个寂寞,这条测试没在测东西');
     const line = JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', delta: { text: 'x' } } });
     for (let i = 0; i < 3; i++) assert.equal((await push(base, Array(200).fill(line))).status, 204);
     await new Promise((r) => setTimeout(r, 400));
-    assert.equal(storeSize(dir), before, '★ 库长大了 —— 这条通道必须是零写入');
-    const afterEvents = (await (await fetch(`${base}/api/console/events?limit=999`, { headers: { 'x-app-token': 't' } })).json()).length;
-    assert.equal(afterEvents, beforeEvents, '★ 原始流不许变成 console 事件');
-    // ★ 常驻阳性对照:走一条**该**落库的通道(console 事件),尺子必须读出增长。
-    //   没有这半,上面那两个 equal 在"尺子量错文件"时照样绿 —— 这次就是这么瞒过去的。
+    assert.equal(storeFingerprint(dir), before, '★ 库的内容变了 —— 这条通道必须是零写入');
+    // ★ 常驻阳性对照:走一条**该**落库的通道(console 事件),指纹必须变。
+    //   没有这半,上面那个 equal 在"尺子量错东西"时照样绿 —— v1 就是这么瞒过去的。
+    //   内容指纹对 checkpoint 免疫,这个对照不会像字节版那样偶发红。
     const grown = await fetch(`${base}/api/console/events`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-app-token': 't' },
-      body: JSON.stringify({ kind: 'note', title: '阳性对照', body: '这条就该把库写大' }),
+      body: JSON.stringify({ kind: 'note', title: '阳性对照', body: '这条就该改变指纹' }),
     });
     assert.equal(grown.status, 201);
     await new Promise((r) => setTimeout(r, 400));
-    assert.ok(storeSize(dir) > before, '★ 落库通道写了一条,尺子却没读出增长 —— 尺子没牙');
+    assert.notEqual(storeFingerprint(dir), before, '★ 落库通道写了一条,指纹却没变 —— 尺子没牙');
   });
 });
 
