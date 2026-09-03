@@ -1,30 +1,52 @@
-// 语法体检:自动遍历所有 JS 文件跑 node --check,新增文件不用手动登记。
-// (以前是 package.json 里手写文件清单,漏登记的文件就是体检盲区。)
-// 不用 fs.globSync —— 那是 Node 22+ 的糖,引擎下限是 18。
+// 语法体检：递归遍历运行时代码目录里的 JS/MJS，再逐个跑 node --check。
+// 根目录文件单独收集，避免把 node_modules、data、test 等非运行时目录卷进来。
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const DIRS = ['.', 'lib', 'public', 'adapters', 'bridge', 'scripts'];
-const files = [];
-for (const dir of DIRS) {
-  let entries = [];
-  try { entries = fs.readdirSync(dir); } catch { continue; }
-  for (const name of entries) {
-    if (!/\.(js|mjs)$/.test(name)) continue;
-    const p = dir === '.' ? name : path.join(dir, name);
-    if (fs.statSync(p).isFile()) files.push(p);
-  }
-}
-files.sort();
+const DIRS = ['lib', 'public', 'adapters', 'bridge', 'scripts'];
 
-let failed = 0;
-for (const file of files) {
-  const out = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
-  if (out.status !== 0) {
-    failed += 1;
-    console.error(`✗ ${file}\n${out.stderr}`);
+function walkJavaScriptFiles(dir, files) {
+  let entries = [];
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const entry of entries) {
+    const filePath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walkJavaScriptFiles(filePath, files);
+      continue;
+    }
+    if (entry.isFile() && /\.(?:js|mjs)$/.test(entry.name)) files.push(filePath);
   }
 }
-console.log(`checked ${files.length} files, ${failed} failed`);
+
+export function collectJavaScriptFiles(root = process.cwd()) {
+  const files = [];
+  let rootEntries = [];
+  try { rootEntries = fs.readdirSync(root, { withFileTypes: true }); } catch { return files; }
+  for (const entry of rootEntries) {
+    if (entry.isFile() && /\.(?:js|mjs)$/.test(entry.name)) files.push(path.join(root, entry.name));
+  }
+  for (const dir of DIRS) walkJavaScriptFiles(path.join(root, dir), files);
+  return files.sort();
+}
+
+export function checkJavaScriptFiles(files, root = process.cwd()) {
+  let failed = 0;
+  for (const file of files) {
+    const out = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
+    if (out.status !== 0) {
+      failed += 1;
+      console.error('✗ ' + path.relative(root, file) + '\n' + out.stderr);
+    }
+  }
+  return failed;
+}
+
+const rootIndex = process.argv.indexOf('--root');
+const root = rootIndex >= 0 && process.argv[rootIndex + 1]
+  ? path.resolve(process.argv[rootIndex + 1])
+  : process.cwd();
+const files = collectJavaScriptFiles(root);
+const failed = checkJavaScriptFiles(files, root);
+console.log('checked ' + files.length + ' files, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

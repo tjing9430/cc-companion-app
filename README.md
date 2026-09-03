@@ -269,7 +269,7 @@ data/uploads/
 ## 代码结构
 
 ```
-server.js          组合层:HTTP 路由、静态服务、启动引导(~420 行)
+server.js          组合层:HTTP 路由、静态服务、启动引导
 lib/
   state.js         配置常量 + store 生命周期(装载/落盘/归一化/设置)
   env.js           .env 装载(行尾注释剥离;真实环境变量优先,见「配置从哪来」)

@@ -1,9 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { ROOT_DIR, UPLOAD_DIR } from '../lib/state.js';
-import { collectAgentFiles } from '../lib/agent-files.js';
+
+// state.js 会在 import 时初始化 DATA_DIR；必须先把它指向临时目录，
+// 否则一份全新 clone 跑测试会在仓库里生成 data/app-data.json。
+const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-file-delivery-'));
+process.env.DATA_DIR = TEST_DATA_DIR;
+const { ROOT_DIR, UPLOAD_DIR } = await import('../lib/state.js');
+const { collectAgentFiles } = await import('../lib/agent-files.js');
+
+test.after(() => fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true }));
 
 test('agent file marker becomes a real local attachment and disappears from text', () => {
   const source = path.join(ROOT_DIR, 'agent-file-smoke.txt');

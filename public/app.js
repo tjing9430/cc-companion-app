@@ -34,6 +34,7 @@ import {
 } from './js/state.js';
 import { renderConsole, renderConsoleEvent } from './js/console-view.js';
 import { scanMeta } from './js/stream-format.js';
+import { cycleTheme } from './js/actions/theme.js';
 import { renderSettings, renderQuotaPanel, agentProviderLabel } from './js/settings-view.js';
 import { renderMemory, renderMemoryReader, memoryTabHeading } from './js/memory-view.js';
 import {
@@ -112,26 +113,7 @@ function bindEvents() {
       await refreshCurrent().catch(handleBackgroundError);
     }
     if (name === 'cycle-theme') {
-      const order = ['light', 'island', 'starry', 'dark'];
-      const current = order.includes(state.settings.theme) ? state.settings.theme : 'dark';
-      const theme = order[(order.indexOf(current) + 1) % order.length];
-      try {
-        state.settings = await api('/api/settings', {
-          method: 'POST',
-          body: { ...state.settings, theme },
-        });
-        cacheBootstrap();
-        applyTheme();
-        render();
-        requestAnimationFrame(() => {
-          const glyph = document.querySelector('.theme-cycle-glyph');
-          if (!glyph) return;
-          glyph.classList.add('theme-switching');
-          glyph.addEventListener('animationend', () => glyph.classList.remove('theme-switching'), { once: true });
-        });
-      } catch (err) {
-        handleBackgroundError(err);
-      }
+      await cycleTheme({ state, api, cacheBootstrap, applyTheme, render, reportError: handleBackgroundError });
       return;
     }
     if (name === 'console-view') {
