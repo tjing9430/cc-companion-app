@@ -56,8 +56,8 @@ Set `BRIDGE_MODE`:
 
 Why two modes? On a subscription, plaintext chain-of-thought is exposed by the *interactive*
 CLI but not by headless `-p` — a platform behavior, not a bridge choice. Interactive mode
-works around it by reading the transcript. `node-pty` for macOS/Windows interactive support
-is [not in this release](../README.md#没有做的); until then, non-Linux users can use `print` mode.
+works around it by reading the transcript. Native macOS/Windows interactive mode is not
+included; non-Linux users can use `print` mode or run interactive mode through WSL.
 
 ### Tool permissions (interactive mode) — read this before you file a bug
 
@@ -104,7 +104,7 @@ and the turn times out with the session left alive for the next one.
 
 ## Prerequisites
 
-- Node.js 18+.
+- Node.js 22.13+ or 23.4+.
 - Claude Code CLI: `npm install -g @anthropic-ai/claude-code`, signed in to a Claude
   Pro/Max/Team subscription (`claude` should work in your terminal).
 
@@ -199,8 +199,8 @@ they run. Use `CLAUDE_MCP_CONFIG` to add servers just for the bridge.
 **Why don't I see thinking blocks?**
 Thinking shows in the default `interactive` mode (Linux/WSL). If it's missing, you're likely
 in `print` mode (`BRIDGE_MODE=print`, which redacts thinking on a subscription) or on a
-platform where interactive mode isn't supported yet (macOS/Windows — see
-[what's not in this release](../README.md#没有做的)). Note thinking is also model-driven: simple prompts may not
+platform where interactive mode isn't supported yet (macOS/Windows; WSL is supported).
+Note thinking is also model-driven: simple prompts may not
 trigger extended thinking at all.
 
 **Does the chat reply stream token-by-token?**

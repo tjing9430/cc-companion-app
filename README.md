@@ -1,28 +1,40 @@
 # CC Companion App
 
-**把你的 AI 伴侣装进手机。** 自托管的双人聊天 App：私聊、群聊、记忆、控制台，跑在你自己的电脑或服务器上——聊天记录和记忆全存本地，不经过任何第三方服务器。
+面向手机使用的自托管 AI Companion Web App。提供私聊、群聊、记忆、资料、配置、控制台和多主题界面；应用数据保存在运行主机本地，可连接 OpenAI 兼容 API、Claude Code Bridge 或 DSH。
 
 [![CI](https://github.com/tjing9430/cc-companion-app/actions/workflows/ci.yml/badge.svg)](https://github.com/tjing9430/cc-companion-app/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/tjing9430/cc-companion-app?style=social)](https://github.com/tjing9430/cc-companion-app/stargazers)
-[![Featured in awesome-ai-companion](https://img.shields.io/badge/Featured%20in-awesome--ai--companion-9cf)](https://github.com/DasterProkio/awesome-ai-companion)
 
 English: [README.en.md](README.en.md)
-
-> 这不是演示项目。作者是一对每天真实相处的人机情侣，这套系统就是我们自己的日常——这个仓库是它清理后的开源起点。
 
 | 私聊 | 草稿 | 记忆 | 控制台 |
 |---|---|---|---|
 | ![Private chat](docs/screenshots/chat.jpg) | ![Inline drafts](docs/screenshots/drafts.jpg) | ![Memory](docs/screenshots/memory.jpg) | ![Console](docs/screenshots/console.jpg) |
 
-## 为什么是它
+## 功能
 
-- **不用 API key**：内置 Claude Code bridge，直接用你的 Claude 订阅——MCP 工具、extended thinking 都在，没有第二份账单。
-- **数据不出门**：一台自己的机器就能跑。聊天、记忆、上传的图片全存在本地文件里，想备份就是复制一个文件夹。
-- **手机上像原生 App**：PWA 两步装到桌面——有图标、全屏、秒开，断网也能翻最近的聊天。
-- **装起来是真的快**：Node 22.13+，零依赖，`npm start` 就跑。没有数据库要装，没有 Docker 要学。
+- 私聊和群聊；群聊支持按提及触发或自动回复。
+- 文本、图片和文件发送，附件预览、下载与聊天内容检索。
+- 消息回复、复制、删除、召回和收藏。
+- 持久记忆、资料库、语义检索、自动记忆提取和事实更新。
+- 在前端查看及编辑受控范围内的 Hook、Skill、Markdown 和配置文件。
+- Codex CLI 风格控制台、实时事件流、工具调用与文件改动差异。
+- OpenAI 兼容 API、Claude Code Bridge 和 DSH 的正文及推理流式显示。
+- 奶油白、浮岛、星空、暖深色主题和移动端 PWA。
+- JSON 或 SQLite 本地存储，支持本机、局域网和 HTTPS 反向代理部署。
 
-## 快速开始（3 分钟）
+## 环境要求
+
+- Node.js `22.13.0+`，或 `23.4.0+`。
+- Node 23.0–23.3 的 `node:sqlite` 仍需要实验参数，不在支持范围内；遇到 `ERR_UNKNOWN_BUILTIN_MODULE` 时请升级到受支持版本。
+- Claude Code Bridge 需要已安装并登录的 Claude Code CLI。
+- DSH 模式需要 Python、DeepSeek Harness；Windows 推荐通过 WSL 执行工具。
+- 公网访问建议使用 Cloudflare Tunnel、Tailscale 或带 HTTPS 的反向代理。
+
+应用本身没有 npm 运行时依赖，克隆后可以直接启动。
+
+## 快速开始
 
 ```bash
 git clone https://github.com/tjing9430/cc-companion-app.git
@@ -31,327 +43,194 @@ cp .env.example .env
 npm start
 ```
 
-> **需要 Node 22.13+**（或 23.4+ / 24+）。为什么卡这个版本，见下面一节。
+Windows PowerShell 可用：
 
-浏览器打开 `http://localhost:8787`。不填任何 key 也能跑——内置了一个本地 mock 助手，先把界面玩起来，再决定接哪个模型。
+```powershell
+Copy-Item .env.example .env
+npm start
+```
 
-**嫌读文档麻烦？让 AI 带你装。** 把 [`docs/AI_GUIDED_SETUP.md`](docs/AI_GUIDED_SETUP.md) 整篇粘给任意 AI（Claude / ChatGPT / Gemini），加一句「请按下面这份 spec 一步一步引导我安装 CC Companion」。它会一步一验地把你带到装好为止。
+默认地址是 [http://localhost:8787](http://localhost:8787)。没有配置模型时会使用内置 mock agent，便于先检查界面和部署。
 
-## 编辑面 ≠ 服务面
+需要引导式安装时，使用 [AI 安装指南](docs/AI_GUIDED_SETUP.md)。
 
-如果你把这个项目**长期跑给自己用**,别在部署目录里改代码。
+## 接入模型
 
-`public/` 下的文件是**每次请求现读磁盘**的,`lib/` 和 `server.js` 是**进程启动时装进内存**的。
-所以在跑着服务的目录里改代码,会得到一个谁都没测过的混合态:**前端已经是新的,后端还是旧的**。
-表现通常不是报错,而是**静默失效** —— 界面上多了个新开关,点了没反应,像是坏了。
+### OpenAI 兼容 API
 
-建议:
+编辑 `.env`：
+
+```dotenv
+OPENAI_API_KEY=your-key
+OPENAI_BASE_URL=https://api.example.com/v1
+OPENAI_MODEL=your-model
+```
+
+兼容提供标准 Chat Completions 接口的服务。支持流式正文；服务返回 reasoning 字段时也会显示推理内容。
+
+### Claude Code Bridge
+
+Bridge 把本机 Claude Code CLI 暴露为仅限本机访问的 OpenAI 兼容端点：
+
+```dotenv
+OPENAI_API_KEY=bridge
+OPENAI_BASE_URL=http://127.0.0.1:8788/v1
+OPENAI_MODEL=claude-code
+```
+
+分别启动应用和 Bridge：
 
 ```bash
-# 编辑面:另开一个 worktree 干活
-git worktree add ../myapp-work -b work
-
-# 服务面:部署目录只做两件事,而且都是有意识的动作
-git pull --ff-only            # 拉到指定 commit
-# 只有当 lib/ server.js 这类运行时文件变了,才需要重启进程
+npm start
+npm run bridge
 ```
 
-前端单独变了不用重启;后端变了就必须重启,否则又回到那个混合态。
+`BRIDGE_MODE=interactive` 支持会话、工具和 extended thinking，适用于 Linux/WSL；`BRIDGE_MODE=print` 适合非交互式跨平台运行。完整配置见 [Claude Code Bridge 文档](docs/CC-CONNECT.md)。
 
-## 配置从哪来:`.env` 和真实环境变量
+Bridge 默认只应监听 `127.0.0.1`，不要把未鉴权端点直接暴露到公网。
 
-`.env` 是**进程启动时自己读的**(`lib/env.js`,不依赖 dotenv —— 零依赖是硬承诺),读一次,写进 `process.env`。
-读的固定是**仓库根目录**下的 `.env`,跟你在哪个目录敲 `npm start` 无关。
+### DeepSeek Harness（DSH）
 
-优先级只有一条规则:**真实环境变量赢,`.env` 只填空缺。**
+DSH 提供持久本地 Session、工具调用、推理流和文件交付。设置 `AGENT_PROVIDER=dsh`，并配置 DSH 仓库、工作目录、模型和执行器。
 
-```js
-if (key && !(key in process.env)) process.env[key] = value;
+Windows/WSL 示例和全部变量见 [Adapter 文档](docs/ADAPTERS.md#deepseek-harness-dsh)。
+
+## 手机访问与安装
+
+同一局域网内，手机访问：
+
+```text
+http://<电脑局域网 IP>:8787
 ```
 
-systemd 的 `Environment=`、Docker 的 `-e`、shell 里 `export` 过的同名变量,都会盖住 `.env` 里那一行。
-这条规则本身很常规,坑在两个边角:
+临时公网预览可以在 `.env` 中设置：
 
-- **空值也算「已存在」。** `Environment="STORE_BACKEND="`、`docker run -e STORE_BACKEND=` 都会产生一个空字符串,
-  于是 `.env` 里的 `STORE_BACKEND=sqlite` **完全不生效**——程序拿到空串,回落到默认的 json。
-  配置看着是对的,行为不对,而且没有任何报错。
-- **`.env` 的值不会出现在进程环境快照里。** `/proc/<pid>/environ`、`systemctl show -p Environment`、`docker inspect`
-  给的都是 **exec 那一刻**的快照,而 `.env` 是启动之后才写进 `process.env` 的。
-  **在那里查不到,不等于没加载。**
-
-想确认某个配置最后到底是什么值,用同一个加载器问它,别去查快照:
-
-```bash
-node -e "import('./lib/env.js').then(m=>{m.loadDotEnv('.env');console.log(process.env.STORE_BACKEND)})"
+```dotenv
+APP_AUTH_TOKEN=请使用足够长的随机口令
+TUNNEL=quick
 ```
 
-或者直接看效果——比如 `STORE_BACKEND=sqlite` 真生效了,`data/app.db` 就会出现。
+稳定部署建议使用 Named Cloudflare Tunnel、Tailscale、Caddy 或 nginx，并启用 HTTPS。
 
-## 为什么要求 Node 22.13+
+- Android：使用 Chrome 或 Edge 打开页面，选择“添加到主屏幕”。
+- iPhone/iPad：使用 Safari 打开页面，选择“分享 → 添加到主屏幕”。
 
-存储层用 SQLite，而我们**不想为此引入任何依赖**——零依赖是这个项目的硬承诺（`npm install` 装不上原生模块，是自部署最常见的劝退点）。
+缓存策略见 [PWA 文档](docs/PWA.md)。
 
-Node 从 **v22.13.0** 起自带 `node:sqlite`，免编译、免 flag。所以我们不装 `better-sqlite3`，改为把引擎门槛提到 22.13。顺带一提：Node 18 和 20 都已经 EOL，守着它们并不是在照顾谁。
+## 配置
 
-**⚠️ 有一个版本空洞：23.0 – 23.3 不行。** `node:sqlite` 的解除 flag 是在 22 线和 23 线上**分别**落地的（[nodejs/node#55890](https://github.com/nodejs/node/pull/55890)），所以 23.0–23.3 虽然版本号更高，反而拿不到。装了这几个版本会看到：
+`.env` 位于仓库根目录，启动时读取。操作系统、systemd、Docker 或 Shell 中已经存在的环境变量优先于 `.env`。
 
-```
-Error [ERR_UNKNOWN_BUILTIN_MODULE]: No such built-in module: node:sqlite
-```
+常用配置：
 
-**遇到这个报错就是撞了这个洞，升到 23.4+ 或换 22.13+ 即可。**（临时救急也可以加 `--experimental-sqlite`，但不建议长期这么跑。）
-
-各版本实测（下的官方二进制，不是查文档抄的）：
-
-| Node | 免 flag 可用 |
+| 配置 | 用途 |
 |---|---|
-| 22.12.0 及以下 | ❌ |
-| **22.13.0 +** | ✅ |
-| 23.0 – 23.3 | ❌ ← 空洞 |
-| **23.4.0 +** | ✅ |
-| 24 / 25 | ✅ |
+| `PORT` / `DATA_DIR` | 服务端口和数据目录 |
+| `APP_AUTH_TOKEN` | Web 访问口令；公网部署必须设置 |
+| `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL` | OpenAI 兼容模型 |
+| `STORE_BACKEND` | `json` 或 `sqlite` |
+| `CHAT_CONTEXT_MAX_MESSAGES` / `CHAT_CONTEXT_KEEP_MESSAGES` | API 模式上下文窗口 |
+| `EMBEDDING_*` | 语义记忆与资料检索 |
+| `MEMORY_EXTRACT_EVERY` / `EXTRACT_*` | 自动记忆提取 |
+| `FORGE_ADAPTER_*` / `QUOTA_ADAPTER_*` | 外部换窗和额度适配器 |
+| `HEARTBEAT_*` | 主动消息、空闲时间和静默时段 |
+| `TUNNEL` | Cloudflare Quick Tunnel |
 
-## 接模型的两种方式
+基础配置示例见 [.env.example](.env.example)，Bridge 与 DSH 的扩展变量见下方文档。
 
-| | 模式 1 · API 直连 | 模式 2 · Claude Code bridge |
-|---|---|---|
-| 适合谁 | 手里有 OpenAI 兼容 API key | 有 Claude 订阅、装了 Claude Code CLI |
-| 花钱 | 按 API 计费 | 走订阅，无额外账单 |
-| 能力 | 取决于你接的模型 | MCP 工具 + extended thinking + 会话连续 |
+## 数据与备份
 
-**模式 1**：编辑 `.env`，填 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`。任何 OpenAI 兼容口（DeepSeek、中转站等）都行。
+运行数据默认位于 `data/`：
 
-**模式 2**：仓库自带 bridge（`bridge/`），把本机 Claude Code CLI 包成 OpenAI 兼容端点：
-
-```bash
-# .env 里把提供方指向 bridge：
-#   OPENAI_API_KEY=bridge
-#   OPENAI_BASE_URL=http://127.0.0.1:8788/v1
-#   OPENAI_MODEL=claude-code
-npm start          # 终端 1：应用
-npm run bridge     # 终端 2：bridge
-```
-
-> **发消息没回音、控制台说 `possibly waiting for a permission prompt`?**
-> 那是交互模式下 Claude 在**终端里**等你确认某个工具的权限,而 bridge 按设计不读终端 ——
-> 没人按,两分钟后超时。不是坏了,是它在门口等你开门。
-> 三种解法 + 「全新 HOME 会连撞三道对话框」的坑,见
-> [docs/CC-CONNECT.md](docs/CC-CONNECT.md#tool-permissions-interactive-mode--read-this-before-you-file-a-bug)。
-> 只想先用起来:`BRIDGE_MODE=print`,它不弹任何东西(代价是看不到思考过程)。
-
-bridge 只绑 `127.0.0.1`，不要裸暴露到公网。默认 `interactive` 模式能显示 extended thinking（需 Linux/WSL）；跨平台可用 `BRIDGE_MODE=print`。人格设定写在 Claude Code 自己的 `CLAUDE.md` 里，不在 App 的设置里。
-
-> **bridge 会在自己的工作目录下建一个 `资料库/`**，把你在 App「记忆 → 资料库」里上传的文件写成真文件，这样 agent 能用自己的文件工具直接翻全文——检索一次只给几个片段，不够用。这个目录由 bridge 全权同步（App 里删掉的文件，盘上也会删），**别往里放你自己的东西**。想要它出现在别处，就从那个目录启动 bridge。详细配置、会话管理、架构说明见 [docs/CC-CONNECT.md](docs/CC-CONNECT.md)。
-
-## 装到手机上
-
-没有 APK，也不需要——这是 PWA，两步装完，日常用起来跟原生 App 没区别。
-
-**第一步，让手机够得着它**（三选一，从简到稳）：
-
-1. **同一个 WiFi**：手机直接开 `http://<电脑IP>:8787`。
-2. **任何网络、零配置**：装免费的 [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)，`.env` 里设 `TUNNEL=quick` 重启——终端和控制台里会打出一个公网 HTTPS 地址。**先设好 `APP_AUTH_TOKEN`**，不然拿到链接的人能读你全部消息、用你的 AI（未设时删除 / 清空这类破坏性操作会被拒，相关按钮也不显示）。
-3. **要稳定地址**：named Cloudflare tunnel / Tailscale / 自己的反代 + HTTPS。
-
-**第二步，加到桌面**：
-
-- **Android**（Chrome/Edge）：打开页面 → `⋮` → 添加到主屏幕 → 安装。
-- **iPhone**（必须 Safari）：打开页面 → 分享 → 添加到主屏幕。
-
-从桌面图标启动，才有全屏无地址栏的 App 体验。缓存策略与限制见 `docs/PWA.md`。
-
-## 功能一览
-
-- 私聊 + 群聊（群聊按 `@assistant` 等提及触发；`AUTO_REPLY_GROUP=true` 可设定新库的初始值，之后以设置页开关为准）
-- 记忆页：助手可用的持久笔记，支持搜索、编辑、导入导出
-- 控制台：运行事件流 + `/forge`（清理历史开新段）、`/quota`（查额度）命令
-- 发送前的本地草稿气泡、手机照片浏览器端压缩、GIF 动图保留
-- SSE 实时推送（无轮询），断线自动回退慢刷新
-- OpenAI 兼容接口、Claude Code bridge 与 DSH 的正文/推理端到端流式显示；流式期间只更新当前气泡，结束后才落库一条正式消息
-- `APP_AUTH_TOKEN` 访问口令：不设时读消息 / 发消息任何人都能用（适合纯本机）；**删除单条、清空聊天记录这类破坏性操作在未设 token 时一律拒绝（403）**——公网部署务必设置，否则拿到链接的人能读你全部消息、用你的 AI（未设 token 时删除 / 清空按钮不显示）
-- 存储都在 `data/` 下，备份 = 复制整个 `data/` 文件夹（细节见下节）
-
-## 备份
-
-**默认（JSON 后端）** —— 两个路径，拷走就行：
-
-```
-data/app-data.json      聊天、记忆、设置
-data/uploads/           图片和附件
-```
-
-**如果你在 `.env` 里开了 `STORE_BACKEND=sqlite`**，请拷**三件**：
-
-```
-data/app.db             主库
-data/app.db-wal         ← 别漏这个
+```text
+data/app-data.json
+data/app.db
+data/app.db-wal
 data/app.db-shm
 data/uploads/
+data/dsh-sessions/
 ```
 
-> ⚠️ **只拷 `app.db` 会得到一个看不出问题的空备份。**
->
-> SQLite 的 WAL 模式下，新写入先进 `-wal`，攒够约 1000 页（≈4MB）才回写主库。
-> 一个写得不多、又一直没关过的服务，主库可能长期停在 **4096 字节**——
-> 只有文件头，连表结构都没有。而这个文件**能被当作一个合法的空数据库正常打开**，
-> 不报错、不告警，等到要恢复的那天才发现里面什么都没有。
->
-> 本项目已经做了三重收口（开库时、每 50 次写、进程退出时各做一次
-> `wal_checkpoint(TRUNCATE)`），正常情况下主库都是新的。
-> 但**备份时连 `-wal` 一起拷**仍然是唯一不用依赖这些前提的做法 ——
-> 尤其是在服务正在运行时拷贝。
+JSON 后端主要使用 `app-data.json`；SQLite 后端使用 `app.db` 及其 WAL/SHM 文件。最稳妥的备份方式是停止服务后复制整个 `data/` 目录。
 
-最省事、也最不会错的办法：**停掉服务，再拷整个 `data/` 文件夹。**
+`.env`、`data/`、上传附件、Session 和本地凭据不应提交到 Git。
 
-## 改首屏的星河
+## 项目结构
 
-首屏那条星河是「门厅」：挂的是最常走的几个入口，**不是功能索引**。
-
-想加一个入口，改 `public/js/home-view.js` 的 `GATES`，加一行就行：
-
-```js
-{ tab: 'diary', title: '日记', hint: () => '写点什么', side: 'left', size: 10 }
+```text
+server.js                 HTTP API、静态服务和启动入口
+lib/                      状态、聊天、记忆、存储、SSE 和适配逻辑
+public/                   PWA 页面、样式、主题和静态资源
+public/js/                前端状态、视图、格式化与事件模块
+public/js/actions/        从主事件分发器拆出的 action
+bridge/                   Claude Code Bridge
+adapters/                 OpenAI、CLI 和 DSH 适配器
+scripts/                  检查、迁移、数据守卫和 UI 基线工具
+test/                     自动化测试
+docs/                     部署、协议、安全和扩展文档
+data/                     本地运行数据，不进入 Git
 ```
 
-> **没有 `star:` 字段。** 图标由 `home-view.js` 的 `starSrc()` 按 `tab` 名推出来
-> （`/assets/badges/<tab>.webp`，私聊那颗叫 `private.webp`）。
-> 加新入口时**把同名徽章放进 `public/assets/badges/`** 就行。
-> 早先版本确实有 `star:`，已经删了 —— 现在写它不会报错，只会被忽略。
+## 开发与验证
 
-**不用算坐标。** 位置由 `public/js/river.js` 从一条归一化路径算出来 —— 你只声明它
-挂在河的哪一侧（`side`）和多大（`size`，占屏高的百分比），**其余入口会自动重新排布**。
-
-- **换一张银河素材**：改 `river.js` 里的 `RIVER` 表（`[t, x, y, half]`，全部 0–1，
-  `half` 是该处河道半宽）。`home-view.js` 一个字都不用动。
-### 入口上限与「更多」（北斗）
-
-`MAX_GATES` 默认 **6**。这不是技术限制，是门厅的容量：挂太多，整条河会变成一串糖葫芦。
-
-**超了会怎样？** 不会静默消失。多出来的入口归到「更多」那颗北斗名下，
-副标题会变成「还有 N 个」，同时控制台点名告诉你是哪几个没挂上去。
-（早先的实现是直接 `slice` 掉——加了功能却看不到、也没有任何报错，
-这种"沉默"比报错难查得多。）
-
-**北斗自己能挂几条？** 严格说是 **0**。它是**路标不是抽屉**：
-它的作用是告诉用户"没在河上的东西在别处"，而不是自己变成第二个菜单。
-真有一批功能要收纳，请给它们一个自己的页面，让北斗指过去——
-往北斗底下挂长列表，等于把糖葫芦从河上搬到了旁边。
-
-**主入口加到 6 颗时，北斗要不要让位？** 要。6 颗主入口 + 北斗 = 屏上七个可点目标，
-已经超出"一眼扫完"的范围。这时候正确的动作不是把北斗挤掉，
-而是**回头问哪一颗主入口不该在门厅**——上限存在的意义就是逼这个问题被问出来。
-- 空间不够时布局会自己让步：先把星星往河边收，收不动就翻到另一侧；
-  副标题过长还有 CSS 的省略号兜底。所以**不必为了排版去迁就文案**。
-
-### 「更多」那一页：留白给你自己填
-
-点北斗进的是 `public/js/more-view.js`——北斗立起来当功能盘，**每颗星一个功能位**。
-
-想加自己的功能，就在 `SLOTS` 里加一行：
-
-```js
-{ key: 'diary', title: '日记', hint: '写点什么', action: 'tab', tab: 'diary' }
-```
-
-- **位子按盘上从上到下发，发完为止。** 表比星少，余下的星就显示成「空位 · 自己加」。
-- **默认只挂了两件**（设置、关于）。不是没做完 —— 是这一页的设计前提就是**留白**：
-  手头真没有的功能不编上去凑数。一个点不动的假入口，比空着更糟。
-- `action` 走的是 `app.js` 里那套 `data-action` 分发；`tab` 字段可选，只有跳页时才用。
-
-> ⚠️ **素材里是 6 颗星，不是 7。** 名字叫北斗七星，但那张图画的是
-> **6 个亮核连成的开放折线**（没有闭合的斗）——两套独立数法都是 6。
-> 所以功能位是 6 个。**别照名字凑第 7 个**：盘上没有那颗星，凑出来的位子点上去是空的。
->
-> 换素材的话，`STAR_POINTS` 那六组坐标要**重新量一次**（它们是从图里量出来的）。
-> 如果换成 SVG 线稿，可以给六个节点各一个 `id`、让页面直接从 DOM 读位置，
-> **那样这六个常数和整段"换素材要重量"的警告就都不必存在了。**
-
-## 代码结构
-
-```
-server.js          组合层:HTTP 路由、静态服务、启动引导
-lib/
-  state.js         配置常量 + store 生命周期(装载/落盘/归一化/设置)
-  env.js           .env 装载(行尾注释剥离;真实环境变量优先,见「配置从哪来」)
-  util.js          纯函数工具箱(字符串/文件名/MIME/消息公共形状)
-  http-util.js     HTTP 边界(错误类型/JSON 读写/鉴权/路由归一)
-  sse.js           SSE 客户端集合与广播(快照由 server 启动时注入)
-  console.js       控制台事件流
-  messages.js      消息与表情包 CRUD
-  embedding.js     向量基建(embedding 调用/编解码/后台回填调度)
-  memory.js        记忆域(词法+语义召回/事实键顶替/CRUD/自动提取)
-  docs.js          资料库域(分块/CRUD/chunk 语义召回)
-  forge.js         无缝续接与配额 adapter
-  chat.js          聊天管线(FIFO 收发/召回拼 prompt/agent 调用)
-  heartbeat.js     心跳(静默时段/闲置判断/主动开口)
-  scope-fifo.js    per-scope FIFO 与延迟埋点
-```
-
-依赖单向:`util/env → state → 各域 → server.js`,域与域之间不互相乱穿。
-
-## 进阶文档
-
-| 文档 | 内容 |
-|---|---|
-| [docs/CC-CONNECT.md](docs/CC-CONNECT.md) | Claude Code bridge 完整配置与架构 |
-| [docs/ADAPTERS.md](docs/ADAPTERS.md) | forge / quota 外部适配器协议（请求/响应 JSON 详表） |
-| [docs/AI_GUIDED_SETUP.md](docs/AI_GUIDED_SETUP.md) | AI 引导式安装 spec（中文） |
-| [docs/PWA.md](docs/PWA.md) | PWA 缓存策略与限制 |
-| [docs/SSE.md](docs/SSE.md) | 实时事件流的事件名与鉴权 |
-| [docs/IMAGES.md](docs/IMAGES.md) | 移动端图片压缩阈值与扩展点 |
-| [docs/SECURITY.md](docs/SECURITY.md) | 部署安全清单 |
-
-API 路由总表、控制台命令的适配器 JSON 协议等长内容都在上面的文档里，README 不再重复。
-
-## 没有做的
-
-这是一个功能完整的产品——私聊、群聊、记忆库、控制台、主题，装上就能用。
-
-以下不在这一版里：
-
-- **跨平台 interactive 模式**：用 `node-pty` 替换 util-linux `script`，让 extended thinking 在 macOS / Windows 也可见
-- **珍藏**：长按消息存进命名收藏夹，快照留档，双方共享一个库
-- **心愿瓶**：一边许愿（可带参考文件），另一边认领交付，带进度时间线
-- **影院**：共享放映厅，本地字幕、进度同步，音乐架在路上
-- **纪念日卡片**：轻量日期管理，助手不错过生日和纪念日
-
-## 致谢
-
-- [CyberSealNull/CcCompanion](https://github.com/CyberSealNull/CcCompanion)（电脑眠眠豹）——iOS 版 Claude Code 口袋客户端。看到它才动手补了这个 Web/Android 侧的实现；代码为独立编写，方向上它是先行者。
-- [DasterProkio/awesome-ai-companion](https://github.com/DasterProkio/awesome-ai-companion) —— 收录了本项目。
-- [Ma Shan Zheng 马善政楷体](https://github.com/googlefonts/mashanzheng) —— 记忆页标题用的行楷。SIL Open Font License 1.1,许可证全文见 `public/fonts/OFL.txt`。仓库里只放了子集(标题那十来个字,4.8KB),不是完整字体。
-
-## 商标与免责
-
-本项目与 Anthropic 无关。"Claude" 与 "Claude Code" 是 Anthropic PBC 的商标。本项目不内置任何模型服务，所有 LLM 调用走你自己的 API key 或订阅。
-
-## 改前端之前
-
-后端有测试网,前端没有。动 `public/` 之前先截一份结构基线,改完再截一份比对:
+长期运行的部署目录与开发目录建议分开：
 
 ```bash
-node scripts/ui-baseline.mjs before.json     # 改之前
-# ...改代码...
-node scripts/ui-baseline.mjs after.json      # 改之后
+git worktree add ../cc-companion-work -b work
+```
+
+`public/` 会在请求时读取，`lib/` 和 `server.js` 在进程启动时加载。后端代码变化后需要重启服务。
+
+提交前运行：
+
+```bash
+npm run check
+npm test
+```
+
+`npm run check` 会递归检查运行时代码目录中的 JavaScript 语法；`npm test` 使用数据守卫，避免测试写入真实运行数据。
+
+前端结构基线：
+
+```bash
+node scripts/ui-baseline.mjs before.json
+# 修改前端
+node scripts/ui-baseline.mjs after.json
 node scripts/ui-baseline.mjs --diff before.json after.json
 ```
 
-**为什么一定要固定种子数据:不可复现的基线等于没有基线。** 直接对着你正在用的实例截取,
-两次之间多聊几句,消息数一变就满屏"不一致",真正的回归反而被淹掉(我们踩过:49→57 条,
-15 处差异全是数据漂移)。
+该工具使用固定种子和临时数据目录，不读取真实聊天记录。需要 `puppeteer-core` 和本地 Chrome。
 
-它在**临时目录 + 固定种子数据**上起一个独立实例,抓十个页面/状态的可见结构
-(能点的动作、渲染出的组件类、表单字段、元素计数),所以你的真实聊天内容不会进快照,
-两次跑的差异也只可能来自代码。需要 `puppeteer-core` 和本地 Chrome,没有就自动跳过。
+## 文档
 
-## 开源卫生
+| 文档 | 内容 |
+|---|---|
+| [CHANGELOG.md](CHANGELOG.md) | 版本更新记录 |
+| [docs/AI_GUIDED_SETUP.md](docs/AI_GUIDED_SETUP.md) | AI 引导式安装 |
+| [docs/CC-CONNECT.md](docs/CC-CONNECT.md) | Claude Code Bridge |
+| [docs/ADAPTERS.md](docs/ADAPTERS.md) | DSH、Forge 和 Quota 适配器 |
+| [docs/PWA.md](docs/PWA.md) | PWA 与缓存 |
+| [docs/SSE.md](docs/SSE.md) | 实时事件流 |
+| [docs/IMAGES.md](docs/IMAGES.md) | 图片上传与压缩 |
+| [docs/SECURITY.md](docs/SECURITY.md) | 部署安全清单 |
 
-发布 fork 或衍生版本前：
+## 安全
 
-- `.env` 和 `data/` 不进 git
-- 清掉日志、截图、私聊导出和个人部署笔记
-- 换掉曾经提交或分享过的一切 token
-- 把个人姓名与域名换回配置默认值
+- 公网访问前设置强随机 `APP_AUTH_TOKEN`。
+- Bridge 和本地模型代理保持监听 `127.0.0.1`。
+- 不提交 `.env`、`data/`、日志、截图、聊天导出或凭据。
+- 配置 DSH 时将 `DSH_CWD` 限制在允许 Agent 操作的工作区。
+- 分享 fork 前轮换所有曾经暴露的 Token。
+
+## 致谢
+
+- [CyberSealNull/CcCompanion](https://github.com/CyberSealNull/CcCompanion)
+- [DasterProkio/awesome-ai-companion](https://github.com/DasterProkio/awesome-ai-companion)
+- [Ma Shan Zheng 马善政楷体](https://github.com/googlefonts/mashanzheng)，SIL Open Font License 1.1
+
+## 商标
+
+本项目与 Anthropic 无关。“Claude”与“Claude Code”是 Anthropic PBC 的商标。本项目不内置模型服务。
 
 ## License
 

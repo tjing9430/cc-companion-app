@@ -100,7 +100,7 @@ test('slug 规则跟 GitHub 对得上(改标题的人靠它判断锚点会不会
 //   照着抄的人会设一个**没人读的字段**,不报错、不生效,自己还以为配好了。
 //   ⇒ 文档跟代码脱节是"忘了同步"型的错,而"记得同步"这条路今天已经被证伪过好几次。
 //     **能机械检查的就别靠记性。**
-test('★ README 代码示例里的字段,必须在真实数据结构里存在', () => {
+test('★ README 若包含入口代码示例,字段必须在真实数据结构里存在', () => {
   const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8').replace(/\r\n/g, '\n');
   const home = fs.readFileSync(path.join(REPO, 'public/js/home-view.js'), 'utf8');
   const more = fs.readFileSync(path.join(REPO, 'public/js/more-view.js'), 'utf8');
@@ -111,12 +111,13 @@ test('★ README 代码示例里的字段,必须在真实数据结构里存在',
 
   // GATES 那个示例(认得出来:含 side / size)
   const gateEx = blocks.find((b) => /\bside\s*:/.test(b) && /\bsize\s*:/.test(b));
-  assert.ok(gateEx, 'README 里找不到 GATES 示例了 —— 是不是改了写法?这条测试要跟着改');
   const gateReal = keysIn(home.slice(home.indexOf('const GATES'), home.indexOf('];', home.indexOf('const GATES'))));
-  for (const k of keysIn(gateEx)) {
-    assert.ok(gateReal.has(k),
-      `README 的 GATES 示例里写了 \`${k}:\`,但 home-view.js 的 GATES 里没有这个字段。\n` +
-      `照着抄的人会设一个没人读的字段 —— 不报错、不生效。要么改 README,要么这个字段该加回代码。`);
+  if (gateEx) {
+    for (const k of keysIn(gateEx)) {
+      assert.ok(gateReal.has(k),
+        `README 的 GATES 示例里写了 \`${k}:\`,但 home-view.js 的 GATES 里没有这个字段。\n` +
+        `照着抄的人会设一个没人读的字段 —— 不报错、不生效。要么改 README,要么这个字段该加回代码。`);
+    }
   }
 
   // SLOTS 那个示例(认得出来:含 action)
