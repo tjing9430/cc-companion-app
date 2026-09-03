@@ -77,6 +77,11 @@ const FINGERPRINT = () => {
     topbarTitle: document.querySelector('.topbar h1')?.textContent.trim() || null,
     navCount: document.querySelectorAll('.nav button, .nav a').length,
     counts: { buttons: document.querySelectorAll('button').length, forms: document.querySelectorAll('form').length, articles: document.querySelectorAll('article').length },
+    viewport: {
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      overflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    },
   };
 };
 
@@ -90,7 +95,8 @@ async function capture(out) {
   fs.writeFileSync(path.join(dataDir, 'app-data.json'), JSON.stringify(SEED, null, 2));
   const port = await freePort();
   const server = spawn(process.execPath, ['server.js'], { cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, APP_AUTH_TOKEN: 'baseline', EMBEDDING_MODEL: '', MEMORY_EXTRACT_EVERY: '0' } });
+    env: { ...process.env, CC_SKIP_DOTENV: '1', PORT: String(port), DATA_DIR: dataDir, APP_AUTH_TOKEN: 'baseline',
+      OPENAI_BASE_URL: '', FORGE_ADAPTER_URL: '', DSH_ENABLED: '', TUNNEL: '', EMBEDDING_MODEL: '', MEMORY_EXTRACT_EVERY: '0' } });
   const base = `http://127.0.0.1:${port}/`;
   for (let i = 0; i < 120; i++) {
     try { const r = await fetch(base, { headers: { 'x-app-token': 'baseline' } }); if (r.ok) break; } catch { /* 还没起来 */ }
@@ -100,11 +106,15 @@ async function capture(out) {
   const browser = await puppeteer.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   const page = await browser.newPage();
   await page.setViewport({ width: 375, height: 760, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  await page.evaluateOnNewDocument((token) => localStorage.setItem('cc_companion_token', token), 'baseline');
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e).slice(0, 200)));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text().slice(0, 200)); });
-  await page.goto(base, { waitUntil: 'domcontentloaded' });
-  await page.evaluate(() => localStorage.setItem('cc_companion_token', 'baseline'));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !m.text().includes('Failed to load resource')) errors.push('console: ' + m.text().slice(0, 200));
+  });
+  page.on('response', (response) => {
+    if (response.status() >= 400) errors.push(`HTTP ${response.status()}: ${response.url()}`.slice(0, 240));
+  });
   await page.goto(base, { waitUntil: 'networkidle2' });
   await new Promise((r) => setTimeout(r, 2000));
 
@@ -141,7 +151,7 @@ function diff(aPath, bPath) {
   const b = JSON.parse(fs.readFileSync(bPath, 'utf8'));
   const bad = [];
   for (const page of Object.keys(a).filter((k) => k !== '__errors')) {
-    for (const f of ['actions', 'classes', 'fields', 'topbarTitle', 'navCount', 'counts']) {
+    for (const f of ['actions', 'classes', 'fields', 'topbarTitle', 'navCount', 'counts', 'viewport']) {
       if (JSON.stringify(a[page]?.[f]) !== JSON.stringify(b[page]?.[f])) bad.push({ page, field: f, before: a[page]?.[f], after: b[page]?.[f] });
     }
   }

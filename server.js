@@ -49,6 +49,8 @@ import {
 import { forgeSession, queryQuota, publicQuotaAdapterResult } from './lib/forge.js';
 import { handleSend } from './lib/chat.js';
 import { heartbeatTick } from './lib/heartbeat.js';
+import { sessionRotationTick } from './lib/session-rotation.js';
+import { listConfigFiles, readConfigFile, updateConfigFile } from './lib/config-library.js';
 
 setSnapshotProvider(streamSnapshot);
 
@@ -99,6 +101,9 @@ server.listen(PORT, () => {
     setInterval(heartbeatTick, HEARTBEAT_INTERVAL_MINUTES * 60 * 1000);
     console.log(`Heartbeat enabled: every ${HEARTBEAT_INTERVAL_MINUTES} min, min idle ${HEARTBEAT_MIN_IDLE_MINUTES} min, quiet ${HEARTBEAT_QUIET_START}:00-${HEARTBEAT_QUIET_END}:00.`);
   }
+  setInterval(() => sessionRotationTick().catch((err) => {
+    addConsoleEvent('error', 'Session 自动更换失败', err && err.message ? err.message : String(err));
+  }), 30 * 1000);
   startQuickTunnel();
   scheduleBackfill(); // backfill memories/documents loaded from disk that predate embeddings (no-op without a model)
 });
@@ -252,7 +257,6 @@ async function handleRequest(req, res) {
     store.settings = normalizeSettings({ ...store.settings, ...body });
     applySettingsRename(previous, store.settings);
     saveStore();
-    addConsoleEvent('settings', '设置已更新', '应用设置已保存。');
     const settings = publicSettings();
     broadcastSse('settings', { settings });
     return sendJson(res, 200, settings);
@@ -402,6 +406,18 @@ async function handleRequest(req, res) {
     return sendJson(res, 200, store.documents.map((doc) => publicDocument(doc)));
   }
 
+  if (req.method === 'GET' && route === '/api/config-files') {
+    return sendJson(res, 200, listConfigFiles());
+  }
+  const configFileMatch = route.match(/^\/api\/config-files\/([a-f0-9]{24})$/);
+  if (configFileMatch && req.method === 'GET') {
+    return sendJson(res, 200, readConfigFile(configFileMatch[1]));
+  }
+  if (configFileMatch && req.method === 'PUT') {
+    const body = await readJson(req);
+    return sendJson(res, 200, updateConfigFile(configFileMatch[1], body.content));
+  }
+
   if (req.method === 'POST' && route === '/api/documents') {
     return sendJson(res, 201, createDocument(await readJson(req)));
   }
@@ -445,7 +461,7 @@ async function handleRequest(req, res) {
   }
 
   if (req.method === 'GET') {
-    return serveStatic(res, route);
+    return serveStatic(req, res, route);
   }
 
   sendJson(res, 404, { error: 'not_found' });
@@ -530,9 +546,7 @@ function serveUpload(res, route) {
 // 手改版本号这件事已经咬过两次(忘了改 → 用户永远慢一个刷新;sed 改错 →
 // 静默不匹配、退出码还是 0)。能自动算出来的东西,别留给人记得。
 let swVersionCache = null;
-function serviceWorkerVersion() {
-  if (swVersionCache) return swVersionCache;
-  const hash = crypto.createHash('sha256');
+function serviceWorkerTrackedFiles() {
   // 只哈希真正会被缓存的那些文件;顺序固定,免得目录遍历顺序变了版本号跟着跳。
   const tracked = ['index.html', 'app.js', 'styles.css', 'sw.js', 'manifest.json'];
   try {
@@ -551,14 +565,42 @@ function serviceWorkerVersion() {
     }
   };
   walk('assets');
+  return tracked;
+}
+
+function serviceWorkerVersion() {
+  const tracked = serviceWorkerTrackedFiles();
+  // 服务可以长驻，public/ 却是直接编辑的。用便宜的 stat 指纹先判断
+  // 是否有变，只在变动时重算内容哈希，避免把“自动版本”变成“重启才更新”。
+  const fingerprint = tracked.map((rel) => {
+    try {
+      const stat = fs.statSync(path.join(PUBLIC_DIR, rel));
+      return `${rel}:${stat.size}:${stat.mtimeMs}`;
+    } catch { return `${rel}:missing`; }
+  }).join('|');
+  if (swVersionCache && swVersionCache.fingerprint === fingerprint) return swVersionCache.version;
+
+  const hash = crypto.createHash('sha256');
   for (const rel of tracked) {
     try { hash.update(rel).update(fs.readFileSync(path.join(PUBLIC_DIR, rel))); } catch { /* 缺文件就跳过 */ }
   }
-  swVersionCache = `cc-companion-${hash.digest('hex').slice(0, 12)}`;
-  return swVersionCache;
+  const version = `cc-companion-${hash.digest('hex').slice(0, 12)}`;
+  swVersionCache = { fingerprint, version };
+  return version;
 }
 
-function serveStatic(res, route) {
+const staticEtagCache = new Map();
+function staticEtag(filePath, stat) {
+  const fingerprint = `${stat.size}:${stat.mtimeMs}`;
+  const cached = staticEtagCache.get(filePath);
+  if (cached && cached.fingerprint === fingerprint) return cached.etag;
+  const digest = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex').slice(0, 16);
+  const etag = `"${digest}"`;
+  staticEtagCache.set(filePath, { fingerprint, etag });
+  return etag;
+}
+
+function serveStatic(req, res, route) {
   const requested = route === '/' ? '/index.html' : route;
   const filePath = path.resolve(PUBLIC_DIR, `.${requested}`);
   if (!isPathInside(PUBLIC_DIR, filePath)) return sendJson(res, 403, { error: 'forbidden' });
@@ -593,7 +635,20 @@ function serveStatic(res, route) {
     res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' });
     return res.end(body);
   }
-  res.writeHead(200, { 'content-type': contentTypeFor(filePath), 'cache-control': 'no-cache' });
+  const stat = fs.statSync(filePath);
+  const etag = staticEtag(filePath, stat);
+  const headers = {
+    'content-type': contentTypeFor(filePath),
+    'cache-control': 'no-cache',
+    etag,
+    'last-modified': stat.mtime.toUTCString(),
+  };
+  const candidates = String(req.headers['if-none-match'] || '').split(',').map((x) => x.trim());
+  if (candidates.includes('*') || candidates.includes(etag)) {
+    res.writeHead(304, headers);
+    return res.end();
+  }
+  res.writeHead(200, headers);
   fs.createReadStream(filePath).pipe(res);
 }
 

@@ -62,7 +62,12 @@ async function startApp(env) {
   return {
     up, out, base,
     api: (p, init) => fetch(base + p, init),
-    close: async () => { srv.kill('SIGTERM'); await new Promise((r) => srv.on('close', r)); fs.rmSync(dataDir, { recursive: true, force: true }); },
+    close: async () => {
+      if (srv.exitCode == null && srv.signalCode == null) {
+        await new Promise((r) => { srv.once('close', r); srv.kill('SIGTERM'); });
+      }
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    },
   };
 }
 

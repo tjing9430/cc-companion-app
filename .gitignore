@@ -28,6 +28,11 @@ data/console-tail.json
 资料库/
 .asset-backups-badges/
 
+# 本地 Python/DSH 运行产物。适配器源码和模板要提交，解释器缓存与会话转录不要进仓库。
+adapters/__pycache__/
+*.pyc
+data/dsh-sessions/
+
 # 你自己那份 MCP 配置。仓库里的 bridge/mcp-config.json 是**模板**(路径写成占位符),
 # 照着改一份 .local.json 放这儿,再让 CLAUDE_MCP_CONFIG 指向它 ——
 # 这样你的绝对路径不会跟着提交跑出去,模板也不会被你的本地改动覆盖。

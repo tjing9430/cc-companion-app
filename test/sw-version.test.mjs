@@ -63,6 +63,21 @@ test('★ 改了被缓存的文件,版本号必须跟着变(这才是它存在�
   assert.equal(restored, before, '内容还原后版本号也要还原(说明它只跟内容走,不掺时间戳)');
 });
 
+test('★ 服务不重启，编辑 public/ 后版本号也必须当场变', async () => {
+  const target = path.join(REPO, 'public', 'styles.css');
+  const original = fs.readFileSync(target, 'utf8');
+  await withServer(async (base) => {
+    const before = await swVersion(base);
+    try {
+      fs.writeFileSync(target, `${original}\n/* same-process sw version test */\n`);
+      const after = await swVersion(base);
+      assert.notEqual(after, before, '同一进程里改了样式，SW 版本仍被旧内存缓存锁死');
+    } finally {
+      fs.writeFileSync(target, original);
+    }
+  });
+});
+
 test('没改东西时版本号稳定(不能每次请求都变,否则缓存永远失效)', async () => {
   const [a, b] = await withServer(async (base) => [await swVersion(base), await swVersion(base)]);
   assert.equal(a, b);

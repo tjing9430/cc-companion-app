@@ -19,6 +19,10 @@ const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/js/state.js
 //   用户看到的就是:银河在、文字在、圆图标一片空白。
 //   ⇒ 放进 install 的预下清单之后,它们在页面第一次要之前就已经躺在缓存里。
 const STATIC_ASSETS = [
+  // Theme artwork is deliberately on-demand. Pre-caching all four themes on
+  // first install made unrelated island/starry images compete with the active
+  // home screen. The normal stale-while-revalidate path caches each asset
+  // after the first time its theme is actually used.
   '/',
   '/index.html',
   '/styles.css',
@@ -27,26 +31,11 @@ const STATIC_ASSETS = [
   '/icons/app-icon.svg',
   '/icons/maskable-icon.svg',
   // 首屏视觉:背景 + 六个入口徽章
-  '/assets/galaxy-river.webp',
-  '/assets/badges/private.webp',
-  '/assets/badges/group.webp',
-  '/assets/badges/memory.webp',
-  '/assets/badges/console.webp',
-  '/assets/badges/settings.webp',
-  '/assets/badges/bigdipper.webp',
   // 浮岛主题的七张岛(六座入口 + 更多页的水晶球岛)。
   // ★ 8/14 之前它们不在预下清单里 —— badges 预下了、island 没预下,
   //   于是每发一版换缓存桶,浮岛用户的首屏都要裸等网络重拉:
   //   「一部署图片全没了」有一半是这里来的。
-  '/assets/island/private.webp',
-  '/assets/island/group.webp',
-  '/assets/island/memory.webp',
-  '/assets/island/console.webp',
-  '/assets/island/settings.webp',
-  '/assets/island/more.webp',
-  '/assets/island/orb.webp',
   // 星空聊天背景(8/14 她选定的星夜图,45KB)
-  '/assets/chat-bg-starry.webp',
 ];
 
 // ★ 8/14 还了 addAll 那笔债(群账 #67):addAll 是**全有全无** —— 弱网下 20 个文件

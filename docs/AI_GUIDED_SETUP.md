@@ -240,7 +240,7 @@ verify 放到 Phase D 一起测。
 ### 发消息没有任何回复
 
 - mock 模式也该有演示回复。没有的话看 `npm start` 终端报错。
-- 群聊默认**只在 @assistant / @agent / 被提及**时回复（见 `AGENT_MENTION`）。想每条都回，`.env` 设 `AUTO_REPLY_GROUP=true` 重启。
+- 群聊默认**只在 @assistant / @agent / 被提及**时回复（见 `AGENT_MENTION`）。全新安装可用 `.env` 的 `AUTO_REPLY_GROUP=true` 设定初始值；之后以设置页开关为准。
 
 ### 消息里的「复制」按钮没反应
 

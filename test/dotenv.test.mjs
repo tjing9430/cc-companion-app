@@ -17,7 +17,7 @@ function parseWith(file, envText) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dotenv-'));
   const envPath = path.join(dir, '.env');
   fs.writeFileSync(envPath, envText);
-  const src = fs.readFileSync(path.join(REPO, file), 'utf8');
+  const src = fs.readFileSync(path.join(REPO, file), 'utf8').replace(/\r\n/g, '\n');
   const fn = src.slice(src.indexOf('function loadDotEnv'));
   const body = fn.slice(0, fn.indexOf('\n}\n') + 3);
   const script = `

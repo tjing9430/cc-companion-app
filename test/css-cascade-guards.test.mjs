@@ -130,14 +130,10 @@ test('★★ 圆点那块必须**赢下**层叠 —— 判据是"最后生效的
   assert.equal(w && w.value, '10px', `最后生效的 width 是 "${w && w.value}",期望 10px`);
 });
 
-test('★ 状态点按状态上色的规则还在 —— 否则它退回一个不表达任何东西的灰点', () => {
-  // 它原来的注释声称"颜色已经把状态说清楚了",而那句曾经是假的(没有任何上色规则)。
-  // 这条测试的作用是:**不让那句注释再变回谎话。**
-  assert.match(css, /\.status-pill\[data-stream="live"\]/,
-    'live 态的上色规则没了 —— 那条「颜色已经把状态说清楚了」的注释会重新变成谎话');
+test('顶栏不再渲染在线状态点', () => {
   const app = readFileSync(path.join(root, 'public/app.js'), 'utf8');
-  assert.match(app, /class="status-pill"\s+data-stream=/,
-    'DOM 上没有 data-stream —— CSS 就算写了上色规则也无从下手(这正是当初失效的根因)');
+  assert.doesNotMatch(app, /class="status-pill"\s+data-stream=/,
+    '用户已要求删除右上角在线点，不许在后续重构里又加回来');
 });
 
 test('★★ 状态点:live 必须和三个异常态都不同色 —— 圆的绿的但钉死不动,一样答不了用户那句话', () => {

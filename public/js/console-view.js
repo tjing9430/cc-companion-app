@@ -87,26 +87,25 @@ function renderTerminal() {
   const tail = state.rawFmt
     ? formatLines(raw).map((r) => `<div class="tl tl-f tl-f-${esc(r.cls)}"><span class="tl-m">${esc(r.mark)}</span><span class="tl-b">${esc(r.text)}</span></div>`).join('')
     : raw.map((l) => `<div class="tl tl-raw">${esc(l)}</div>`).join('');
-  const fmtBtn = `<button type="button" class="term-fmt" data-action="raw-fmt" title="${escAttr(state.rawFmt ? '切到一个字都没动过的原始 JSON' : '切回 CLI 长相')}">${state.rawFmt ? '看原始' : '看格式化'}</button>`;
+  const fmtBtn = `<button type="button" class="term-fmt" data-action="raw-fmt" title="${escAttr(state.rawFmt ? '切到一个字都没动过的原始 JSON' : '切回 Codex CLI 长相')}">${state.rawFmt ? '原始 JSON' : 'Codex CLI'}</button>`;
   // ★ 头和切档钮常驻(有没有数据都在) —— 哑掉和没做长得一模一样,这条咬过两次人。
   //   没数据时说清楚它在等什么,而不是整段消失。
-  const liveEmpty = '<div class="empty term-live-empty">还没有输出 —— 发一条消息，或在上面敲条命令，它就从这儿往下滚。</div>';
+  const liveEmpty = '<div class="term-live-empty"><span>›</span> 等待命令或消息…</div>';
   // ★ 滚动 scope 不能和工作流档共用 "console":共用时,在卡片流里翻到哪儿,
   //   切进终端就落在哪儿。终端的落点是**底部**(最新输出 + 状态行),往上翻是 scrollback。
-  // ★ 状态行住在框**里面**(tmux 那样贴着终端底边),不再是页面最底下一条孤儿 ——
-  //   反馈原话「能不能挪在这个框框里面来」。框(边框/底色)从 .term-view 上移到
-  //   .term-frame:滚动的还是 .term-view,状态行钉在框底不跟着滚。
+  // 状态摘要和 transcript 进度属于 CLI 输出的一部分，跟 Codex CLI 一样放在滚动区顶部；
+  // 输入区仍独立固定在下面，不再额外垫一块不透明底板。
   return `
     <div class="term-frame">
       <div class="term-view" data-scroll-list data-scroll-scope="console-term">
-        <div class="term-note term-note-live">原始输出（只留最近一轮的尾巴）${fmtBtn}</div>
-        ${tail || liveEmpty}
+        <div class="term-cli-head"><strong>Codex CLI</strong>${fmtBtn}</div>
+        ${renderTermStatus()}
+        <div class="term-output">${tail || liveEmpty}</div>
       </div>
-      ${renderTermStatus()}
     </div>`;
 }
 
-// 终端底下那条状态行 —— 对着别人家 CLI 的状态栏做的。
+// Codex CLI 顶部的 transcript / 会话摘要。
 //
 // ★★ 只显示**真取得到**的东西。摆一个永远写着 "$0.00" 的位子,比空着更糟:
 //    它看起来像在工作。
@@ -119,6 +118,8 @@ function renderTerminal() {
 function renderTermStatus() {
   const b = state.bridge || {};
   const seg = [];
+  let contextText = '';
+  let contextPct = 0;
 
   // 模型:桥没被显式指定时用它报的「实际在跑的那个」,两个都没有就不显示
   const model = b.model || b.effective_model || '';
@@ -131,7 +132,8 @@ function renderTermStatus() {
   const win = Number(b.context_window) || 0;
   const kk = (n) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
   if (prompt) {
-    seg.push(['上下文', win ? `${kk(prompt)}/${kk(win)} ${Math.round((prompt / win) * 100)}%` : kk(prompt)]);
+    contextPct = win ? Math.max(0, Math.min(100, Math.round((prompt / win) * 100))) : 0;
+    contextText = win ? `${kk(prompt)}/${kk(win)} (${contextPct}%)` : kk(prompt);
   }
 
   const turns = Number(b.usage && b.usage.turns) || 0;
@@ -174,10 +176,13 @@ function renderTermStatus() {
     seg.push(['额度重置', `${pct}${hhmm(m.resets_at)}`]);
   }
 
-  if (!seg.length) return '';
-  return `<div class="term-status" role="status">${seg
-    .map(([k, v]) => `<span class="ts-seg"><i>${esc(k)}</i>${esc(String(v))}</span>`)
-    .join('')}</div>`;
+  if (!seg.length && !contextText) return '';
+  return `<div class="term-status" role="status"${contextPct ? ` style="--term-context:${contextPct}%"` : ''}>
+    ${contextText ? `<div class="ts-context"><span><i>transcript</i> ${esc(contextText)}</span><b aria-hidden="true"><u></u></b></div>` : ''}
+    <div class="ts-segments">${seg
+      .map(([k, v]) => `<span class="ts-seg"><i>${esc(k)}</i>${esc(String(v))}</span>`)
+      .join('')}</div>
+  </div>`;
 }
 
 function renderConsoleEvent(event) {

@@ -45,6 +45,29 @@ Template:
 adapters/local-cli.template.js
 ```
 
+## DeepSeek Harness (DSH)
+
+CcC can use a persistent local DSH runtime for real tool-capable turns. DSH
+reasoning is stored in the normal `thinking` field, tool calls are shown on
+the message and in Console workflow, and selected Harness events feed the
+Console terminal stream. DSH `assistant/chunk` notifications are also forwarded to the chat SSE stream as they arrive; the transient reply is never stored, and the completed result is committed once at the end.
+
+```env
+AGENT_PROVIDER=dsh
+DSH_REPO=D:\path\to\deepseek-harness
+DSH_CWD=D:\your\allowed\workspace
+DSH_SESSION_ROOT=D:\private\dsh-sessions
+DSH_MODEL=deepseek-v4-flash
+DSH_BASH_DIR=D:\Git\bin
+DSH_EXECUTOR=wsl
+DSH_MINIMAL_MODE=1
+```
+
+On Windows, DSH's Bash tool needs Git Bash (or another `bash.exe`) on PATH;
+`DSH_BASH_DIR` prepends that directory only for the Harness worker. Keep
+`DSH_CWD` narrow: it is the workspace exposed to Harness tools. The worker is
+local stdio only and opens no browser-accessible DSH listener or Web UI.
+
 The template uses stdin/stdout and starts the process with `shell: false`. Keep local CLI session files, logs, and permission state out of the public repository.
 
 ## Built-in Claude Code Bridge (Recommended for Claude Code)

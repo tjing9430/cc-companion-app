@@ -52,13 +52,13 @@ const MORE_LABEL_H = 0.82 * 16 * 1.6 + 0.64 * 16 * 1.6 + 0.26 * 16 * 2 + 2;   //
 
 // 手抄自 home-view.js 的 ISLES。★ 手抄件会漂,所以下面有一条 drift 守卫钉着两边。
 const GATES = [
-  { tab: 'chat', title: '私聊', hintText: '与 CC 畅聊', ratio: 226 / 340, size: 22 },
-  { tab: 'group', title: '群聊', hintText: '小群，提到就唤起', ratio: 340 / 231, size: 13 },
+  { tab: 'chat', title: '私聊', hintText: '与 CC 畅聊', ratio: 226 / 340, size: 29 },
+  { tab: 'group', title: '群聊', hintText: '小群，提到就唤起', ratio: 340 / 231, size: 16 },
   { tab: 'memory', title: '记忆库', hintText: '珍藏回忆', ratio: 233 / 340, size: 20 },
-  { tab: 'console', title: '控制台', hintText: '看它怎么干活', ratio: 340 / 236, size: 13 },
-  { tab: 'settings', title: '设置', hintText: '名字 · 主题', ratio: 229 / 340, size: 18 },
+  { tab: 'console', title: '控制台', hintText: '看它怎么干活', ratio: 1254 / 1254, size: 20 },
+  { tab: 'settings', title: '设置', hintText: '名字 · 主题', ratio: 229 / 340, size: 17 },
 ];
-const MORE = { title: '更多', ratio: 333 / 340, size: 11 };
+const MORE = { title: '更多', ratio: 333 / 340, size: 14 };
 
 const clampH = (size, h) => Math.min(200, Math.max(52, (size / 100) * h));
 

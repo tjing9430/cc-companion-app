@@ -128,7 +128,7 @@ By default, group chat replies trigger only when a message includes one of:
 - `@codex`
 - the value of `AGENT_MENTION`
 
-Set `AUTO_REPLY_GROUP=true` to reply to every group message.
+Set `AUTO_REPLY_GROUP=true` to seed new installs with replies to every group message. After the store is created, the Settings toggle is authoritative.
 
 ## Console Commands
 
@@ -284,6 +284,8 @@ See `docs/PWA.md` for the cache policy and current limitations.
 ## Realtime Updates
 
 The frontend uses Server-Sent Events from `GET /api/stream` for realtime private chat, group chat, console, memory, and settings updates. The old 4-second polling loop has been removed. Browsers without EventSource support fall back to a slower 15-second refresh interval.
+
+Model replies also stream end to end. OpenAI-compatible providers, the bundled Claude Code bridge, and DSH forward text and reasoning deltas to one stable in-progress bubble; only the final message is persisted. Providers that ignore `stream: true` and return ordinary JSON remain supported.
 
 Additional scoped streams are available at `GET /api/group/stream` and `GET /api/chat/stream`.
 

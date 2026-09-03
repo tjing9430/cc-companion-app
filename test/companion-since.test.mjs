@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'since-'));
 const { normalizeDateOnly, store, normalizeSettings } = await import('../lib/state.js');
@@ -47,7 +48,7 @@ test('用户改得动,而且脏值改不动', () => {
 });
 
 test('结构守卫:设置页的控件必须挂能力门', () => {
-  const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const src = fs.readFileSync(path.join(REPO, 'public', 'js', 'settings-view.js'), 'utf8');
   assert.ok(src.includes("hasOwnProperty.call(s, 'companion_since')"),
     '后端还不认这个字段的那个窗口里,前端不该摆这个控件(同头像那道门)');

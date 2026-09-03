@@ -14,8 +14,15 @@ function renderSettings({ notifySupported, notifyEnabled }) {
       <div class="settings-grid">
         ${field('userName', '你的名字', s.userName)}
         ${field('assistantName', 'AI 名字', s.assistantName)}
+        ${field('user_signature', '你的签名', s.user_signature || '', '写一句自己的状态')}
+        ${field('assistant_signature', 'AI 签名', s.assistant_signature || '', '写一句 TA 的状态')}
         ${field('groupName', '群聊名字', s.groupName)}
         ${field('agentMention', '群聊唤起词', s.agentMention)}
+        <div class="form-row session-limit-row">
+          <label for="session-max-tokens">Session 自动更换长度：<strong data-session-limit-value>${Number(s.session_max_tokens_k || 600)}K</strong></label>
+          <input id="session-max-tokens" name="session_max_tokens_k" type="range" min="32" max="960" step="16" value="${Number(s.session_max_tokens_k || 600)}">
+          <p class="form-hint">达到长度后不会打断回复；连续 5 分钟没有聊天且 agent 没有活动时，才生成交接并更换 session。</p>
+        </div>
         <div class="form-row">
           <label>主题</label>
           <select name="theme">
@@ -228,8 +235,8 @@ function daysSince(iso) {
   return Math.max(0, Math.round((today - start) / 86400000)) + 1;   // 当天算第 1 天
 }
 
-function field(name, label, value) {
-  return `<div class="form-row"><label>${esc(label)}</label><input name="${escAttr(name)}" value="${escAttr(value)}"></div>`;
+function field(name, label, value, placeholder = '') {
+  return `<div class="form-row"><label>${esc(label)}</label><input name="${escAttr(name)}" value="${escAttr(value)}"${placeholder ? ` placeholder="${escAttr(placeholder)}"` : ''}></div>`;
 }
 
 function agentProviderLabel() {

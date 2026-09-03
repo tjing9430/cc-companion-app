@@ -34,6 +34,15 @@ test('前端 applyTheme 用的是同一份名单', () => {
     '前后端主题名单必须一致 —— 漂了就会出现「后端存得下、前端认不出」的裸奔主题');
 });
 
+test('服务端首帧注入也用同一份主题名单', () => {
+  const src = fs.readFileSync(path.join(REPO, 'server.js'), 'utf8');
+  const m = src.match(/const safe = \[([^\]]+)\]\.includes\(theme\) \? theme : '(\w+)'/);
+  assert.ok(m, '服务端首帧主题不再是「白名单 + 回落」的形状了');
+  const list = m[1].split(',').map((x) => x.trim().replace(/['"]/g, ''));
+  assert.deepEqual([...new Set([...list, m[2]])].sort(), [...ALLOWED].sort(),
+    '服务端首帧白名单必须和存储层/前端一致');
+});
+
 test('每个主题在 CSS 里都真的有一套变量(名单里有、样式里没有 = 裸奔)', () => {
   const css = fs.readFileSync(path.join(REPO, 'public', 'styles.css'), 'utf8');
   for (const t of ALLOWED) {

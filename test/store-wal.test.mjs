@@ -20,9 +20,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const STORE_URL = pathToFileURL(path.join(REPO, 'lib', 'store-sqlite.js')).href;
 const sz = (f) => { try { return fs.statSync(f).size; } catch { return 0; } };
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ccc-wal-'));
 
@@ -76,7 +77,7 @@ test('复现:不到 1000 页阈值,主库连表结构都拿不到(真实部署�
 //   `no such table: messages` —— 夹具太假,假到根本走不到被测的那一步。
 //   要复现的是「我们自己的库躺成了空壳」,那就得用我们自己的库去造。
 const MAKE_REAL_SHELL = (dbPath, rows) => `
-  const { openStoreSync } = await import(${JSON.stringify(REPO + '/lib/store-sqlite.js')});
+  const { openStoreSync } = await import(${JSON.stringify(STORE_URL)});
   const fs = await import('node:fs');
   const s = openStoreSync(${JSON.stringify(dbPath)});
   s._checkpointEvery = Infinity;        // ← 关掉新加的定期收口,才造得出「旧代码的样子」
@@ -98,7 +99,7 @@ test('自愈:新代码开库那一下就把 WAL 折回主库(升级即修,不用
   assert.ok(walBefore > 100 * 1024, `前置:WAL 里得先有货,实际 ${walBefore}\n${made.err}`);
 
   const r = await run(`
-    const { openStoreSync } = await import(${JSON.stringify(REPO + '/lib/store-sqlite.js')});
+    const { openStoreSync } = await import(${JSON.stringify(STORE_URL)});
     const s = openStoreSync(${JSON.stringify(db)});
     console.log('ROWS=' + s.loadAll().chat_messages.length);
     process.exit(0);
@@ -114,7 +115,7 @@ test('长驻:不到 1000 页阈值也照样收口 —— 这正是线上那台�
   // ★ 差分点:250 次写 ≈ 500 多帧,**永远够不到 SQLite 的 1000 页自动阈值**。
   //   没有 _tick 的话主库会一直停在 4096;有了才会长大。不用魔法数字,是 0/非 0 的差别。
   const r = await run(`
-    const { openStoreSync } = await import(${JSON.stringify(REPO + '/lib/store-sqlite.js')});
+    const { openStoreSync } = await import(${JSON.stringify(STORE_URL)});
     const fs = await import('node:fs');
     const s = openStoreSync(${JSON.stringify(db)});
     const sz = (f) => { try { return fs.statSync(f).size; } catch { return 0; } };
@@ -146,7 +147,7 @@ test('生产路径:写被 tx 包着时,收口也要真的发生', async () => {
   //   静默返回 {busy:0, log:0, checkpointed:0}。于是 _tick 在生产路径上是空炮,
   //   还把 _writes 清零,导致永远收不成。测试测的层,得是真正在跑的那层。
   const r = await run(`
-    const { openStoreSync } = await import(${JSON.stringify(REPO + '/lib/store-sqlite.js')});
+    const { openStoreSync } = await import(${JSON.stringify(STORE_URL)});
     const fs = await import('node:fs');
     const s = openStoreSync(${JSON.stringify(db)});
     const sz = (f) => { try { return fs.statSync(f).size; } catch { return 0; } };
@@ -173,7 +174,7 @@ test('生产路径:写被 tx 包着时,收口也要真的发生', async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('退出:真服务器吃 SIGTERM,WAL 折回主库', async () => {
+test('退出:真服务器吃 SIGTERM,WAL 折回主库', { skip: process.platform === 'win32' }, async () => {
   const dir = tmp();
   const db = path.join(dir, 'app.db');
   const child = spawn(process.execPath, ['server.js'], {

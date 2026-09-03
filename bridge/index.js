@@ -52,7 +52,7 @@ function loadDotEnv(filePath) {
     if (key && !(key in process.env)) process.env[key] = value;
   }
 }
-loadDotEnv(path.join(REPO_ROOT, '.env'));
+if (process.env.CC_SKIP_DOTENV !== '1') loadDotEnv(path.join(REPO_ROOT, '.env'));
 
 // ---------------------------------------------------------------- config (env)
 const HOST = process.env.BRIDGE_HOST || '127.0.0.1';
@@ -232,7 +232,7 @@ async function postConsole(kind, title, body) {
 // --------------------- run one Claude turn: `claude -p --output-format stream-json`
 // Resolves { content, thinking, sessionId }. `resume` is the session id to continue
 // (empty string = start a new session).
-function runClaudeTurn(prompt, resume) {
+function runClaudeTurn(prompt, resume, onDelta = () => {}) {
   return new Promise((resolve, reject) => {
     // 原始流的哑火只许哑一轮:上一轮 POST 失败置的位,到这儿归零再试。
     streamBroken = false;
@@ -301,8 +301,10 @@ function runClaudeTurn(prompt, resume) {
           const d = ev.delta;
           if (d.type === 'text_delta' && typeof d.text === 'string') {
             streamedText += d.text;
+            onDelta('content', d.text);
           } else if (d.type === 'thinking_delta' && typeof d.thinking === 'string') {
             thinking += d.thinking;
+            onDelta('thinking', d.thinking);
             pendingThinking += d.thinking;
             scheduleFlush();
           }
@@ -424,8 +426,8 @@ function resyncCredentials() {
 }
 
 // Dispatch a turn to the configured runner (interactive by default; print as fallback).
-async function runTurn(prompt) {
-  const once = () => (interactiveRunner ? enqueue(() => interactiveRunner.runTurn(prompt)) : runPrintTurn(prompt));
+async function runTurn(prompt, onDelta = () => {}) {
+  const once = () => (interactiveRunner ? enqueue(() => interactiveRunner.runTurn(prompt, onDelta)) : runPrintTurn(prompt, onDelta));
   const out = await once();
   // 登录态失效走的是"正常回复"这条路,不是异常路 —— 所以得看回复内容才认得出来。
   if (!AUTH_FAILURE_RE.test(String((out && out.content) || ''))) return out;
@@ -443,11 +445,11 @@ async function runTurn(prompt) {
 
 // v1 print-mode runner (headless `claude -p`; thinking redacted) — kept as a fallback.
 // Recovers transparently from a stale/expired resume session.
-async function runPrintTurn(prompt) {
+async function runPrintTurn(prompt, onDelta = () => {}) {
   try {
     // read sessionId inside the queued thunk (at queue-head time), not before
     // enqueue — otherwise two concurrent turns capture a stale id and --resume forks context.
-    const out = await enqueue(() => runClaudeTurn(prompt, SESSION_MODE === 'fresh' ? '' : sessionId));
+    const out = await enqueue(() => runClaudeTurn(prompt, SESSION_MODE === 'fresh' ? '' : sessionId, onDelta));
     if (out.sessionId) { sessionId = out.sessionId; saveSessionId(out.sessionId); }
     return out;
   } catch (err) {
@@ -455,7 +457,7 @@ async function runPrintTurn(prompt) {
       // The saved session may be gone (deleted transcript, CLI upgrade). Start fresh once.
       log('warn', `resume failed (${err.message}); starting a fresh session`);
       sessionId = '';
-      const out = await enqueue(() => runClaudeTurn(prompt, ''));
+      const out = await enqueue(() => runClaudeTurn(prompt, '', onDelta));
       if (out.sessionId) { sessionId = out.sessionId; saveSessionId(out.sessionId); }
       return out;
     }
@@ -550,11 +552,45 @@ const server = http.createServer(async (req, res) => {
     // sends a few chunks). Failure here is non-fatal — the turn goes ahead without it.
     const manifest = await syncLibrary({ appUrl: APP_URL, token: APP_AUTH_TOKEN, cwd: process.cwd(), log });
     const fullPrompt = manifest ? `${manifest}\n\n---\n\n${prompt}` : prompt;
+    const wantsStream = body.stream === true;
+    const now = Math.floor(Date.now() / 1000);
+    const completionId = `chatcmpl-bridge-${now}`;
+    const writeStream = (delta = {}, finishReason = null, usage = undefined) => {
+      if (!wantsStream) return;
+      res.write(`data: ${JSON.stringify({
+        id: completionId,
+        object: 'chat.completion.chunk',
+        created: now,
+        model: body.model || 'claude-code',
+        choices: [{ index: 0, delta, finish_reason: finishReason }],
+        ...(usage ? { usage } : {}),
+      })}\n\n`);
+    };
+    if (wantsStream) {
+      res.writeHead(200, {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache, no-transform',
+        connection: 'keep-alive',
+        'x-accel-buffering': 'no',
+      });
+      writeStream({ role: 'assistant' });
+    }
     try {
-      const { content, thinking, tools } = await runTurn(fullPrompt);
-      const now = Math.floor(Date.now() / 1000);
+      const { content, thinking, tools } = await runTurn(fullPrompt, (channel, delta) => {
+        writeStream(channel === 'thinking' ? { reasoning_content: delta } : { content: delta });
+      });
+      if (wantsStream) {
+        if (tools && tools.length) writeStream({ cc_tools: tools });
+        writeStream({}, 'stop', {
+          prompt_tokens: lastTurnPrompt,
+          completion_tokens: lastTurnOutput,
+          total_tokens: lastTurnPrompt + lastTurnOutput,
+        });
+        res.end('data: [DONE]\n\n');
+        return;
+      }
       return sendJson(res, 200, {
-        id: `chatcmpl-bridge-${now}`,
+        id: completionId,
         object: 'chat.completion',
         created: now,
         model: body.model || 'claude-code',
@@ -577,6 +613,11 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       log('error', `turn failed: ${err.message}`);
       await postConsole('error', ASSISTANT_NAME, err.message);
+      if (wantsStream) {
+        res.write(`data: ${JSON.stringify({ error: { message: err.message } })}\n\n`);
+        res.end('data: [DONE]\n\n');
+        return;
+      }
       return sendJson(res, 502, { error: { message: err.message } });
     }
   }

@@ -30,7 +30,7 @@ function short(p) {
 }
 
 function clip(s, n) {
-  const t = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  const t = String(s == null ? '' : s).replace(/\0/g, '').replace(/\s+/g, ' ').trim();
   return t.length > n ? `${t.slice(0, n)}…` : t;
 }
 
@@ -38,7 +38,8 @@ function clip(s, n) {
 // 没登记的工具不猜字段名 —— 猜错了显示的是另一个参数，比不显示更误导。
 function toolArg(name, input) {
   const i = input || {};
-  const f = TOOL_ARG[name];
+  const canonical = Object.keys(TOOL_ARG).find((key) => key.toLowerCase() === String(name || '').toLowerCase());
+  const f = canonical ? TOOL_ARG[canonical] : null;
   if (f) return clip(f(i), 60);
   const keys = Object.keys(i);
   return keys.length === 1 ? clip(i[keys[0]], 60) : '';
@@ -85,6 +86,49 @@ function formatLine(raw) {
     return { mark: ' ', cls: 'plain', text: clip(line, 300) };
   }
   if (!o || typeof o !== 'object') return { mark: ' ', cls: 'plain', text: clip(line, 300) };
+
+  // DeepSeek Harness events keep content below data.message. The legacy
+  // formatter only understood Claude's top-level message and hid these rows.
+  if (o.source === 'dsh') {
+    const data = o.data || {};
+    if (o.type === 'assistant/message') {
+      const blocks = data.message && Array.isArray(data.message.content) ? data.message.content : [];
+      const rows = [];
+      for (const block of blocks) {
+        if (!block || typeof block !== 'object') continue;
+        if (block.type === 'reasoning') {
+          const first = String(block.text || '').split('\n').find((x) => x.trim());
+          if (first) rows.push({ mark: '·', cls: 'think', text: `Thinking… ${clip(first, 120)}` });
+        } else if (block.type === 'text') {
+          const text = clip(block.text, 300);
+          if (text) rows.push({ mark: '›', cls: 'text', text });
+        } else if (block.type === 'tool-call') {
+          let input = {};
+          try { input = JSON.parse(block.arguments || '{}'); } catch { input = { value: block.arguments }; }
+          rows.push({ mark: '●', cls: 'tool', text: `Called  └ ${block.name || 'tool'} (${toolArg(block.name, input)})` });
+        }
+      }
+      return rows.length === 1 ? rows[0] : rows.length ? rows : null;
+    }
+    if (o.type === 'tool/call') {
+      let input = {};
+      try { input = JSON.parse(data.arguments || '{}'); } catch { input = { value: data.arguments }; }
+      const name = String(data.name || 'tool');
+      return { mark: '●', cls: 'tool', text: `Called  └ ${name[0].toUpperCase()}${name.slice(1)} (${toolArg(name, input)})` };
+    }
+    if (o.type === 'tool/result') {
+      const outer = data.message && Array.isArray(data.message.content) ? data.message.content : [];
+      const texts = [];
+      for (const block of outer) {
+        const nested = block && Array.isArray(block.content) ? block.content : [];
+        for (const part of nested) if (part && part.type === 'text' && part.text) texts.push(part.text);
+      }
+      const text = clip(texts.join('\n').split('[stderr]')[0], 180);
+      return { mark: ' ', cls: 'res', text: `└ ${text || 'tool complete'}` };
+    }
+    if (o.type === 'turn/end') return { mark: '●', cls: 'done', text: 'DSH turn complete' };
+    return null;
+  }
 
   // 桥补的输入侧回显(她/触发方的原话)。CLI 的 stream-json 不回显 prompt,
   // 这行是 bridge 在轮子起跑前写进流的,bridge_ 前缀自报家门(见 bridge/index.js)。
@@ -147,7 +191,7 @@ function formatLine(raw) {
       if (t) out.push({ mark: '●', cls: 'text', text: t });
     } else if (b.type === 'tool_use') {
       const a = toolArg(b.name, b.input);
-      out.push({ mark: '●', cls: 'tool', text: `${b.name}(${a})` });
+      out.push({ mark: '●', cls: 'tool', text: `Called  └ ${b.name} (${a})` });
     } else if (b.type === 'tool_result') {
       const c = b.content;
       const s = typeof c === 'string' ? c

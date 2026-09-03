@@ -101,7 +101,7 @@ test('slug 规则跟 GitHub 对得上(改标题的人靠它判断锚点会不会
 //   ⇒ 文档跟代码脱节是"忘了同步"型的错,而"记得同步"这条路今天已经被证伪过好几次。
 //     **能机械检查的就别靠记性。**
 test('★ README 代码示例里的字段,必须在真实数据结构里存在', () => {
-  const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8');
+  const readme = fs.readFileSync(path.join(REPO, 'README.md'), 'utf8').replace(/\r\n/g, '\n');
   const home = fs.readFileSync(path.join(REPO, 'public/js/home-view.js'), 'utf8');
   const more = fs.readFileSync(path.join(REPO, 'public/js/more-view.js'), 'utf8');
 

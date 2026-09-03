@@ -3,6 +3,7 @@
 // ★ 记忆页 UI 明天不许动(星空主题的红线),所以这一刀纯搬位置,一个字节没改渲染。
 import { esc, escAttr, formatDateTime, formatDocSize, memoryTime, memoryMonthLabel, memoryMood } from './util.js';
 import { state, memoryAuthor } from './state.js';
+import { renderMarkdown } from './markdown.js';
 
 // 顶栏在记忆 tab 上显示的是「当前这一叠」的名字和条数,页里就不再写一遍
 function memoryTabHeading() {
@@ -14,6 +15,10 @@ function memoryTabHeading() {
   if (state.memoryTab === 'docs') {
     const docs = Array.isArray(state.documents) ? state.documents : [];
     return { back: true, title: '资料库', subtitle: `${docs.length} 份 · ${state.settings.assistantName || 'AI'}也读得到` };
+  }
+  if (state.memoryTab === 'config') {
+    const files = Array.isArray(state.configFiles) ? state.configFiles : [];
+    return { back: true, title: '配置', subtitle: `${files.length} 个 Hook / Skill / MD 文件` };
   }
   if (state.memoryTab === 'all') {
     return { back: true, title: '全部条目', subtitle: `${countOf(everything)} 条${tail}` };
@@ -55,6 +60,7 @@ function renderMemoryHome() {
       ${note('n1 a', 'diary', 'DIARY · 自己写的', '日记', mine.length, '篇')}
       ${note('n2 b', 'docs', 'DOCS · 存起来备查', '资料库', docs.length, '份')}
       ${note('n3 c', 'all', 'ALL · 聊天里自动记的', '全部条目', all.length, '条')}
+      ${note('n4 a', 'config', 'CONFIG · HOOK / SKILL / MD', '配置', (state.configFiles || []).length || '打开', (state.configFiles || []).length ? '份' : '')}
       <span class="mem-home-dot" aria-hidden="true"></span>
       <span class="mem-home-heart" aria-hidden="true">♡</span>
     </div>`;
@@ -64,6 +70,7 @@ function renderMemory() {
   // 返回箭头在顶栏(‹ 日记),页里不再放导航
   if (state.memoryTab === 'home') return renderMemoryHome();
   if (state.memoryTab === 'docs') return renderDocs();
+  if (state.memoryTab === 'config') return renderConfigLibrary();
   const editing = state.memoryEditing;
   const writerOpen = Boolean(editing || state.memoryWriterOpen);
   const editTags = editing && Array.isArray(editing.tags) ? editing.tags.join(', ') : '';
@@ -94,11 +101,10 @@ function renderMemory() {
     return `
       <div class="memory-view mem-lib">
         ${searchRow}
-        <div class="mem-lib-views">${viewToggle}</div>
         <div class="mem-tag-scroll">${renderMemoryTagChips(all)}</div>
         <div class="memory-list">
           ${shown.length
-            ? (view === 'timeline' ? renderMemoryTimeline(shown) : shown.map(renderMemoryItem).join(''))
+            ? shown.map(renderMemoryItem).join('')
             : `<div class="empty">${state.memoryQuery || tagFilter ? '没有匹配的记忆。' : '还没有记忆。'}</div>`}
         </div>
       </div>`;
@@ -127,6 +133,48 @@ function renderMemory() {
           : `<div class="empty">${state.memoryQuery || tagFilter ? '没有匹配的记忆。' : '还没有记忆。'}</div>`}
       </div>
     </div>`;
+}
+
+function renderConfigLibrary() {
+  const files = Array.isArray(state.configFiles) ? state.configFiles : [];
+  const labels = { md: '核心 MD', hook: 'HOOK 配置与脚本', skill: 'SKILL' };
+  const groups = ['md', 'hook', 'skill'].map((kind) => ({ kind, rows: files.filter((file) => file.kind === kind) }));
+  const editor = state.configFileEditing;
+  const editMode = Boolean(state.configFileEditMode);
+  const markdownFile = Boolean(editor && /\.(md|markdown)$/i.test(editor.name || ''));
+  return `
+    <div class="memory-view config-library">
+      <div class="config-library-note">这里保存的是 agent 真正读取和执行的配置文件。保存后会直接写回本机文件。</div>
+      ${state.configFileStatus ? `<div class="sticker-status${String(state.configFileStatus).startsWith('保存失败') ? ' err' : ''}">${esc(state.configFileStatus)}</div>` : ''}
+      ${groups.map((group) => `
+        <section class="config-file-group">
+          <h2>${labels[group.kind]}</h2>
+          ${group.rows.length ? group.rows.map((file) => `
+            <button type="button" class="config-file-row" data-action="open-config-file" data-id="${escAttr(file.id)}">
+              <span class="config-file-main"><strong>${esc(file.name)}</strong><small>${esc(file.display_path)}</small></span>
+              <span class="config-file-size">${formatDocSize(file.size)}</span>
+            </button>`).join('') : '<div class="config-file-empty">没有找到文件</div>'}
+        </section>`).join('')}
+    </div>
+    ${editor ? `
+      <section class="config-file-editor" role="dialog" aria-label="编辑 ${escAttr(editor.name)}">
+        <header>
+          <button type="button" class="config-editor-back" data-action="close-config-editor" aria-label="返回上一页">‹</button>
+          <div><strong>${esc(editor.name)}</strong><small>${esc(editor.display_path)}</small></div>
+          ${editMode ? '' : `<button type="button" class="config-edit-btn" data-action="enable-config-edit" aria-label="编辑文件" title="编辑"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5-.7 4.2 4.2-.7L19 8.5 15.5 5 4 16.5Z"/><path d="m13.8 6.7 3.5 3.5"/></svg></button>`}
+        </header>
+        <form data-config-file-form="1" data-id="${escAttr(editor.id)}" class="${editMode ? 'is-editing' : 'is-reading'}">
+          ${editMode
+            ? `<textarea name="content" spellcheck="false">${esc(editor.content || '')}</textarea>`
+            : markdownFile
+              ? `<div class="config-file-readonly config-markdown body-text md">${renderMarkdown(editor.content || '')}</div>`
+              : `<pre class="config-file-readonly">${esc(editor.content || '')}</pre>`}
+          <div class="config-editor-actions">
+            <span>${formatDocSize(new Blob([editor.content || '']).size)}</span>
+            ${editMode ? '<button type="submit" class="primary">保存</button>' : ''}
+          </div>
+        </form>
+      </section>` : ''}`;
 }
 
 function renderDocs() {
@@ -278,7 +326,8 @@ function renderMemoryReader() {
   return `
     <div class="memory-reader" role="dialog" aria-label="${escAttr(memory.title)}">
       <div class="memory-reader-bar">
-        <button class="memory-back" type="button" data-action="close-memory-reader">‹ 日记</button>
+        <button class="memory-back" type="button" data-action="close-memory-reader" aria-label="返回上一页">‹</button>
+        <strong class="memory-reader-heading">日记</strong>
         <span class="memory-reader-right">
           ${mood ? `<span class="memory-mood">${esc(mood)}</span>` : ''}
           <span class="memory-reader-date">${esc(time)}</span>
@@ -326,4 +375,4 @@ function renderMemoryTimeline(memories) {
     </div>`).join('');
 }
 
-export { renderMemory, renderMemoryReader, renderMemoryHome, renderDocs, memoryTabHeading, MEMORY_MOODS };
+export { renderMemory, renderMemoryReader, renderMemoryHome, renderDocs, renderConfigLibrary, memoryTabHeading, MEMORY_MOODS };

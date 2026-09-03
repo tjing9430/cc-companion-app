@@ -86,7 +86,7 @@ test('长 assistant 消息压完,正文和工具名一个都不能少', () => {
   assert.equal(rows.length, 3, `三块应各出一行,实际:${JSON.stringify(rows)}`);
   assert.match(rows[0].text, /先想一下这件事/);
   assert.match(rows[1].text, /写好了,放在 workspace 里/);
-  assert.match(rows[2].text, /^Write\(.*桥自测\.html\)$/);
+  assert.match(rows[2].text, /^Called\s+└ Write \(.*桥自测\.html\)$/);
 });
 
 test('stream_event 整类不上屏(桥自己照用不误)', () => {

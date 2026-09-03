@@ -45,7 +45,7 @@ test('窗口声明了才给百分比,而且是真算出来的', () => {
     bridge: { model: 'm', context_window: 200000, usage: { last_turn_prompt: 50000, turns: 7 } },
     quota: {},
   }, renderTermStatus);
-  assert.match(html, /50k\/200k 25%/);
+  assert.match(html, /50k\/200k \(25%\)/);
   assert.match(html, /轮次/);
   assert.match(html, />7</);
 });

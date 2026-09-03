@@ -11,9 +11,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const STATE_IMPORT = JSON.stringify(pathToFileURL(path.join(REPO, 'lib', 'state.js')).href);
 const SEED = {
   counters: { message: 9, memory: 5, console: 3 },
   settings: { appName: 'CC', userName: '我', assistantName: 'AI', theme: 'starry' },
@@ -51,7 +52,7 @@ test('默认后端仍是 JSON —— 不设 STORE_BACKEND 就不该出现 .db', 
   const dir = mkdir();
   fs.writeFileSync(path.join(dir, 'app-data.json'), JSON.stringify(SEED));
   const r = await inChild(dir, '', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     m.store.chat_messages.push({ id: 3, scope:'chat', sender:'我', role:'user', content:'新', created_at:'2026-01-02T00:00:00.000Z' });
     m.saveStore();
     console.log(JSON.stringify({ msgs: m.store.chat_messages.length }));`);
@@ -68,7 +69,7 @@ test('★ 切 sqlite:数据一字不差,而且 JSON 原封不动(它就是回滚
   fs.writeFileSync(jsonPath, JSON.stringify(SEED));
   const before = fs.readFileSync(jsonPath);
   const r = await inChild(dir, 'sqlite', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     console.log(JSON.stringify({
       msgs: m.store.chat_messages.map((x) => [x.id, x.content, x.session_id]),
       settings: m.store.settings.theme, counters: m.store.counters.message,
@@ -87,14 +88,14 @@ test('★ 增量写:再开一次进程,上一次写的还在(落盘是真的,不
   const dir = mkdir();
   fs.writeFileSync(path.join(dir, 'app-data.json'), JSON.stringify(SEED));
   const w = await inChild(dir, 'sqlite', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     const row = { id: 7, scope:'chat', sender:'我', role:'user', content:'落盘验证', session_id:'sx', created_at:'2026-01-03T00:00:00.000Z' };
     m.store.chat_messages.push(row);
     m.saveStore({ kind: 'message', row });   // 带 hint 的增量写
     console.log('ok');`);
   assert.equal(w.code, 0, w.err);
   const r = await inChild(dir, 'sqlite', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     console.log(JSON.stringify(m.store.chat_messages.map((x) => x.content)));`);
   assert.deepEqual(JSON.parse(r.out), ['在吗', '在的', '落盘验证']);
   fs.rmSync(dir, { recursive: true, force: true });
@@ -104,12 +105,12 @@ test('不给 hint 也必须是对的(22 个调用点可以一个一个改,漏改
   const dir = mkdir();
   fs.writeFileSync(path.join(dir, 'app-data.json'), JSON.stringify(SEED));
   await inChild(dir, 'sqlite', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     m.store.chat_messages.push({ id: 8, scope:'chat', sender:'我', role:'user', content:'没给提示', created_at:'2026-01-04T00:00:00.000Z' });
     m.saveStore();   // ← 故意不传 hint,走全量兜底
     console.log('ok');`);
   const r = await inChild(dir, 'sqlite', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     console.log(JSON.stringify(m.store.chat_messages.map((x) => x.content)));`);
   assert.deepEqual(JSON.parse(r.out), ['在吗', '在的', '没给提示'], '兜底路径也要写得进去');
   fs.rmSync(dir, { recursive: true, force: true });
@@ -119,7 +120,7 @@ test('JSON 坏了的时候,切 sqlite 要退回 JSON 后端,而不是拿半截�
   const dir = mkdir();
   fs.writeFileSync(path.join(dir, 'app-data.json'), '{ 这不是合法 JSON');
   const r = await inChild(dir, 'sqlite', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     console.log(JSON.stringify({ msgs: m.store.chat_messages.length }));`);
   assert.equal(r.code, 0, '不该崩,该降级:' + r.err);
   // 降级之后走 JSON 那条路:它自己会备份坏文件并起一个默认 store
@@ -137,7 +138,7 @@ test('★★ counters 陷阱:hint 写行之后重启,绝不许把旧消息盖掉
 
   // 进程一:像真实调用点那样 —— nextId 拿号 → 塞进内存 → 带 hint 写
   const w = await inChild(dir, 'sqlite', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     const id = m.nextId('message');
     const row = { id, scope:'chat', sender:'我', role:'user', content:'第一条新消息', session_id:'sx', created_at:'2026-02-01T00:00:00.000Z' };
     m.store.chat_messages.push(row);
@@ -148,7 +149,7 @@ test('★★ counters 陷阱:hint 写行之后重启,绝不许把旧消息盖掉
 
   // 进程二:重启之后再发一条。★ 拿到的号必须比上一条大,否则就要覆盖了
   const w2 = await inChild(dir, 'sqlite', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     const id = m.nextId('message');
     const row = { id, scope:'chat', sender:'我', role:'user', content:'第二条新消息', session_id:'sx', created_at:'2026-02-02T00:00:00.000Z' };
     m.store.chat_messages.push(row);
@@ -161,7 +162,7 @@ test('★★ counters 陷阱:hint 写行之后重启,绝不许把旧消息盖掉
 
   // 进程三:清点。两条新消息都要在,一条都不许被顶掉
   const r = await inChild(dir, 'sqlite', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     console.log(JSON.stringify(m.store.chat_messages.map((x) => x.content)));`);
   const all = JSON.parse(r.out);
   assert.ok(all.includes('第一条新消息'), '★ 第一条被后来的写盖掉了 —— 正是这个雷');
@@ -173,14 +174,14 @@ test('★★ counters 陷阱:hint 写行之后重启,绝不许把旧消息盖掉
 test('★ 读侧保险带:kv 里的 counters 被人为改小,也不许发出已用过的号', async () => {
   const dir = mkdir();
   fs.writeFileSync(path.join(dir, 'app-data.json'), JSON.stringify(SEED));
-  await inChild(dir, 'sqlite', `await import('${REPO}/lib/state.js');`);   // 先接管建库
+  await inChild(dir, 'sqlite', `await import(${STATE_IMPORT});`);   // 先接管建库
   // 模拟"counters 落盘落丢了"的最坏情况:直接把 kv 里的值打回 1
   const { openStoreSync } = await import('../lib/store-sqlite.js');
   const s = openStoreSync(path.join(dir, 'app.db'));
   s.putKv('counters', { message: 1, memory: 1, console: 1 });
   s.close();
   const r = await inChild(dir, 'sqlite', `
-    const m = await import('${REPO}/lib/state.js');
+    const m = await import(${STATE_IMPORT});
     console.log(JSON.stringify({ counter: m.store.counters.message, maxId: Math.max(...m.store.chat_messages.concat(m.store.group_messages).map((x) => x.id)) }));`);
   const got = JSON.parse(r.out);
   assert.ok(got.counter > got.maxId,

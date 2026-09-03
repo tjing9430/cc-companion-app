@@ -62,17 +62,57 @@ function firstLine(text) {
   return s;
 }
 
+function titleTool(name) {
+  const value = String(name || 'tool').trim();
+  return value ? value[0].toUpperCase() + value.slice(1) : 'Tool';
+}
+
+function parseToolDetail(text) {
+  const raw = String(text || '').trim();
+  let data = null;
+  try { data = JSON.parse(raw); } catch { /* legacy/plain tool argument */ }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { summary: firstLine(raw), raw, removed: '', added: '', removedCount: 0, addedCount: 0 };
+  }
+
+  const pick = (...keys) => {
+    for (const key of keys) if (typeof data[key] === 'string') return data[key];
+    return '';
+  };
+  const removed = pick('old_string', 'oldText', 'old_text', 'before', 'original');
+  const added = pick('new_string', 'newText', 'new_text', 'after', 'replacement')
+    || (!removed ? pick('content') : '');
+  const location = pick('file_path', 'path', 'notebook_path');
+  const command = pick('command', 'query', 'pattern', 'url');
+  const description = pick('description');
+  const summary = [location || command || description, description && description !== command ? description : '']
+    .filter(Boolean).join(' · ') || firstLine(raw);
+  const count = (value) => value ? String(value).split(/\r?\n/).length : 0;
+  return {
+    summary,
+    raw: JSON.stringify(data, null, 2),
+    removed,
+    added,
+    removedCount: count(removed),
+    addedCount: count(added),
+  };
+}
+
 // 事件流 → 行模型。纯函数,好验:给一串事件,应该出几行、每行什么标签,是可以断言的。
 function buildFlowRows(events) {
   const rows = [];
   const list = Array.isArray(events) ? events : [];
   for (const ev of list) {
     if (!ev) continue;
+    // Startup/bridge/system notices belong in Terminal, not the user-facing
+    // workflow. Keeping them here made normal actions hard to scan.
+    if (['system', 'settings'].includes(String(ev.kind || ''))) continue;
     const body = String(ev.body || '');
-    // 占位 thinking 单独归一类:它量的是「生成用了多久」,不是「思考了什么」。
-    const kind = ev.kind === 'thinking' && body.trim() === GENERATING ? 'generating' : String(ev.kind || 'event');
+    // 「正在生成回复」只是桥的起跑信号，不是用户需要阅读的事件。
+    if (ev.kind === 'thinking' && body.trim() === GENERATING) continue;
+    const kind = String(ev.kind || 'event');
     const prev = rows[rows.length - 1];
-    const mergeable = kind === 'thinking' || kind === 'generating';
+    const mergeable = kind === 'thinking';
     if (
       prev && mergeable && prev.kind === kind
       && Math.abs(ms(prev.lastAt, ev.created_at)) < MERGE_GAP_MS
@@ -86,7 +126,7 @@ function buildFlowRows(events) {
       key: `f${ev.id}`,
       kind,
       title: String(ev.title || ''),
-      body: kind === 'generating' ? '' : body,
+      body,
       at: ev.created_at,
       lastAt: ev.created_at,
       count: 1,
@@ -108,16 +148,21 @@ function rowParts(row) {
   // 多条批次:量它自己的头尾。单条:量到下一步的间隔(buildFlowRows 里算好的 gapMs)。
   const dur = row.count > 1 ? fmtDur(ms(row.at, row.lastAt)) : fmtDur(row.gapMs);
   if (row.kind === 'tool') {
-    const { name, arg } = splitTool(row.body);
-    return { label, name, text: arg, meta: '', body: arg ? '' : '' };
+    const legacy = splitTool(row.body);
+    const name = row.title && row.title !== 'event' ? row.title : legacy.name;
+    const arg = name === legacy.name ? legacy.arg : row.body;
+    const detail = parseToolDetail(arg);
+    return {
+      label: 'Called',
+      name: titleTool(name),
+      text: detail.summary,
+      meta: [detail.removedCount ? `−${detail.removedCount}` : '', detail.addedCount ? `+${detail.addedCount}` : ''].filter(Boolean).join(' '),
+      detail,
+    };
   }
   if (row.kind === 'thinking') {
     const n = row.body.replace(/\s/g, '').length;
     return { label, name: '', text: firstLine(row.body), meta: [dur, n ? `${n}字` : ''].filter(Boolean).join(' · ') };
-  }
-  if (row.kind === 'generating') {
-    // 正文永远是那句占位,不重复画;这一行的信息量全在时长上。
-    return { label, name: '', text: '等模型出话', meta: dur };
   }
   // 「收到」是一轮的开头 —— 只在这儿挂钟点,读的人有个时间锚,又不至于每行都缀一个表。
   if (row.kind === 'received') {
@@ -128,22 +173,32 @@ function rowParts(row) {
 
 function renderFlowRow(row) {
   const p = rowParts(row);
-  // 「长」的判据跟卡片流一致:一屏放不下才给展开键(超 120 字或有换行)。
-  const full = row.kind === 'tool' ? splitTool(row.body).arg : row.body;
-  const expandable = full.length > 120 || full.includes('\n');
+  const toolDetail = row.kind === 'tool' ? p.detail : null;
+  const full = toolDetail ? toolDetail.raw : row.body;
+  // 工具调用只要有参数就可展开；普通事件仍只让真正较长的内容展开。
+  const expandable = row.kind === 'tool' ? Boolean(full) : (full.length > 120 || full.includes('\n'));
   const open = !!(state.openEvents && state.openEvents[row.key]);
   const head = `<span class="fw-label">${esc(p.label)}</span>`
-    + (p.name ? `<span class="fw-name">${esc(p.name)}</span>` : '')
-    + `<span class="fw-text">${esc(p.text)}</span>`
-    + (p.meta ? `<span class="fw-meta">${esc(p.meta)}</span>` : '');
+    + (p.name ? `<span class="fw-branch" aria-hidden="true">└</span><span class="fw-name">${esc(p.name)}</span>` : '')
+    + `<span class="fw-text">${p.text ? (row.kind === 'tool' ? `(${esc(p.text)})` : esc(p.text)) : ''}</span>`
+    + (toolDetail && toolDetail.removedCount ? `<span class="fw-meta fw-meta-del">−${toolDetail.removedCount}</span>` : '')
+    + (toolDetail && toolDetail.addedCount ? `<span class="fw-meta fw-meta-add">+${toolDetail.addedCount}</span>` : '')
+    + (!toolDetail && p.meta ? `<span class="fw-meta">${esc(p.meta)}</span>` : '');
   const line = expandable
     ? `<button class="fw-line" type="button" data-action="toggle-event" data-id="${escAttr(row.key)}" aria-expanded="${open}">
         <span class="fw-caret" aria-hidden="true">${open ? '▾' : '▸'}</span>${head}
       </button>`
     : `<div class="fw-line fw-flat"><span class="fw-caret" aria-hidden="true"></span>${head}</div>`;
+  const expanded = toolDetail && (toolDetail.removed || toolDetail.added)
+    ? `<div class="fw-change">
+        <div class="fw-change-head">▾ 查看改动</div>
+        ${toolDetail.removed ? `<pre class="fw-diff fw-diff-del">${esc(toolDetail.removed)}</pre>` : ''}
+        ${toolDetail.added ? `<pre class="fw-diff fw-diff-add">${esc(toolDetail.added)}</pre>` : ''}
+      </div>`
+    : `<pre class="fw-body">${esc(full)}</pre>`;
   return `<article class="fw-row fw-k-${escAttr(row.kind)}${open ? ' open' : ''}" title="${escAttr(formatTime(row.at))}">
     ${line}
-    ${open && expandable ? `<pre class="fw-body">${esc(full)}</pre>` : ''}
+    ${open && expandable ? expanded : ''}
   </article>`;
 }
 
@@ -155,4 +210,4 @@ function renderWorkflow() {
   </div>`;
 }
 
-export { renderWorkflow, buildFlowRows, splitTool, fmtDur };
+export { renderWorkflow, buildFlowRows, splitTool, fmtDur, parseToolDetail };

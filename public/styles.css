@@ -17,17 +17,18 @@
   --accent-2:#8aa97f;
   --me-bubble:#f3decd;
   --me-bubble-ink:#4a2c1f;
+  --tool-call-color:#c97b5a;
   --them-bubble:#ffffff;
   --them-bubble-ink:#2f2a26;
   --danger:#b85a4d;
   --pending-bubble:#a89282;
   --pending-bubble-ink:#fff8f1;
   --danger-soft:#f5dcd6;
-  --shadow-sm:0 1px 2px rgba(80,60,35,.05);
-  --shadow-md:0 6px 18px rgba(80,60,35,.07);
-  --shadow-lg:0 18px 38px rgba(80,60,35,.10);
-  --radius:8px;
-  --radius-lg:8px;
+  --shadow-sm:0 2px 8px rgba(80,60,35,.06);
+  --shadow-md:0 10px 28px rgba(80,60,35,.09);
+  --shadow-lg:0 24px 56px rgba(80,60,35,.13);
+  --radius:12px;
+  --radius-lg:18px;
   --radius-pill:999px;
 }
 body[data-theme="dark"]{
@@ -49,6 +50,7 @@ body[data-theme="dark"]{
   --accent-2:#9bb38b;
   --me-bubble:#4a342a;
   --me-bubble-ink:#f3decd;
+  --tool-call-color:#e09775;
   --them-bubble:#2e2922;
   --them-bubble-ink:#f0e8db;
   --danger:#e0786f;
@@ -58,6 +60,16 @@ body[data-theme="dark"]{
   --shadow-sm:0 1px 2px rgba(0,0,0,.25);
   --shadow-md:0 6px 18px rgba(0,0,0,.25);
   --shadow-lg:0 18px 38px rgba(0,0,0,.4);
+}
+
+/* 2026-08 UI refresh: one quiet visual language across the practical themes.
+   The illustrated starry/island scenes keep their own art direction; these
+   tokens mainly lift the everyday light/dark surfaces around them. */
+body[data-theme="light"]{
+  background:
+    radial-gradient(70% 42% at 92% -4%,rgba(167,139,224,.13),transparent 72%),
+    radial-gradient(60% 35% at -8% 18%,rgba(227,172,128,.12),transparent 75%),
+    var(--bg);
 }
 
 *{box-sizing:border-box}
@@ -398,7 +410,7 @@ body[data-tab="chat"] .msg-sender{display:none}
 .msg-more:hover:not(:disabled){background:var(--panel-soft);color:var(--muted)}
 .message-row.actions-open .msg-more{color:var(--accent-strong);background:var(--accent-soft)}
 .msg-actions{display:none}
-.message-row.actions-open .msg-actions{display:inline}
+.chat-view>.msg-actions{display:inline}
 .copy-btn{
   margin-left:.4rem;
   padding:0 .28rem;
@@ -459,6 +471,16 @@ body[data-tab="chat"] .msg-sender{display:none}
   color:var(--muted);
 }
 .topbar-actions{display:flex;align-items:center;gap:.5rem;min-width:0}
+.topbar-actions > .lens-btn,
+.topbar-actions > .topbar-fav-btn,
+.topbar-actions > .theme-cycle-btn,
+.topbar-actions > .status-pill{
+  width:32px;height:32px;min-width:32px;max-width:32px;flex:0 0 32px;
+  padding:0;margin:0;box-sizing:border-box;
+}
+.topbar-actions > .lens-btn,
+.topbar-actions > .topbar-fav-btn,
+.topbar-actions > .theme-cycle-btn{display:grid;place-items:center}
 /* ★ 顶栏挤爆的根:这些按钮**默认是可压缩的**(flex 项 min-width:auto 之后仍会被压),
    空间不够时会被压到一个字符宽 —— 中文于是竖排成一列,「重连中」被切出右边界。
    两句话堵死:谁都不许被压缩、谁都不许换行。宁可整条横向挤一点,也不要竖排。 */
@@ -512,6 +534,30 @@ body[data-tab="chat"] .msg-sender{display:none}
   cursor:pointer;
 }
 .fav-filter.on{color:var(--accent-strong);border-color:var(--accent);background:var(--accent-soft)}
+.favorite-list{
+  width:min(100%,42rem);margin:0 auto;padding:.35rem .55rem 1rem;display:flex;flex-direction:column;gap:.55rem;
+}
+.favorite-card{
+  width:100%;min-width:0;min-height:7rem;padding:1rem 1.05rem .78rem;display:grid;
+  grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;gap:.8rem;
+  border:1px solid var(--line);border-radius:1rem;background:var(--panel);color:var(--text);
+  box-shadow:0 8px 24px rgba(54,72,92,.07);font:inherit;text-align:left;cursor:pointer;
+}
+.favorite-card.has-thumb{grid-template-columns:minmax(0,1fr) 5.2rem}
+.favorite-content{
+  min-width:0;display:-webkit-box;align-self:start;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:3;
+  font-size:.98rem;line-height:1.55;overflow-wrap:anywhere;
+}
+.favorite-thumb{
+  width:5.2rem;height:5.2rem;grid-column:2;grid-row:1;object-fit:cover;border-radius:.55rem;background:var(--panel-soft);
+}
+.favorite-meta{
+  min-width:0;grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  color:var(--muted);font-size:.72rem;line-height:1.2;
+}
+.favorite-meta>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.favorite-meta time{flex:none;white-space:nowrap}
+.favorite-card:hover,.favorite-card:focus-visible{border-color:var(--accent);outline:none}
 .message-row.flash > .msg-col > .bubble{animation:flashBubble 1.6s ease}
 @keyframes flashBubble{
   0%,100%{box-shadow:0 0 0 0 rgba(201,123,90,0)}
@@ -525,6 +571,14 @@ body[data-tab="chat"] .msg-sender{display:none}
    (折叠只挡住默认态,这一行挡的是展开态)。
    width:0 → 对 max-content 贡献 0;min-width:100% → 再铺满算好的那一列。 */
 .cot{margin-bottom:.4rem;width:0;min-width:100%}
+/* 展开后的思考链有自己的阅读宽度，不能继续继承最终答案的内容宽度。
+   例如答案只有 “323” 时，正文气泡仍保持短小，但 CoT 单独展开到约 62vw。 */
+.cot:not(.tools)[open]{
+  width:fit-content;min-width:0;max-width:min(28rem,68vw);
+}
+.cot:not(.tools)[open] .cot-body{
+  width:fit-content;min-width:0;max-width:min(28rem,68vw);box-sizing:border-box;
+}
 .cot>summary{
   display:inline-block;          /* 去掉 list-item 的默认三角占位,让标签自己贴住内容宽 */
   cursor:pointer;
@@ -544,7 +598,10 @@ body[data-tab="chat"] .msg-sender{display:none}
 .cot>summary::-webkit-details-marker{display:none}
 /* 工具块:跟思考链同一套折叠外观,只把标签换个色,免得两个 summary 长得一模一样
    分不出哪个是哪个。 */
-.cot.tools>summary{color:var(--accent-strong,var(--muted));opacity:.85}
+.cot.tools{width:max-content;min-width:max-content;max-width:100%}
+.cot.tools>summary{color:var(--accent-strong,var(--muted));opacity:.85;white-space:nowrap}
+.cot.tools[open]{width:fit-content;min-width:min(9rem,52vw);max-width:min(22rem,68vw)}
+.cot.tools[open] .cot-body{width:100%;min-width:0;box-sizing:border-box}
 .tool-row{font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
   font-size:.7rem;line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tool-row b{font-weight:700}
@@ -557,11 +614,20 @@ body[data-tab="chat"] .msg-sender{display:none}
   background:rgba(120,120,120,.1);
   color:var(--muted);
   font-size:.76rem;
-  font-style:italic;
+  font-style:normal;
   line-height:1.5;
   white-space:pre-wrap;
   word-break:break-word;
+  max-height:min(16rem,34dvh);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
+  scrollbar-color:color-mix(in srgb,var(--muted) 32%,transparent) transparent;
 }
+.cot-body::-webkit-scrollbar{width:3px}
+.cot-body::-webkit-scrollbar-track{background:transparent}
+.cot-body::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 28%,transparent);border-radius:999px}
 .sticker-toggle svg{transition:transform .22s cubic-bezier(.34,1.56,.64,1),color .18s ease}
 .sticker-toggle:hover svg{transform:scale(1.12)}
 .sticker-toggle:active svg{transform:scale(.9)}
@@ -639,6 +705,96 @@ body[data-tab="chat"] .msg-sender{display:none}
   background:var(--bg-soft);color:var(--text);
 }
 .chat-search-count{flex:none;color:var(--muted);font-size:.78rem}
+
+/* 私聊搜索：轻量底部抽屉，图标全部由 CSS/SVG 绘制，不使用系统 emoji。 */
+.lens-btn{width:2.15rem;height:2.15rem;padding:.42rem;display:grid;place-items:center}
+.lens-btn svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.lens-btn.on svg{color:var(--accent-strong)}
+/* 顶栏搜索只显示放大镜线稿；透明点击区保留，避免手机上难点。 */
+.topbar .lens-btn{
+  border:0;background:transparent;box-shadow:none;border-radius:0;
+}
+.chat-sheet-backdrop,.message-action-backdrop{
+  position:fixed;inset:0;border:0;background:rgba(20,28,33,.54);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);z-index:119;
+}
+.chat-search-sheet{
+  position:fixed;left:50%;bottom:0;z-index:120;width:min(100%,42rem);height:min(70dvh,42rem);
+  transform:translateX(-50%);padding:.45rem 1rem calc(1.15rem + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;
+  color:var(--text);background:color-mix(in srgb,var(--panel-2) 94%,white 6%);
+  border:1px solid var(--line);border-bottom:0;border-radius:1.25rem 1.25rem 0 0;
+  box-shadow:0 -12px 34px rgba(33,55,72,.18);
+}
+.chat-view.search-open .composer{visibility:hidden}
+.sheet-handle{width:2.2rem;height:3px;margin:0 auto .45rem;border-radius:9px;background:var(--line)}
+.chat-search-sheet header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.65rem}
+.chat-search-sheet header strong{font-size:1.05rem}
+.chat-search-sheet header button{border:0;background:none;color:var(--muted);font-size:1.3rem;line-height:1;padding:.25rem .4rem}
+.chat-search-tabs{display:flex;align-items:center;gap:.3rem;margin-bottom:.65rem;overflow-x:auto;scrollbar-width:none}
+.chat-search-tabs::-webkit-scrollbar{display:none}
+.chat-search-tabs button{
+  flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;gap:.22rem;min-height:1.85rem;padding:.22rem .34rem;
+  border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);font:inherit;font-size:.68rem;white-space:nowrap;
+}
+.chat-search-tabs button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-strong)}
+.search-tab-icon{position:relative;width:.68rem;height:.68rem;display:inline-block;flex:none;color:currentColor}
+.icon-all{border:1.5px solid currentColor;border-radius:50%}
+.icon-all::after{content:'';position:absolute;width:.34rem;height:1.5px;background:currentColor;right:-.22rem;bottom:-.08rem;transform:rotate(45deg)}
+.icon-image{border:1.4px solid currentColor;border-radius:2px}
+.icon-image::before{content:'';position:absolute;width:.18rem;height:.18rem;border-radius:50%;background:currentColor;left:.12rem;top:.12rem}
+.icon-image::after{content:'';position:absolute;left:.08rem;right:.08rem;bottom:.08rem;height:.32rem;background:currentColor;clip-path:polygon(0 100%,35% 25%,55% 65%,72% 42%,100% 100%)}
+.icon-file{border:1.4px solid currentColor;border-radius:1px}
+.icon-file::after{content:'';position:absolute;right:-1px;top:-1px;width:.3rem;height:.3rem;border-left:1.2px solid currentColor;border-bottom:1.2px solid currentColor;background:var(--panel-2)}
+.icon-link::before,.icon-link::after{content:'';position:absolute;width:.55rem;height:.32rem;border:1.4px solid currentColor;border-radius:999px;transform:rotate(-38deg)}
+.icon-link::before{left:0;top:.12rem}.icon-link::after{right:0;bottom:.1rem}
+.chat-search-field{height:3rem;display:flex;align-items:center;gap:.55rem;padding:0 .8rem;border:1px solid var(--line);border-radius:.75rem;background:var(--bg-soft)}
+.chat-search-field input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:.92rem}
+.field-lens{width:.8rem;height:.8rem;border:1.5px solid var(--muted);border-radius:50%;position:relative;flex:none}
+.field-lens::after{content:'';position:absolute;width:.34rem;height:1.5px;background:var(--muted);right:-.24rem;bottom:-.1rem;transform:rotate(45deg)}
+.chat-search-meta{min-height:1.35rem;padding:.28rem .2rem 0;color:var(--muted);font-size:.72rem}
+.chat-search-results{flex:1;min-height:0;overflow-y:auto;padding:.05rem 0 .4rem;overscroll-behavior:contain}
+.search-sheet-empty{display:grid;place-items:center;min-height:9rem;color:var(--muted);font-size:.8rem}
+.search-result-row{display:flex;align-items:center;gap:.65rem;padding:.7rem .1rem;border-bottom:1px solid var(--line-soft)}
+.result-main{flex:1;min-width:0;display:block}
+.result-main b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:.82rem;font-weight:500}
+.result-main small{display:block;margin-top:.16rem;color:var(--muted);font-size:.67rem}
+.result-main .result-link{color:var(--accent-2)}
+.search-result-row>button{flex:none;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--text);padding:.25rem .55rem;font:inherit;font-size:.7rem}
+.result-file-mark{position:relative;width:1.05rem;height:1.28rem;flex:none;border:1.4px solid var(--accent-2);border-radius:2px}
+.result-file-mark::after{content:'';position:absolute;left:.18rem;right:.18rem;top:.42rem;height:1px;background:var(--accent-2);box-shadow:0 .22rem 0 var(--accent-2),0 .44rem 0 var(--accent-2)}
+.search-image-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem;padding-top:.1rem}
+.search-image-cell{position:relative;aspect-ratio:1;border:0;border-radius:.55rem;overflow:hidden;padding:0;background:var(--panel-soft)}
+.search-image-cell img{width:100%;height:100%;object-fit:cover;display:block}
+.search-image-cell span{position:absolute;right:.22rem;bottom:.18rem;padding:.08rem .24rem;border-radius:999px;background:rgba(0,0,0,.5);color:white;font-size:.55rem}
+
+/* 消息操作不再占气泡底部：长按后作为底部操作面板出现。 */
+.message-action-backdrop{
+  z-index:119;background:rgba(20,27,31,.38);
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+}
+.chat-view>.msg-actions{
+  position:fixed;left:50%;bottom:0;z-index:120;
+  transform:translateX(-50%);display:flex;flex-direction:column;
+  gap:.24rem;width:min(100%,31rem);max-height:min(70dvh,38rem);overflow-y:auto;
+  padding:.55rem .72rem calc(.7rem + env(safe-area-inset-bottom));
+  background:color-mix(in srgb,var(--panel-2) 96%,white 4%);border:1px solid var(--line);border-bottom:0;
+  border-radius:1.25rem 1.25rem 0 0;box-shadow:0 -14px 40px rgba(25,43,57,.22);
+}
+.message-action-head{display:block;padding:.08rem .1rem .35rem;text-align:left;color:var(--text)}
+.message-action-head>b{display:block;font-size:.92rem;line-height:1.25}
+.message-action-head>small{display:-webkit-box;margin-top:.14rem;color:var(--muted);font-size:.66rem;font-weight:400;line-height:1.3;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.chat-view>.msg-actions button{
+  width:100%;min-height:3.1rem;margin:0;padding:.4rem .62rem;display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+  border:1px solid var(--line);border-radius:.64rem;background:rgba(255,255,255,.34);color:var(--text);font:inherit;text-align:left;
+}
+.chat-view>.msg-actions button>span{min-width:0;display:block}
+.chat-view>.msg-actions button b{display:block;font-size:.84rem;line-height:1.2}
+.chat-view>.msg-actions button small{display:block;margin-top:.08rem;color:var(--muted);font-size:.62rem;font-weight:400;line-height:1.25}
+.chat-view>.msg-actions button i{flex:none;color:var(--muted);font-style:normal;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.7rem;letter-spacing:-.03em}
+.chat-view>.msg-actions .fav-btn.on i{color:var(--accent-strong)}
+.chat-view>.msg-actions .del-btn b,.chat-view>.msg-actions .del-btn i{color:var(--danger)}
+.chat-view>.msg-actions .action-cancel{margin-top:.15rem}
+.message-row[data-message-id] .bubble,.message-row[data-message-id] .attachments{-webkit-touch-callout:none;touch-action:pan-y}
 .sticker-status{width:100%;font-size:.78rem;padding:.3rem;color:var(--muted)}
 .sticker-status.err{color:#e5484d}
 .msg-sender{font-weight:600}
@@ -802,7 +958,10 @@ body[data-theme="starry"] .body-text.md .md-link{color:var(--accent)}
    名字底下一行大小 + 「点击预览」(告诉她这东西点得动)。文件夹的舌头留着,那是她当初点的形状。 */
 /* 8/14 晚她又说「能不能把文件放得长一点」——原来只有 280px 上限、且按内容收缩,
    短名字("给同事.md")就缩成一小块。给个下限让它稳定成一条,上限同步放宽。 */
-.attachment-file{align-items:stretch;min-width:min(268px,74vw);max-width:min(340px,86vw)}
+.attachment-file{
+  align-items:stretch;
+  width:100%;min-width:0;max-width:100%;box-sizing:border-box;
+}
 .attachment-file .af-icon{
   flex:none;display:flex;align-items:center;justify-content:center;
   width:2.1rem;height:2.1rem;border-radius:6px;
@@ -1292,8 +1451,41 @@ body[data-theme="starry"] .fp-error{color:#ffb4a8}
   max-width:900px;
 }
 .console-command{display:grid;grid-template-columns:minmax(0,1fr);gap:.45rem}
-.console-view .console-command{grid-row:2}
+.console-view .console-command{
+  grid-row:2;position:relative;z-index:2;
+  background:transparent;border:0;box-shadow:none;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.composer-attach.on{color:var(--accent-strong);border-color:var(--accent);background:var(--accent-soft)}
+.attach-menu{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;padding:.55rem;
+  background:var(--panel-2);border:1px solid var(--line);border-radius:.9rem;box-shadow:var(--shadow-md);
+}
+.attach-choice{
+  position:relative;display:flex;align-items:center;gap:.55rem;min-width:0;margin:0;padding:.65rem;
+  border:1px solid var(--line);border-radius:.72rem;background:var(--panel-soft);color:var(--text);cursor:pointer;
+}
+.attach-choice input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.attach-choice>span:not(.attach-choice-icon){min-width:0}
+.attach-choice b{display:block;font-size:.82rem}
+.attach-choice small{display:block;margin-top:.08rem;color:var(--muted);font-size:.64rem;white-space:nowrap}
+.attach-choice-icon{position:relative;width:1.25rem;height:1.25rem;flex:none;color:var(--accent-2)}
+.attach-image-icon{border:1.5px solid currentColor;border-radius:3px}
+.attach-image-icon::before{content:'';position:absolute;width:.25rem;height:.25rem;border-radius:50%;background:currentColor;left:.2rem;top:.2rem}
+.attach-image-icon::after{content:'';position:absolute;left:.12rem;right:.12rem;bottom:.12rem;height:.55rem;background:currentColor;clip-path:polygon(0 100%,35% 22%,55% 66%,73% 38%,100% 100%)}
+.attach-file-icon{border:1.5px solid currentColor;border-radius:2px}
+.attach-file-icon::before{content:'';position:absolute;right:-1.5px;top:-1.5px;width:.42rem;height:.42rem;border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;background:var(--panel-2)}
+.attach-file-icon::after{content:'';position:absolute;left:.22rem;right:.22rem;top:.62rem;height:1px;background:currentColor;box-shadow:0 .27rem 0 currentColor}
 .console-view .event-list{grid-row:1;min-height:0;overflow-y:auto}
+/* Workflow replaced event-list, so it must inherit the same grid/scroll role.
+   Without min-height:0 the list expands through row 2 and paints underneath
+   the toolbar/composer, while the entire page becomes the scroll container. */
+.console-view .fw-list{
+  grid-row:1;min-height:0;overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+body[data-tab="console"] .content{overflow:hidden}
 .console-shortcuts{display:flex;gap:.35rem;flex-wrap:wrap}
 .console-shortcuts button{
   padding:.28rem .58rem;
@@ -1311,20 +1503,20 @@ body[data-theme="starry"] .fp-error{color:#ffb4a8}
 /* ★ 和终端档一样住在一个框里。第一版没框:等宽小字直接压在星空壁纸上,
      云和星星从字缝里透上来,一屏字全是花的 —— 实测截图里几乎读不出内容。 */
 .fw-list{
-  display:grid;grid-template-columns:minmax(0,1fr);gap:0;max-width:900px;
+  display:grid;grid-template-columns:minmax(0,1fr);gap:0;width:100%;max-width:900px;min-width:0;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans Mono",monospace;
   font-size:.72rem;line-height:1.55;
   /* ★ 不自己 overflow:auto —— 滚动归外面那个容器管(替掉的 .event-list 就没有),
      自己再开一层滚动会出现「框里滚一下、框外再滚一下」的双滚条。 */
-  padding:.35rem .55rem;
-  background:var(--bg-soft);border:1px solid var(--line-soft);border-radius:var(--radius);
+  padding:.2rem .25rem;
+  background:transparent;border:0;border-radius:0;
 }
 /* 终端档那层 .55 是给整屏密集字用的;这一档行稀、字小,.55 底下的云会从字缝里顶上来。
    实测截图上一屏字发花,所以这里压到 .78 再加一层模糊 —— 可读性优先于透。 */
 body[data-theme="starry"] .fw-list{
-  background:rgba(6,10,24,.78);
-  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
-  border-color:rgba(255,255,255,.14);
+  background:transparent;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  border-color:transparent;
 }
 .fw-row{min-width:0;border-bottom:1px solid var(--line-soft)}
 .fw-row:last-child{border-bottom:0}
@@ -1339,7 +1531,8 @@ body[data-theme="starry"] .fw-list{
   flex:0 0 auto;min-width:2.6rem;
   color:var(--muted);opacity:.75;letter-spacing:.04em;
 }
-.fw-name{flex:0 0 auto;color:var(--accent-2);font-weight:600}
+.fw-name{flex:0 1 8rem;min-width:0;max-width:8rem;color:var(--accent-2);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fw-branch{color:var(--muted);opacity:.65;flex:none}
 /* 正文只留一行:流水档回答的是「做了哪几步」,一步的全文点开再看 */
 .fw-text{flex:1;min-width:0;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fw-meta{flex:0 0 auto;color:var(--faint)}
@@ -1356,6 +1549,24 @@ body[data-theme="starry"] .fw-list{
 .fw-k-received .fw-label,.fw-k-received .fw-text{color:var(--accent)}
 .fw-k-thinking .fw-text,.fw-k-generating .fw-text{color:var(--muted);font-style:italic}
 body[data-theme="starry"] .fw-row{border-bottom-color:rgba(255,255,255,.10)}
+
+/* Codex CLI-style tool calls. Their identity color follows the user's own
+   chat bubble; red/green remain reserved for deleted/added diff lines. */
+.fw-k-tool{position:relative;border-bottom:0;border-left:2px solid color-mix(in srgb,var(--tool-call-color,var(--me-bubble-ink)) 48%,transparent);padding-left:.48rem}
+.fw-k-tool+.fw-k-tool{margin-top:.08rem}
+.fw-k-tool .fw-line{padding:.28rem .05rem;gap:.32rem}
+.fw-k-tool .fw-caret{color:var(--muted)}
+.fw-k-tool .fw-label{min-width:auto;color:var(--tool-call-color,var(--me-bubble-ink));opacity:1;font-style:italic;font-weight:650;letter-spacing:.02em}
+.fw-k-tool .fw-name{flex:0 0 auto;max-width:7rem;color:var(--tool-call-color,var(--me-bubble-ink));font-weight:500}
+.fw-k-tool .fw-text{color:var(--muted);opacity:.78}
+.fw-meta-del{color:#ca6d5a}.fw-meta-add{color:#4fa86e}
+.fw-change{margin:.04rem 0 .45rem .92rem;border-top:1px dashed var(--line-soft)}
+.fw-change-head{padding:.3rem .08rem;color:var(--muted);font-family:inherit}
+.fw-diff{margin:0;padding:.38rem .5rem;white-space:pre-wrap;overflow-wrap:anywhere;max-height:30vh;overflow:auto;font:inherit;border-left:2px solid transparent}
+.fw-diff-del{color:#71554d;background:rgba(213,105,84,.14);border-left-color:#d66e59}
+.fw-diff-add{color:#315a3f;background:rgba(80,174,112,.14);border-left-color:#54b576}
+body[data-theme="starry"] .fw-diff-del{color:#f0b8ac;background:rgba(213,105,84,.16)}
+body[data-theme="starry"] .fw-diff-add{color:#b9e6c6;background:rgba(80,174,112,.16)}
 
 /* 用户选的 B 版:时间轴。去掉一格格卡片,左边一条线+彩点分类,首屏能看的条数从 8 → 14 */
 .event-list{display:grid;grid-template-columns:minmax(0,1fr);gap:0;max-width:900px;margin-left:.15rem}
@@ -1710,16 +1921,16 @@ body[data-theme="starry"] .fw-row{border-bottom-color:rgba(255,255,255,.10)}
     var(--bg);
 }
 .memory-reader-bar{
-  display:flex;align-items:center;justify-content:space-between;gap:.5rem;
-  padding:.7rem .9rem .5rem;flex:none;
+  height:64px;box-sizing:border-box;display:flex;align-items:center;gap:.5rem;
+  padding:0 1.5rem;flex:none;border-bottom:1px solid var(--line-soft);background:var(--bg);
 }
 .memory-back{
-  display:inline-flex;align-items:center;justify-content:center;gap:.3rem;
-  min-height:44px;min-width:88px;               /* 44px = 系统推荐最小可点尺寸 */
-  font-size:1.02rem;color:var(--muted);background:var(--panel);
-  border:1px solid var(--line-soft);border-radius:999px;padding:.2rem 1rem;cursor:pointer;
+  display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;
+  font-size:1.5rem;line-height:1;color:var(--text);background:transparent;
+  border:0;border-radius:50%;padding:0;margin:0;cursor:pointer;
 }
-.memory-reader-right{display:flex;align-items:center;gap:.45rem}
+.memory-reader-heading{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1.05rem}
+.memory-reader-right{display:flex;align-items:center;gap:.45rem;margin-left:auto}
 .memory-reader-date{font-size:.7rem;color:var(--faint);letter-spacing:.04em}
 .memory-reader-scroll{flex:1;overflow-y:auto;padding:0 .95rem 2rem;-webkit-overflow-scrolling:touch}
 .memory-reader-title{font-size:1.5rem;font-weight:700;color:var(--text);margin:.2rem 0 .35rem;line-height:1.3}
@@ -1833,7 +2044,50 @@ body[data-theme="starry"] .mem-note-tape{
 .mem-note.n1{transform:rotate(-1.6deg)} .mem-note.n1 .mem-note-tape{left:58%;transform:rotate(-9deg)}
 .mem-note.n2{margin-left:auto;transform:rotate(1.2deg)} .mem-note.n2 .mem-note-tape{left:6%;transform:rotate(7deg)}
 .mem-note.n3{margin-left:8%;transform:rotate(-.9deg)} .mem-note.n3 .mem-note-tape{left:46%;transform:rotate(-6deg)}
+.mem-note.n4{margin-left:auto;transform:rotate(.7deg)} .mem-note.n4 .mem-note-tape{left:24%;transform:rotate(5deg)}
 .mem-note:active{transform:translateY(1px) rotate(0deg)}
+
+/* 记忆页里的 agent 配置库：文件列表保持轻，编辑器独占屏幕避免手机键盘挤坏布局。 */
+.config-library{display:grid;gap:1rem;padding-bottom:2rem}
+.config-library-note{padding:.72rem .82rem;border:1px solid var(--line-soft);border-radius:.9rem;background:var(--panel-soft);color:var(--muted);font-size:.72rem;line-height:1.55}
+.config-file-group{display:grid;gap:.25rem}
+.config-file-group h2{margin:.2rem .15rem .35rem;color:var(--muted);font-size:.72rem;letter-spacing:.08em}
+.config-file-row{width:100%;min-width:0;display:flex;align-items:center;gap:.55rem;padding:.48rem .68rem;border:0;border-bottom:1px solid var(--line-soft);background:color-mix(in srgb,var(--panel) 72%,transparent);color:var(--text);font:inherit;text-align:left}
+.config-file-row:first-of-type{border-radius:.85rem .85rem 0 0}
+.config-file-row:last-of-type{border-bottom:0;border-radius:0 0 .85rem .85rem}
+.config-file-main{min-width:0;flex:1;display:grid;gap:.08rem}
+.config-file-main strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem}
+.config-file-main small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.56rem}
+.config-file-size{flex:none;color:var(--faint);font-size:.65rem}
+.config-file-empty{padding:.8rem;color:var(--faint);font-size:.72rem}
+.config-file-editor{position:fixed;inset:0;z-index:130;display:grid;grid-template-rows:auto minmax(0,1fr);background:var(--bg);color:var(--text)}
+.config-file-editor>header{height:64px;box-sizing:border-box;display:flex;align-items:center;gap:.5rem;padding:0 1.5rem;border-bottom:1px solid var(--line);background:var(--panel)}
+.config-file-editor>header>div{min-width:0;display:grid;gap:.08rem}
+.config-file-editor>header strong,.config-file-editor>header small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.config-file-editor>header strong{font-size:.88rem}.config-file-editor>header small{color:var(--muted);font-size:.58rem}
+.config-file-editor form{min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto}
+.config-edit-btn{flex:none;margin-left:auto;width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--muted)}
+.config-editor-back{display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;padding:0;margin:0;border:0;border-radius:50%;background:transparent;color:var(--text);font:inherit;font-size:1.5rem;line-height:1;cursor:pointer}
+.config-edit-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.config-file-editor textarea,.config-file-readonly{box-sizing:border-box;width:100%;height:100%;min-width:0;min-height:0;margin:0;border:0;border-radius:0;padding:.72rem;background:var(--panel-soft);color:var(--text);font:400 .74rem/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;overflow-y:auto;overflow-x:hidden;outline:0}
+.config-file-readonly.config-markdown{font-family:inherit;font-size:.82rem;white-space:normal;word-break:normal}
+.config-file-readonly.config-markdown>.md-h{margin:1em 0 .45em;font-size:1.08em}
+.config-file-readonly.config-markdown>.md-h:first-child{margin-top:0}
+.config-file-readonly.config-markdown>p{margin:0 0 .7em;line-height:1.68}
+.config-file-readonly.config-markdown>.md-list{margin:.35em 0 .8em;padding-left:1.35rem}
+.config-file-readonly.config-markdown .md-pre{max-width:100%;overflow:auto}
+.config-editor-actions{display:flex;align-items:center;justify-content:space-between;gap:.55rem;min-height:38px;box-sizing:border-box;padding:.28rem .65rem calc(.28rem + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel)}
+.config-editor-actions span{color:var(--muted);font-size:.65rem}
+.config-editor-actions .primary{padding:.28rem .72rem;border-color:rgba(77,137,209,.9);background:rgba(77,137,209,.92);color:#fff}
+.config-file-editor form.is-reading{grid-template-rows:minmax(0,1fr)}
+.config-file-editor form.is-reading .config-editor-actions{display:none}
+.topbar-paper:has(.topbar-back) .topbar-home-btn{display:none}
+@media (max-width:400px){
+  .config-file-editor>header{height:48px;padding-inline:.65rem}
+  .memory-reader-bar{height:48px;padding-inline:.65rem}
+}
+body[data-theme="island"] .config-file-editor{background:linear-gradient(180deg,rgba(224,243,255,.96),rgba(247,250,247,.98))}
+body[data-theme="island"] .config-file-editor>header,body[data-theme="island"] .config-editor-actions{background:rgba(255,255,255,.58);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .mem-home-dot{position:absolute;right:8%;top:29%;width:7px;height:7px;border-radius:50%;background:rgba(150,130,110,.16)}
 .mem-home-heart{position:absolute;right:6%;top:56%;color:rgba(198,86,74,.45);font-size:1.1rem}
 /* 关了动效就别转纸片 —— 只留质感,不留歪斜 */
@@ -1850,8 +2104,9 @@ body[data-theme="starry"] .mem-note-tape{
 .topbar-title{display:flex;align-items:center;gap:.5rem;min-width:0}
 .topbar-title-text{min-width:0}
 .topbar-back{
-  flex:none;border:0;background:none;cursor:pointer;color:var(--text);
-  font-size:1.5rem;line-height:1;padding:.35rem .45rem .5rem;margin-left:-.45rem;
+  display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;
+  border:0;background:none;cursor:pointer;color:var(--text);
+  font-size:1.5rem;line-height:1;padding:0;margin:0;
 }
 .topbar-back:active{opacity:.55}
 
@@ -1875,6 +2130,14 @@ body[data-theme="starry"] .mem-note-tape{
 }
 .mem-lib .memory-tag-chip.on{background:var(--accent);border-color:var(--accent);color:#fff8f0}
 .mem-lib .memory-tag-chip.on .memory-tag-count{color:#fff8f0;opacity:.75}
+.mem-lib .memory-search{margin:.05rem 0 .38rem}
+.mem-lib .mem-tag-scroll{margin-bottom:.4rem}
+.mem-lib .memory-card{padding:.55rem .62rem .38rem;margin-bottom:.4rem;border-radius:10px}
+.mem-lib .memory-card-title{font-size:.9rem;line-height:1.28}
+.mem-lib .memory-card-meta{gap:.24rem;margin-top:.26rem;font-size:.66rem}
+.mem-lib .memory-card-foot{gap:.3rem;margin-top:.36rem;padding-top:.34rem}
+.mem-lib .memory-act{font-size:.68rem;padding:.2rem .55rem;border-radius:7px}
+.mem-lib .memory-act-pin{font-size:.65rem;padding:.2rem .48rem}
 
 /* 事实键:同键只有最新一条参与召回,旧的留档但标出来 —— 样式做轻,等 UI 大改重画 */
 .memory-card-stale{opacity:.55}
@@ -1908,6 +2171,7 @@ body[data-theme="starry"]{
   --accent-2:#8DAFF8;            /* 星云蓝 */
   --me-bubble:rgba(231,196,122,.16);
   --me-bubble-ink:#FDF3DC;
+  --tool-call-color:#E7C47A;
   --them-bubble:rgba(30,40,74,.78);
   --them-bubble-ink:#EDF0FA;
   --danger:#E98B7F;
@@ -2136,15 +2400,18 @@ body[data-theme="starry"] .cv-usage-fill{opacity:.34}
 /* 框在 .term-frame 上,滚动在 .term-view 里,状态行钉在框底 —— tmux 的骨架。
    overflow:hidden 让状态行贴着框的圆角走,不从角上戳出来。 */
 .term-frame{grid-row:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
-  background:var(--bg-soft);border:1px solid var(--line-soft);border-radius:var(--radius)}
-body[data-theme="starry"] .term-frame{background:rgba(6,10,24,.55)}
-.term-view{flex:1;min-height:0;overflow:auto;padding:.5rem .6rem;
+  background:transparent;border:0;border-radius:0}
+body[data-theme="starry"] .term-frame{background:transparent}
+.term-view{flex:1;min-height:0;overflow:auto;padding:.35rem .2rem .7rem;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans Mono",monospace;
-  font-size:.68rem;line-height:1.5}
+  font-size:.72rem;line-height:1.55}
+.term-cli-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.12rem .45rem .42rem;color:var(--muted)}
+.term-cli-head strong{font-size:.72rem;font-weight:650;letter-spacing:.03em}
+.term-output{padding:.42rem .42rem 1rem}
 .term-note{color:var(--faint);font-size:.62rem;letter-spacing:.08em;
   padding:.2rem 0 .35rem;border-bottom:1px dashed var(--line-soft);margin-bottom:.35rem}
 .term-note-live{margin-top:.6rem;border-bottom-color:var(--accent);color:var(--accent)}
-.tl{display:flex;gap:.5rem;white-space:pre-wrap;word-break:break-all;padding:.05rem 0}
+.tl{display:flex;gap:.42rem;white-space:pre-wrap;word-break:break-word;padding:.08rem 0}
 .tl-t{color:var(--faint);flex:0 0 auto}
 .tl-k{color:var(--accent-2);flex:0 0 auto;white-space:pre}
 .tl-b{color:var(--text);min-width:0}
@@ -2155,13 +2422,14 @@ body[data-theme="starry"] .term-frame{background:rgba(6,10,24,.55)}
 /* 格式化档的原始流。★ 首字那一枚符号(●✻⎿⚠)固定宽度另起一列 ——
    CLI 好读靠的是每行左边缘对齐,符号跟正文挤在一起就散了。
    ★ 颜色只区分**种类**,不做语法高亮:这是日志不是编辑器,五颜六色反而找不着重点。 */
-.term-fmt{margin-left:.5rem;font:inherit;color:var(--accent);background:none;border:0;
-  padding:0;cursor:pointer;text-decoration:underline dotted;letter-spacing:inherit}
+.term-fmt{margin-left:auto;font:inherit;font-size:.62rem;color:var(--muted);background:none;border:1px solid var(--line);
+  border-radius:999px;padding:.12rem .42rem;cursor:pointer;text-decoration:none;letter-spacing:0}
 .tl-f{gap:.4rem;align-items:baseline}
 .tl-f .tl-m{flex:0 0 1em;text-align:center;opacity:.8}
 .tl-f-think{color:var(--faint);font-style:italic}
 .tl-f-think .tl-b{color:inherit}
-.tl-f-tool .tl-b{color:var(--accent-2)}
+.tl-f-tool{position:relative;margin-left:.05rem;padding-left:.45rem;border-left:2px solid color-mix(in srgb,var(--tool-call-color,var(--me-bubble-ink)) 48%,transparent)}
+.tl-f-tool .tl-m,.tl-f-tool .tl-b{color:var(--tool-call-color,var(--me-bubble-ink))}
 .tl-f-res{opacity:.8}
 .tl-f-res .tl-b{color:var(--muted)}
 .tl-f-sys .tl-b,.tl-f-done .tl-b{color:var(--faint)}
@@ -2169,6 +2437,8 @@ body[data-theme="starry"] .term-frame{background:rgba(6,10,24,.55)}
 .tl-f-err .tl-b{color:var(--danger)}
 .tl-f-plain .tl-b{color:var(--muted)}
 .tl-f-user .tl-b{color:var(--accent)}   /* 输入侧回显:她的话用主色,一屏里先看见她 */
+.term-live-empty{padding:.75rem .1rem;color:var(--faint)}
+.term-live-empty span{color:var(--accent)}
 
 /* ============ 首屏:沉浸式星河导航页 ============ */
 .home-view{padding:1.1rem 0 2rem;position:relative}
@@ -2359,11 +2629,20 @@ body:not([data-theme="starry"]):not([data-theme="island"]) .sg-text{position:sta
 .topbar.topbar-home{background:transparent;border-bottom-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
 .topbar.topbar-home .topbar-title-text{display:none}
 .topbar-home-btn{
+  display:grid;place-items:center;width:32px;height:32px;box-sizing:border-box;
   background:none;border:0;cursor:pointer;color:var(--accent);
-  font-size:1rem;line-height:1;padding:.2rem .35rem;margin-inline-end:.15rem;flex:0 0 auto;
+  font-size:1rem;line-height:1;padding:0;margin:0;flex:0 0 32px;
 }
 .topbar-home-btn:hover{color:var(--accent-strong);transform:scale(1.12)}
 .topbar-home-btn{transition:transform .15s ease}
+.home-glyph-vane{display:none}
+body[data-theme="island"] .topbar-home-btn{color:#69869b}
+body[data-theme="island"] .topbar-home-btn .home-glyph-star{display:none}
+body[data-theme="island"] .topbar-home-btn .home-glyph-vane{
+  display:block;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.35;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+body[data-theme="island"] .topbar-home-btn:active{color:#c79a3c;transform:scale(.92)}
 /* 首屏自己占满:顶栏和底栏都**不留占位**,星河从最上面淌到最下面。
    ★ 顶栏是整条 display:none,不是只把标题文字藏掉 ——
      上一版只写了 `.topbar-home .topbar-title-text{display:none}`,
@@ -2447,6 +2726,11 @@ body[data-theme="starry"]::before{
 }
 /* 内容必须在背景之上,否则消息会被盖住(对壁纸层来说已由 .layout z1 兜底,这条留给行内挂图路径) */
 .chat-view > *{position:relative;z-index:1}
+/* 搜索/消息抽屉是 fixed overlay，不能被上面的普通子元素层级规则改回 relative。 */
+.chat-view>.chat-sheet-backdrop,
+.chat-view>.message-action-backdrop{position:fixed;inset:0;z-index:119}
+.chat-view>.chat-search-sheet{position:fixed;left:50%;bottom:0;z-index:120}
+.chat-search-field input:focus{border:0;outline:0;box-shadow:none}
 
 /* 可读性:**不在气泡下垫暗块**(首屏那一轮的教训 —— 垫暗块会把通透感抹掉),
    靠气泡自身的底色 + 文字描边阴影把字压住。 */
@@ -2591,14 +2875,18 @@ body[data-theme="starry"] .chat-view:where([style*="--chat-bg"], .has-chat-bg) .
      这条是**只读状态**。借过来会连带借到 hover/焦点样式,看起来像能点其实点不动。
    ★ 它现在住在 .term-frame 里面贴底,不在页面最底 —— safe-area 垫底那截随之退役。 */
 .term-status{
-  display:flex;flex-wrap:wrap;gap:.1rem .9rem;
-  padding:.35rem .6rem;
-  border-top:1px solid var(--line,rgba(255,255,255,.12));
-  background:rgba(125,140,180,.07);
+  display:grid;gap:.28rem;margin:0 .38rem .45rem;padding:.38rem .48rem;
+  border:1px solid var(--line,rgba(255,255,255,.12));border-radius:8px;
+  background:rgba(190,132,70,.045);
   font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-  font-size:.66rem;line-height:1.7;letter-spacing:.02em;
-  opacity:.82;
+  font-size:.64rem;line-height:1.5;letter-spacing:.01em;
+  opacity:.9;
 }
+.ts-context{display:grid;gap:.24rem;color:var(--text)}
+.ts-context i{font-style:normal;font-weight:650}
+.ts-context b{display:block;height:3px;border-radius:999px;background:var(--line-soft);overflow:hidden}
+.ts-context u{display:block;width:var(--term-context,0%);height:100%;border-radius:inherit;background:#bf7650;text-decoration:none}
+.ts-segments{display:flex;flex-wrap:wrap;gap:.1rem .8rem;color:var(--muted)}
 .ts-seg{white-space:nowrap}
 .ts-seg i{font-style:normal;opacity:.5;margin-right:.32rem}
 
@@ -2690,6 +2978,7 @@ body[data-theme="island"]{
   --accent-2:#5da3d4;            /* 天空蓝 */
   --me-bubble:#fde4dc;
   --me-bubble-ink:#5a2f24;
+  --tool-call-color:#4d89d1;
   --them-bubble:#ffffff;
   --them-bubble-ink:#2c3b4d;
   --danger:#c8604f;
@@ -2702,7 +2991,12 @@ body[data-theme="island"]{
   /* 天空:纯渐变,零素材。
      ★ 不再另做一张天空底图 —— 她稿子里的天就是一片蓝到白的渐变加几朵云,
        CSS 画得出来的东西不值得多下 100KB,也不值得多一个要跟着主题切换的请求。 */
-  background:linear-gradient(180deg,#a9d4f2 0%,#c8e6f8 34%,#e4f2fb 62%,#f4f4ea 100%) fixed;
+  background-color:#d9edfb;
+  background-image:url('/assets/island-sky-v2.webp');
+  background-position:center top;
+  background-size:cover;
+  background-repeat:no-repeat;
+  background-attachment:fixed;
 }
 body[data-theme="island"] .layout,
 body[data-theme="island"] .main,
@@ -2789,11 +3083,98 @@ body[data-theme="island"] .sg-hint{color:#6a819a}
    压暗那条是给北斗写的(北斗是"第六个入口不要抢戏"),换了素材前提就没了。 */
 body[data-theme="island"] .sky-dipper .sg-star{opacity:1}
 
+/* 参考稿式浮岛首页：岛本身就是导航，不再叠药丸卡片或路线装饰。 */
+body[data-theme="island"] .home-sky::after{
+  background:linear-gradient(to top,rgba(255,255,255,.3),transparent 18%);
+}
+
+/* iOS 式软玻璃顶栏：薄透、柔焦、轻微高光，不做实心色条。 */
+body:not(:has(.home-view)) .topbar{
+  position:relative;
+  z-index:20;
+  overflow:visible;
+  background:color-mix(in srgb,var(--panel) 54%,transparent);
+  border-bottom-color:color-mix(in srgb,var(--line) 52%,rgba(255,255,255,.42));
+  backdrop-filter:blur(22px) saturate(1.38);
+  -webkit-backdrop-filter:blur(22px) saturate(1.38);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.34),0 7px 24px rgba(35,52,64,.08);
+}
+body[data-theme="island"] .home-sky::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(28% 8% at -4% 40%,rgba(255,255,255,.56),transparent 72%),
+    radial-gradient(25% 7% at 104% 52%,rgba(255,255,255,.5),transparent 72%),
+    radial-gradient(31% 9% at -7% 72%,rgba(240,248,255,.56),transparent 74%),
+    radial-gradient(28% 8% at 106% 84%,rgba(255,252,241,.48),transparent 74%);
+  filter:blur(1px);
+}
+body[data-theme="island"] .sky-trail{display:block;opacity:.72}
+body[data-theme="island"] .sky-trail .trail-cloud{
+  stroke:rgba(255,255,255,.46);
+  stroke-width:2.4;
+  stroke-dasharray:9 5 3 7;
+  filter:blur(.8px);
+}
+body[data-theme="island"] .sky-trail .trail-light{
+  stroke:rgba(231,191,94,.68);
+  stroke-width:.34;
+  stroke-dasharray:.1 3.4;
+  filter:drop-shadow(0 0 1.4px rgba(255,226,139,.9));
+}
+body[data-theme="island"] .sky-far{
+  display:block;
+  opacity:.1;
+  filter:blur(2px) saturate(.55) brightness(1.08);
+}
+body[data-theme="island"] .sky-flight{
+  position:absolute;
+  z-index:1;
+  color:rgba(210,165,68,.62);
+  pointer-events:none;
+  text-shadow:0 0 6px rgba(255,239,183,.9);
+}
+body[data-theme="island"] .flight-plane{left:55%;top:48%;font-size:.58rem;transform:rotate(24deg)}
+body[data-theme="island"] .flight-petal{left:42%;top:73%;font-size:.42rem;transform:rotate(-18deg)}
+body[data-theme="island"] .flight-whale{
+  right:9%;top:66%;width:1.65rem;height:.48rem;opacity:.14;
+  border-radius:70% 48% 55% 60%;background:#477ba5;transform:rotate(-8deg);
+}
+body[data-theme="island"] .flight-whale::after{
+  content:'';position:absolute;right:-.34rem;top:.02rem;
+  border-left:.46rem solid #477ba5;border-top:.2rem solid transparent;border-bottom:.2rem solid transparent;
+}
+body[data-theme="island"] .sg-text{
+  background:none;
+  border:0;
+  border-radius:0;
+  padding:0;
+  box-shadow:none;
+  gap:0;
+  backdrop-filter:none;
+  text-shadow:0 1px 2px rgba(255,255,255,.98),0 0 7px rgba(255,255,255,.82);
+}
+body[data-theme="island"] .sg-right .sg-text,
+body[data-theme="island"] .sg-left .sg-text{top:58%;transform:translateY(-50%)}
+body[data-theme="island"] .sg-right .sg-text{right:auto;left:calc(100% - .18rem);align-items:flex-start;text-align:left}
+body[data-theme="island"] .sg-left .sg-text{left:auto;right:calc(100% - .18rem);align-items:flex-end;text-align:right}
+body[data-theme="island"] .sg-below .sg-text{top:66%;left:72%;transform:translate(-50%,-50%);align-items:flex-start;text-align:left}
+body[data-theme="island"] button[data-tab="group"] .sg-text{left:calc(100% - .82rem)}
+body[data-theme="island"] .sg-title{
+  color:#17385f;
+  font-size:.72rem;
+  font-weight:700;
+  letter-spacing:.04em;
+}
+body[data-theme="island"] .sg-title::before{content:'✦ ';color:#c79a3c;font-size:.52rem}
+body[data-theme="island"] .sg-hint{display:none}
+
 /* --- 浮岛主题的「更多」:水晶球岛阵(2×2) ---
    每格同一座岛,SVG 图标嵌在玻璃球心,名字药丸挂岛底下。
-   ★ 球心 (50%, 16.5%):最初在素材上量出 24%,上线后她真机截图抓出图标压在球下沿 ——
-     玻璃球底下那圈**白石基座**跟球一样亮,"球的下缘"被我读深了一截,球心拉低了 8 个点。
-     真值从她的截图逐格量:球顶 2%、球底 32%。量圆心先把不是圆的亮东西剔出去;换素材要重量。 */
+   ★ 直接按当前 orb.webp 的圆形玻璃外沿量球心:横向约 52.3%、纵向约 19%。
+     素材本身右侧略重且球并不贴顶,不能拿整张透明画布的 50% 或旧版 16.5% 当球心。 */
 body[data-theme="island"] .mv-isles{padding:1.4rem 1.2rem 2rem;overflow-y:auto}
 .orb-grid{list-style:none;margin:0 auto;padding:0;max-width:420px;
   display:grid;grid-template-columns:1fr 1fr;gap:1.1rem .9rem}
@@ -2803,7 +3184,7 @@ body[data-theme="island"] .mv-isles{padding:1.4rem 1.2rem 2rem;overflow-y:auto}
 .orb-isle{position:relative;display:block;width:100%}
 .orb-isle img{width:100%;height:auto;display:block;transition:transform .18s ease;
   filter:drop-shadow(0 8px 14px rgba(70,120,165,.22))}
-.orb-ico{position:absolute;left:50%;top:16.5%;transform:translate(-50%,-50%);
+.orb-ico{position:absolute;left:51.5%;top:19%;transform:translate(-50%,-50%);
   width:24%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;
   border-radius:50%;color:#5da3d4}
 .orb-ico svg{width:100%;height:100%}
@@ -2833,7 +3214,489 @@ body[data-theme="dark"] .home-stage,
 body[data-theme="light"] .home-stage{
   background:radial-gradient(115% 62% at 50% 4%, var(--bg-soft) 0%, var(--bg) 58%, var(--bg) 100%);
 }
+.fw-list,.term-view{
+  scrollbar-width:thin;
+  scrollbar-color:color-mix(in srgb,var(--muted) 22%,transparent) transparent;
+}
+.fw-list::-webkit-scrollbar,.term-view::-webkit-scrollbar{width:3px;height:3px}
+.fw-list::-webkit-scrollbar-track,.term-view::-webkit-scrollbar-track{background:transparent}
+.fw-list::-webkit-scrollbar-thumb,.term-view::-webkit-scrollbar-thumb{
+  background:color-mix(in srgb,var(--muted) 20%,transparent);
+  border:0;border-radius:999px;
+}
+.fw-list::-webkit-scrollbar-thumb:hover,.term-view::-webkit-scrollbar-thumb:hover{
+  background:color-mix(in srgb,var(--muted) 34%,transparent);
+}
+.theme-cycle-btn{
+  width:36px;height:36px;flex:0 0 36px;
+  display:grid;place-items:center;
+  padding:0;border:0;border-radius:50%;
+  background:transparent;color:var(--accent-strong);
+  font-size:1.3rem;line-height:1;
+  box-shadow:none;
+  transition:transform .18s ease,background .18s ease,color .18s ease;
+}
+.theme-cycle-btn:hover:not(:disabled){
+  background:var(--accent-soft);color:var(--accent-strong);
+}
+.theme-cycle-btn:active:not(:disabled){transform:scale(.9)}
+.topbar-fav-btn{
+  width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;padding:0;
+  border:0;border-radius:50%;background:transparent;color:var(--muted);
+}
+.topbar-fav-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linejoin:round}
+.topbar-fav-btn.on{color:var(--accent-strong);background:var(--accent-soft)}
+.topbar-fav-btn.on svg{fill:currentColor}
+.theme-cycle-glyph,.theme-cycle-glyph::before,.theme-cycle-glyph::after{
+  display:block;position:absolute;box-sizing:border-box;content:'';
+}
+.theme-cycle-glyph{position:relative;width:22px;height:22px}
+
+/* Cream · a fine-line sun, slowly turning rather than pulsing. */
+body[data-theme="light"] .theme-cycle-glyph{
+  width:13px;height:13px;border:1.8px solid #c97958;border-radius:50%;
+}
+body[data-theme="light"] .theme-cycle-glyph::before{
+  inset:-5px;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,#c97958 0 3deg,transparent 3deg 45deg);
+  -webkit-mask:radial-gradient(circle,transparent 0 8px,#000 8.5px 10px,transparent 10.5px);
+  mask:radial-gradient(circle,transparent 0 8px,#000 8.5px 10px,transparent 10.5px);
+}
+
+/* Island · one small CSS cloud drifting in open sky. */
+body[data-theme="island"] .theme-cycle-glyph{
+  width:22px;height:8px;margin-top:5px;border-radius:999px;
+  background:#fff;
+  box-shadow:0 2px 8px rgba(67,125,171,.2);
+}
+body[data-theme="island"] .theme-cycle-glyph::before{
+  left:4px;bottom:2px;width:9px;height:9px;border-radius:50%;background:#fff;
+}
+body[data-theme="island"] .theme-cycle-glyph::after{
+  right:3px;bottom:2px;width:12px;height:12px;border-radius:50%;background:#fff;
+}
+
+/* Starry · an asymmetric four-point star with its own twinkle. */
+body[data-theme="starry"] .theme-cycle-glyph{
+  width:20px;height:20px;
+  background:linear-gradient(#f2e8ff,#bda9ff);
+  clip-path:polygon(50% 0,60% 39%,100% 50%,60% 61%,50% 100%,40% 61%,0 50%,40% 39%);
+  filter:drop-shadow(0 0 5px rgba(205,184,255,.8));
+}
+
+/* Warm dark · a crescent that floats instead of rotating. */
+body[data-theme="dark"] .theme-cycle-glyph{
+  width:18px;height:18px;border-radius:50%;background:#e8b28f;
+  box-shadow:0 0 9px rgba(232,178,143,.24);
+}
+body[data-theme="dark"] .theme-cycle-glyph::after{
+  left:6px;top:-2px;width:18px;height:18px;border-radius:50%;background:var(--bg);
+}
+
+body[data-theme="light"] .theme-cycle-glyph.theme-switching{animation:theme-sun-turn .55s ease-out 1}
+body[data-theme="island"] .theme-cycle-glyph.theme-switching{animation:theme-cloud-drift .6s ease-in-out 1}
+body[data-theme="starry"] .theme-cycle-glyph.theme-switching{animation:theme-star-twinkle .62s ease-out 1}
+body[data-theme="dark"] .theme-cycle-glyph.theme-switching{animation:theme-moon-float .6s ease-in-out 1}
+@keyframes theme-sun-turn{from{transform:rotate(-38deg) scale(.84)}to{transform:rotate(0) scale(1)}}
+@keyframes theme-cloud-drift{0%{transform:translateX(-5px);opacity:.5}60%{transform:translateX(2px) translateY(-1px);opacity:1}100%{transform:none;opacity:1}}
+@keyframes theme-star-twinkle{0%{transform:scale(.45) rotate(-18deg);opacity:.35}65%{transform:scale(1.15) rotate(8deg);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes theme-moon-float{0%{transform:translateY(4px) rotate(-14deg);opacity:.5}65%{transform:translateY(-2px) rotate(5deg);opacity:1}100%{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.theme-cycle-glyph{animation:none!important}}
+
+/* --------------------------------------------------------------------------
+   UI refresh · light/dark home
+   Turn the fallback icon list into calm, thumb-friendly destinations while
+   keeping the existing artwork and zero-JS theme switching intact.
+   -------------------------------------------------------------------------- */
+body[data-theme="light"] .home-stage{
+  background:
+    radial-gradient(78% 44% at 94% 0%,rgba(165,136,223,.16),transparent 72%),
+    radial-gradient(62% 38% at -8% 22%,rgba(231,176,130,.15),transparent 74%),
+    linear-gradient(180deg,#fbf7f0 0%,#f7f0e6 58%,#f3ebdf 100%);
+}
+body[data-theme="dark"] .home-stage{
+  background:
+    radial-gradient(72% 42% at 94% 0%,rgba(129,100,190,.16),transparent 72%),
+    radial-gradient(58% 34% at -6% 20%,rgba(194,122,88,.1),transparent 76%),
+    linear-gradient(180deg,#262119 0%,#1f1b17 72%);
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .home-hero{
+  padding-inline:1.15rem;
+  padding-top:calc(1rem + env(safe-area-inset-top));
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .home-who{
+  width:max-content;
+  max-width:100%;
+  margin:.7rem 0 1.1rem;
+  padding:.42rem .72rem .42rem .45rem;
+  border:1px solid color-mix(in srgb,var(--line) 72%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,var(--panel) 76%,transparent);
+  box-shadow:var(--shadow-sm);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .home-avatar{
+  width:38px;height:38px;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-soft) 76%,transparent);
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .home-greet{
+  font-size:clamp(1.55rem,7vw,2rem);
+  letter-spacing:-.035em;
+  line-height:1.18;
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .home-ask{
+  font-size:.78rem;
+  margin-top:.5rem;
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sky-gates{
+  gap:0;
+  margin-top:.35rem;
+  padding:.2rem 1rem calc(.8rem + env(safe-area-inset-bottom));
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sky-gate button{
+  min-height:62px;
+  padding:.38rem .35rem;
+  border:0;
+  border-bottom:1px solid color-mix(in srgb,var(--line) 86%,transparent);
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+  transition:background .16s ease,color .16s ease;
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sky-gate button::after{
+  content:'\203A';
+  margin-left:auto;
+  color:var(--faint);
+  font-size:1.55rem;
+  font-weight:300;
+  line-height:1;
+  transform:translateY(-1px);
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sky-gate button:hover{
+  transform:none;
+  border-color:color-mix(in srgb,var(--line) 86%,transparent);
+  box-shadow:none;
+  background:color-mix(in srgb,var(--panel) 42%,transparent);
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sky-gate button:active{
+  transform:none;
+  background:color-mix(in srgb,var(--accent-soft) 55%,transparent);
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sg-star{
+  height:50px;
+  filter:drop-shadow(0 5px 10px rgba(101,78,53,.16));
+}
+/* Cream theme uses small CSS motion glyphs instead of the illustrated badges.
+   The hidden images still load, so the existing no-layout-shift/lit guard and
+   the other three themes keep exactly the same markup and behaviour. */
+body:is([data-theme="light"],[data-theme="dark"]) .sky-gate .sg-star{
+  position:relative;
+  width:48px;height:48px;aspect-ratio:1;
+  flex:0 0 48px;
+  overflow:visible;
+  border:0;
+  border-radius:0;
+  background:none;
+  box-shadow:none;
+  filter:none;
+}
+body:is([data-theme="light"],[data-theme="dark"]) .sky-gate .sg-star img{display:none}
+body:is([data-theme="light"],[data-theme="dark"]) .sky-gate .sg-star::before,
+body:is([data-theme="light"],[data-theme="dark"]) .sky-gate .sg-star::after{
+  content:'';position:absolute;box-sizing:border-box;
+}
+
+/* Private chat · two quiet speech bubbles. */
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="chat"] .sg-star::before{
+  left:10px;top:12px;width:21px;height:16px;
+  border:2px solid #b76f5d;border-radius:7px 7px 7px 3px;
+  animation:cc-chat 2.8s ease-in-out infinite;
+}
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="chat"] .sg-star::after{
+  right:9px;bottom:10px;width:17px;height:13px;
+  border:2px solid #8e79b8;border-radius:6px 6px 3px 6px;
+  background:rgba(255,255,255,.22);
+  animation:cc-chat 2.8s .35s ease-in-out infinite reverse;
+}
+
+/* Group · three people/dots breathing together. */
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="group"] .sg-star::before{
+  left:19px;top:10px;width:10px;height:10px;border-radius:50%;
+  background:#a378ad;
+  box-shadow:-11px 6px 0 -1px #d28c72,11px 6px 0 -1px #8d9f82;
+  animation:cc-group 2.6s ease-in-out infinite;
+}
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="group"] .sg-star::after{
+  left:10px;bottom:10px;width:28px;height:12px;
+  border:2px solid rgba(151,101,132,.72);border-top:0;border-radius:0 0 14px 14px;
+  animation:cc-soft-rise 2.6s ease-in-out infinite;
+}
+
+/* Memory · a pulse moving through three retained lines. */
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="memory"] .sg-star::before{
+  left:11px;top:13px;width:26px;height:2px;border-radius:2px;background:#b87b68;
+  box-shadow:0 9px 0 rgba(158,124,178,.82),0 18px 0 rgba(126,151,123,.78);
+}
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="memory"] .sg-star::after{
+  left:8px;top:10px;width:8px;height:8px;border-radius:50%;
+  background:#fff;border:2px solid #b87b68;
+  box-shadow:0 0 0 4px rgba(184,123,104,.12);
+  animation:cc-memory 3s ease-in-out infinite;
+}
+
+/* Console · terminal prompt with a softly blinking cursor. */
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="console"] .sg-star::before{
+  content:'\203A';left:11px;top:8px;color:#9a668d;
+  font:600 25px/1 ui-monospace,SFMono-Regular,Consolas,monospace;
+  transform:translateX(0);
+}
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="console"] .sg-star::after{
+  left:25px;top:27px;width:12px;height:2px;border-radius:2px;background:#bb735f;
+  animation:cc-cursor 1.2s steps(2,end) infinite;
+}
+
+/* Settings · reduced gear/orbit. */
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="settings"] .sg-star::before{
+  left:12px;top:12px;width:24px;height:24px;border-radius:50%;
+  border:2px dashed #9a79ae;
+  animation:cc-spin 8s linear infinite;
+}
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="settings"] .sg-star::after{
+  left:20px;top:20px;width:8px;height:8px;border-radius:50%;
+  background:#c57b65;box-shadow:0 0 0 5px rgba(197,123,101,.12);
+}
+
+/* More · three lightweight discovery dots. */
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="more"] .sg-star::before{
+  left:12px;top:21px;width:6px;height:6px;border-radius:50%;background:#c57b65;
+  box-shadow:9px 0 0 #a27daf,18px 0 0 #879c7e;
+  animation:cc-more 1.8s ease-in-out infinite;
+}
+body:is([data-theme="light"],[data-theme="dark"]) [data-tab="more"] .sg-star::after{display:none}
+
+body[data-theme="dark"] .sky-gate .sg-star{
+  border:0;background:none;box-shadow:none;
+}
+
+@keyframes cc-chat{0%,100%{transform:translateY(0);opacity:.72}50%{transform:translateY(-2px);opacity:1}}
+@keyframes cc-group{0%,100%{transform:scale(.94)}50%{transform:scale(1.05)}}
+@keyframes cc-soft-rise{0%,100%{transform:translateY(1px);opacity:.68}50%{transform:translateY(-1px);opacity:1}}
+@keyframes cc-memory{0%{transform:translate(0,0)}33%{transform:translate(12px,9px);border-color:#9e7cb2}66%,100%{transform:translate(21px,18px);border-color:#7e977b}}
+@keyframes cc-cursor{0%,45%{opacity:1}46%,100%{opacity:.16}}
+@keyframes cc-spin{to{transform:rotate(360deg)}}
+@keyframes cc-more{0%,100%{transform:translateY(0)}35%{transform:translateY(-3px)}70%{transform:translateY(1px)}}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sg-title{
+  font-size:.96rem;
+  letter-spacing:.01em;
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sg-hint{
+  margin-top:.08rem;
+  font-size:.69rem;
+}
+body:not([data-theme="starry"]):not([data-theme="island"]) .sky-dipper{
+  display:none;
+}
+
+/* Conversation surfaces: softer depth and a clearer composer focus without
+   changing message width, ordering, or any interaction hit area. */
+.bubble{box-shadow:0 3px 14px rgba(54,39,26,.055)}
+.message-row.me .bubble{box-shadow:0 4px 16px rgba(151,88,58,.08)}
+.composer-field{
+  border-radius:18px;
+  box-shadow:0 8px 26px rgba(52,38,27,.08);
+}
+.composer-field:focus-within{
+  box-shadow:0 0 0 3px var(--accent-soft),0 10px 30px rgba(52,38,27,.1);
+}
+.composer-send{border-radius:14px}
+
+/* 浮岛聊天页：同一套 iOS 软玻璃。只作用于界面表面，不给整页再叠模糊。 */
+body[data-theme="island"] .chat-view{
+  grid-template-rows:minmax(0,1fr);gap:0;
+}
+body[data-theme="island"] .chat-view>.composer{
+  position:absolute;left:0;right:0;bottom:0;z-index:3;
+  background:transparent;border:0;box-shadow:none;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+body[data-theme="island"] .chat-view>.message-list{padding-bottom:3.3rem}
+body[data-theme="island"] .chat-view .composer-bar{
+  background:transparent;border:0;box-shadow:none;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+body[data-theme="island"]:not(:has(.home-view)) .topbar{
+  background:linear-gradient(180deg,rgba(255,255,255,.54),rgba(225,243,255,.34));
+  border-bottom-color:rgba(255,255,255,.58);
+  backdrop-filter:blur(16px) saturate(1.28);-webkit-backdrop-filter:blur(16px) saturate(1.28);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.82),0 8px 24px rgba(69,117,151,.1);
+}
+body[data-theme="island"] .chat-view .bubble{
+  position:relative;isolation:isolate;min-width:76px;
+  background:linear-gradient(145deg,rgba(255,255,255,.82),rgba(244,245,252,.66));
+  border-color:rgba(220,207,177,.66);border-radius:20px 20px 20px 7px;
+  backdrop-filter:blur(10px) saturate(1.16);-webkit-backdrop-filter:blur(10px) saturate(1.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.94),inset 0 -1px 0 rgba(179,158,119,.1),0 6px 20px rgba(70,109,143,.1);
+}
+body[data-theme="island"] .chat-view .bubble::after{
+  content:'';position:absolute;right:-3px;bottom:0;z-index:0;
+  width:76px;aspect-ratio:560/180;pointer-events:none;
+  background:center/contain no-repeat url('/assets/island/chat-cloud-v2.webp');
+  filter:drop-shadow(0 3px 5px rgba(76,111,139,.09));opacity:.88;
+}
+body[data-theme="island"] .chat-view .message-row.recalled .bubble::after{display:none}
+body[data-theme="island"] .chat-view .message-row:not(.me) .bubble::after{
+  transform:rotate(-4deg);transform-origin:right bottom;
+}
+body[data-theme="island"] .chat-view .bubble>.body-text,
+body[data-theme="island"] .chat-view .bubble>.quoted-parent{position:relative;z-index:1}
+body[data-theme="island"] .chat-view .message-row.me .bubble{
+  color:rgba(255,255,255,.96);
+  background:linear-gradient(145deg,rgba(107,166,229,.86),rgba(77,137,209,.78));
+  border-color:rgba(231,216,178,.72);border-radius:20px 20px 7px 20px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(54,102,165,.14),0 7px 22px rgba(62,111,173,.18);
+}
+body[data-theme="island"] .chat-view .message-row.me .bubble::after{
+  right:auto;left:-13px;bottom:-10px;width:43px;aspect-ratio:256/221;
+  background-image:url('/assets/island/chat-corner-cloud-v2.webp');
+  transform:rotate(-8deg);transform-origin:center;
+}
+body[data-theme="island"] .chat-view .message-row.me .bubble::before{
+  content:'';position:absolute;right:-11px;top:-6px;z-index:0;width:31px;aspect-ratio:256/221;pointer-events:none;
+  background:center/contain no-repeat url('/assets/island/chat-corner-cloud-v2.webp');
+  filter:drop-shadow(0 2px 4px rgba(76,111,139,.08));opacity:.82;
+  transform:rotate(180deg);transform-origin:center;
+}
+body[data-theme="island"] .chat-view .message-row.recalled .bubble::before{display:none}
+body[data-theme="island"] .chat-view .message-row.me .bubble a{color:#fff}
+body[data-theme="island"] .chat-view .message-row.me .msg-time,
+body[data-theme="island"] .chat-view .message-row.me .api-usage{color:var(--muted)}
+body[data-theme="island"] .composer-send{
+  position:relative;overflow:visible;width:2.42rem;height:2.42rem;
+  color:transparent;border:0;background:center/contain no-repeat url('/assets/island/send-vortex-v2.webp');
+  box-shadow:none;filter:drop-shadow(0 5px 8px rgba(66,116,170,.2));
+}
+body[data-theme="island"] .composer-send svg{opacity:0}
+body[data-theme="island"] .composer-send:hover:not(:disabled){
+  color:transparent;background-color:transparent;
+  filter:brightness(1.04) drop-shadow(0 5px 8px rgba(66,116,170,.22));
+}
+body[data-theme="island"] .composer-send:disabled{opacity:.48;filter:saturate(.45)}
+body[data-theme="island"] .composer-send:active:not(:disabled){transform:scale(.96)}
+body[data-theme="island"] .composer-field{
+  background:linear-gradient(145deg,rgba(255,255,255,.68),rgba(234,246,255,.44));
+  border-color:rgba(255,255,255,.74);border-radius:22px;
+  backdrop-filter:blur(12px) saturate(1.22);-webkit-backdrop-filter:blur(12px) saturate(1.22);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(91,137,171,.08),0 7px 22px rgba(57,104,139,.1);
+}
+body[data-theme="island"] .composer-field .sticker-toggle,
+body[data-theme="island"] .composer-field .sticker-toggle.on,
+body[data-theme="island"] .composer-field .sticker-toggle.on svg{color:rgba(77,137,209,.92)}
+body[data-theme="island"] .composer-field:focus-within{
+  border-color:rgba(255,255,255,.94);
+  box-shadow:inset 0 1px 0 #fff,0 0 0 3px rgba(125,184,220,.16),0 9px 26px rgba(57,104,139,.13);
+}
+.msg-footer{display:flex;align-items:baseline;gap:.42rem;width:max-content;max-width:100%}
+.msg-footer .msg-time{padding:0 .18rem 0 0}
+.api-usage{
+  display:inline-flex;align-items:center;gap:.34rem;padding:0;border:0;background:none;box-shadow:none;
+  color:var(--faint);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.57rem;line-height:1.2;
+  white-space:nowrap;backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.message-row.me .msg-footer{justify-self:end}
+
+@media (max-width:430px){
+  body:not([data-theme="starry"]):not([data-theme="island"]) .home-stage{min-height:100dvh;height:auto}
+  body:not([data-theme="starry"]):not([data-theme="island"]) .home-hero{padding-inline:1rem}
+  body:not([data-theme="starry"]):not([data-theme="island"]) .sky-gates{padding-inline:1rem}
+}
+
+@media (prefers-reduced-motion:reduce){
+  body:not([data-theme="starry"]):not([data-theme="island"]) .sky-gate button{transition:none}
+}
 /* 浅底(奶油白)下徽章要一点点分离感,深底(暖深色)下要一点点发光 ——
    同一个需求两种方向,所以**不能共用一条**。 */
 body[data-theme="light"] .sg-star{filter:drop-shadow(0 4px 8px rgba(120,95,60,.18))}
 body[data-theme="dark"]  .sg-star{filter:drop-shadow(0 0 14px rgba(240,215,170,.20))}
+
+/* Chat identity card: a small polaroid deliberately hangs below the glass
+   bar, while name/signature remain a compact two-line block beside it. */
+.topbar-profile{
+  min-width:0;height:100%;display:flex;align-items:center;gap:.55rem;
+  margin-left:.2rem;
+}
+.topbar-polaroid{
+  position:relative;z-index:30;flex:0 0 72px;width:72px;height:59px;
+  align-self:flex-start;margin-top:9px;transform:rotate(-2.5deg);
+  padding:4px 4px 15px;box-sizing:border-box;
+  background:#fff8e9;border:1px solid rgba(92,86,75,.3);border-radius:4px;
+  box-shadow:0 8px 19px rgba(42,56,68,.22),inset 0 0 0 1px rgba(255,255,255,.92);
+}
+.topbar-polaroid img{
+  display:block;width:100%;height:100%;object-fit:cover;border-radius:1px;
+  background:#e8f0f4;border:1px solid rgba(70,86,98,.2);box-sizing:border-box;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.55);
+}
+body[data-theme="island"] .topbar-polaroid{
+  background:#edf7ff;
+  border-color:rgba(83,129,163,.3);
+  box-shadow:0 8px 19px rgba(55,105,145,.2),inset 0 0 0 1px rgba(255,255,255,.92);
+}
+.topbar-profile-copy{min-width:0;display:flex;flex-direction:column;gap:.05rem;line-height:1.18}
+.topbar-profile-copy strong,.topbar-profile-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar-profile-copy strong{font-size:.96rem;color:var(--text);font-weight:700}
+.topbar-profile-copy small{max-width:11rem;font-size:.67rem;color:var(--muted)}
+
+/* Compact mobile title bar. Search, theme and connection status each occupy
+   the same 32px slot, so their visual gaps stay equal despite different art. */
+@media (max-width:400px){
+  body:not(:has(.home-view)) .topbar{
+    height:48px;
+    padding-inline:.65rem;
+    gap:.45rem;
+  }
+  .topbar-actions{gap:.25rem}
+  .topbar-actions > .lens-btn,
+  .topbar-actions > .topbar-fav-btn,
+  .topbar-actions > .theme-cycle-btn,
+  .topbar-actions > .status-pill{
+    width:32px;height:32px;min-width:32px;max-width:32px;flex:0 0 32px;
+    padding:0;margin:0;box-sizing:border-box;
+  }
+  .topbar-actions > .lens-btn,
+  .topbar-actions > .topbar-fav-btn,
+  .topbar-actions > .theme-cycle-btn{display:grid;place-items:center}
+  .topbar-actions > .lens-btn svg{width:17px;height:17px}
+  .topbar-actions > .topbar-fav-btn svg{width:17px;height:17px}
+  .topbar-actions > .theme-cycle-btn .theme-cycle-glyph{transform:scale(.78)}
+  .topbar-actions > .status-pill{
+    position:relative;display:grid;place-items:center;
+    border:0;background:transparent;text-indent:0;overflow:visible;
+  }
+  .topbar-actions > .status-pill::after{
+    content:'';display:block;width:8px;height:8px;border-radius:50%;
+    background:var(--muted);transition:background-color .25s ease;
+  }
+  .topbar-actions > .status-pill[data-stream="live"]::after{background:var(--ok,#6fbf8b)}
+  .topbar-actions > .status-pill[data-stream="connecting"]::after,
+  .topbar-actions > .status-pill[data-stream="reconnecting"]::after,
+  .topbar-actions > .status-pill[data-stream="fallback"]::after{background:var(--warn,#d9a441)}
+  .topbar-profile{gap:.42rem;margin-left:.05rem}
+  .topbar-polaroid{
+    flex-basis:66px;width:66px;height:54px;margin-top:8px;
+    transform:rotate(-2.5deg);padding:3px 3px 12px;
+  }
+  .topbar-profile-copy strong{font-size:.9rem}
+  .topbar-profile-copy small{max-width:28vw;font-size:.62rem}
+}
+.session-limit-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.session-limit-row strong {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}

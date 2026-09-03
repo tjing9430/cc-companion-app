@@ -84,11 +84,15 @@ const state = {
 
   quota: { loading: false, data: null, error: '', fetched_at: '' },
   pending: { chat: [], group: [] },
+  // Ephemeral assistant reply assembled from SSE deltas. Never cached or
+  // persisted; the final ordinary message event replaces it after commit.
+  streaming: { chat: null, group: null },
   composerParts: { chat: [], group: [] },
   replyTo: { chat: null, group: null },
   showFavorites: { chat: false, group: false },
   chatSearchOpen: { chat: false, group: false },
   chatSearch: { chat: '', group: '' },
+  chatSearchMode: { chat: 'all', group: 'all' },
   searchPool: { chat: null, group: null },
   openMsgActions: null,   // 反馈#4:每条底下 5 个按钮太重 → 收进 ⋮,这里记展开的那条 id
   topbarMenuOpen: false,  // 反馈#1:顶栏挤成一坨 → 复制全部/清空 收进 ⋯
@@ -99,7 +103,12 @@ const state = {
   docContent: {},
   docOpen: {},
   docWriterOpen: false,
+  configFiles: [],
+  configFileEditing: null,
+  configFileEditMode: false,
+  configFileStatus: '',
   stickerOpen: { chat: false, group: false },
+  attachMenuOpen: { chat: false, group: false },
   stickers: [],
   uploading: { chat: '', group: '' },
   memoryQuery: '',

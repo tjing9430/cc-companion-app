@@ -34,47 +34,118 @@ function avatarHtml(message) {
 
 function renderChat(scope, rows) {
   const searchOpen = !!(state.chatSearchOpen && state.chatSearchOpen[scope]);
+  const searchMode = (state.chatSearchMode && state.chatSearchMode[scope]) || 'all';
   return `
-    <div class="chat-view">
-      ${searchOpen ? `<div class="chat-search-row">
-        <input data-chat-search="1" data-scope="${escAttr(scope)}" placeholder="搜索聊天内容（只匹配正文）" value="${escAttr(state.chatSearch[scope] || '')}">
-        <span class="chat-search-count" data-search-count="${escAttr(scope)}"></span>
-        <button class="ghost" type="button" data-action="toggle-chat-search" data-scope="${escAttr(scope)}">关闭</button>
-      </div>` : ''}
+    <div class="chat-view${searchOpen ? ' search-open' : ''}">
       <div class="message-list" data-scroll-list data-scroll-scope="${escAttr(scope)}">
         ${renderMessageList(scope, rows)}
       </div>
       ${renderComposer(scope)}
+      ${searchOpen ? `<button class="chat-sheet-backdrop" type="button" data-action="toggle-chat-search" data-scope="${escAttr(scope)}" aria-label="关闭搜索"></button>
+      <section class="chat-search-sheet" role="dialog" aria-label="搜索聊天记录">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <header><strong>${scope === 'group' ? '群聊' : '私聊'}</strong><button type="button" data-action="toggle-chat-search" data-scope="${escAttr(scope)}" aria-label="关闭">×</button></header>
+        <div class="chat-search-tabs">
+          ${searchTab(scope, 'all', '消息', searchMode)}
+          ${searchTab(scope, 'image', '图片', searchMode)}
+          ${searchTab(scope, 'file', '文件', searchMode)}
+          ${searchTab(scope, 'link', '链接', searchMode)}
+        </div>
+        <label class="chat-search-field"><span class="field-lens" aria-hidden="true"></span><input data-chat-search="1" data-scope="${escAttr(scope)}" placeholder="搜索聊天记录" value="${escAttr(state.chatSearch[scope] || '')}"></label>
+        <div class="chat-search-meta"><span data-search-count="${escAttr(scope)}"></span></div>
+        <div class="chat-search-results">${renderSearchResults(scope, rows)}</div>
+      </section>` : ''}
+      ${state.openMsgActions ? `<button class="message-action-backdrop" type="button" data-action="close-msg-actions" aria-label="关闭消息操作"></button>${renderOpenMessageActions()}` : ''}
     </div>`;
+}
+
+function renderOpenMessageActions() {
+  const message = shell.findMessageById(state.openMsgActions);
+  if (!message) return '';
+  const isMe = message.role === 'user' || message.sender === state.settings.userName;
+  const recalled = !!message.recalled;
+  const pending = !!message.pending;
+  const feat = state.settings || {};
+  const id = escAttr(String(message.id));
+  const items = [];
+  if (!recalled && String(message.content || '').trim()) items.push(`<button class="copy-btn" type="button" data-action="copy-message" data-id="${id}"><span><b>复制</b><small>复制这条消息内容</small></span><i>copy</i></button>`);
+  if (!recalled && !pending) {
+    items.push(`<button class="reply-btn" type="button" data-action="reply-to" data-id="${id}"><span><b>回复</b><small>引用这条消息继续说</small></span><i>reply</i></button>`);
+    items.push(`<button class="fav-btn${message.favorited ? ' on' : ''}" type="button" data-action="toggle-favorite" data-id="${id}"><span><b>${message.favorited ? '取消收藏' : '收藏'}</b><small>${message.favorited ? '从收藏中移除这条消息' : '保存这条消息，方便以后查找'}</small></span><i>star</i></button>`);
+    if (isMe && feat.featureRecall !== false) items.push(`<button class="recall-btn" type="button" data-action="recall-message" data-id="${id}"><span><b>撤回</b><small>撤回这条已发送的消息</small></span><i>undo</i></button>`);
+  }
+  if (feat.featureDelete !== false && feat.authEnabled && !pending) items.push(`<button class="del-btn" type="button" data-action="delete-message" data-id="${id}"><span><b>删除</b><small>从当前聊天中删除这条消息</small></span><i>del</i></button>`);
+  const preview = String(message.content || '').replace(/\s+/g, ' ').trim().slice(0, 82) || ((message.attachments || []).length ? '[附件]' : '');
+  return `<div class="msg-actions" role="menu" aria-label="消息操作"><span class="message-action-head"><b>这条消息</b><small>${esc(message.sender)} · ${esc(preview)}</small></span>${items.join('')}<button class="action-cancel" type="button" data-action="close-msg-actions"><span><b>取消</b><small>先不处理这条消息</small></span><i>close</i></button></div>`;
+}
+
+function searchTab(scope, mode, label, current) {
+  return `<button type="button" class="${current === mode ? 'on' : ''}" data-action="chat-search-mode" data-scope="${escAttr(scope)}" data-mode="${mode}"><span class="search-tab-icon icon-${mode}" aria-hidden="true"></span>${label}</button>`;
+}
+
+function renderSearchResults(scope, rows) {
+  const mode = (state.chatSearchMode && state.chatSearchMode[scope]) || 'all';
+  const hits = searchMessages(scope, rows);
+  if (hits === null) return '<div class="search-sheet-empty">输入关键词搜索聊天记录</div>';
+  if (!hits.length) return '<div class="search-sheet-empty">没有找到相关内容</div>';
+  if (mode === 'image') {
+    const cells = hits.flatMap((m) => (m.attachments || [])
+      .filter((a) => String(a.type || '').startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(a.url || a.name || ''))
+      .map((a) => `<button type="button" class="search-image-cell" data-action="jump-to" data-id="${escAttr(String(m.id))}"><img src="${escAttr(shell.protectedAssetUrl(a.url || ''))}" alt="" loading="lazy"><span>${esc(formatTime(m.created_at))}</span></button>`));
+    return `<div class="search-image-grid">${cells.join('')}</div>`;
+  }
+  if (mode === 'file') {
+    const files = hits.flatMap((m) => (m.attachments || [])
+      .filter((a) => !(String(a.type || '').startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(a.url || a.name || '')))
+      .map((a) => `<div class="search-result-row"><span class="result-file-mark" aria-hidden="true"></span><span class="result-main"><b>${esc(a.name || '附件')}</b><small>${esc(m.sender)} · ${esc(formatDateTime(m.created_at))}</small></span><button type="button" data-action="jump-to" data-id="${escAttr(String(m.id))}">跳转</button></div>`));
+    return files.join('');
+  }
+  if (mode === 'link') {
+    return hits.flatMap((m) => (String(m.content || '').match(/https?:\/\/[^\s<]+/gi) || [])
+      .map((url) => `<div class="search-result-row"><span class="result-main"><b class="result-link">${esc(url)}</b><small>${esc(m.sender)} · ${esc(formatDateTime(m.created_at))}</small></span><button type="button" data-action="jump-to" data-id="${escAttr(String(m.id))}">跳转</button></div>`)).join('');
+  }
+  return hits.map((m) => `<div class="search-result-row"><span class="result-main"><b>${esc(String(m.content || '').replace(/\s+/g, ' ').trim().slice(0, 88) || '[附件]')}</b><small>${esc(m.sender)} · ${esc(formatDateTime(m.created_at))}</small></span><button type="button" data-action="jump-to" data-id="${escAttr(String(m.id))}">跳转</button></div>`).join('');
 }
 
 function searchMessages(scope, rows) {
   const q = String(state.chatSearch[scope] || '').trim().toLowerCase();
-  if (!q) return null;
+  const mode = (state.chatSearchMode && state.chatSearchMode[scope]) || 'all';
+  if (!q && mode === 'all') return null;
   const pool = state.searchPool[scope] || rows || [];
-  // Match message body text only — thinking, tool output and attachment
-  // names never produce hits.
-  return pool.filter((m) => m && String(m.content || '').toLowerCase().includes(q));
+  return pool.filter((m) => {
+    if (!m) return false;
+    const content = String(m.content || '').toLowerCase();
+    const attachments = Array.isArray(m.attachments) ? m.attachments : [];
+    const image = (a) => String(a.type || '').startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(a.url || a.name || '');
+    const matchesMode = mode === 'all'
+      || (mode === 'image' && attachments.some(image))
+      || (mode === 'file' && attachments.some((a) => !image(a)))
+      || (mode === 'link' && /https?:\/\/\S+/i.test(String(m.content || '')));
+    return matchesMode && (!q || content.includes(q));
+  });
 }
 
 function renderMessageList(scope, rows) {
-  const searchOpen = !!(state.chatSearchOpen && state.chatSearchOpen[scope]);
-  if (searchOpen) {
-    const hits = searchMessages(scope, rows);
-    if (!hits) return '<div class="empty">输入关键词搜索聊天记录。</div>';
-    if (!hits.length) return '<div class="empty">没有匹配的消息。</div>';
-    return hits.map((message) => renderMessage(message, { showJump: true })).join('');
-  }
   const showFav = !!(state.showFavorites && state.showFavorites[scope]);
   if (showFav) {
     const favs = (rows || []).filter((m) => m && m.favorited);
     if (!favs.length) return '<div class="empty">还没有收藏的消息。点消息右下角的 ☆ 收藏它。</div>';
-    return favs.map((message) => renderMessage(message, { showJump: true })).join('');
+    return `<div class="favorite-list">${favs.slice().reverse().map(renderFavoriteCard).join('')}</div>`;
   }
   const drafts = state.composerParts[scope] || [];
   const files = state.pending[scope] || [];
-  if (!rows.length && !drafts.length && !files.length && !state.uploading[scope]) return '<div class="empty">还没有消息。</div>';
-  return `${rows.map((message, i) => `${timeDivider(rows[i - 1], message)}${renderMessage(message)}`).join('')}${renderComposerDrafts(scope)}`;
+  const stream = state.streaming && state.streaming[scope];
+  const visibleRows = stream ? [...rows, stream] : rows;
+  if (!visibleRows.length && !drafts.length && !files.length && !state.uploading[scope]) return '<div class="empty">还没有消息。</div>';
+  return `${visibleRows.map((message, i) => {
+    const next = visibleRows[i + 1];
+    const sameSubmitBatch = message && next
+      && message.role === 'user' && next.role === 'user'
+      && String(message.sender || '') === String(next.sender || '')
+      && String(message.created_at || '') !== ''
+      && String(message.created_at) === String(next.created_at);
+    return `${timeDivider(visibleRows[i - 1], message)}${renderMessage(message, { hideTime: sameSubmitBatch })}`;
+  }).join('')}${renderComposerDrafts(scope)}`;
 }
 
 // 「7月28日 17:30」——24 小时制,不补零到「07月」(中文日期不那么写)。
@@ -114,6 +185,21 @@ function renderQuotedParent(message) {
   return `<div class="quoted-parent"><span class="quoted-sender">${esc(parent.sender)}</span><span class="quoted-text">${esc(snippet)}</span></div>`;
 }
 
+function renderApiUsage(message) {
+  const usage = message && message.api_usage;
+  if (!usage || !usage.provider) return '';
+  const input = Math.max(0, Number(usage.input_tokens) || 0);
+  const cached = Math.max(0, Number(usage.cache_read_tokens) || 0);
+  const output = Math.max(0, Number(usage.output_tokens) || 0);
+  const total = input + cached + output;
+  if (!total) return '';
+  const compact = (value) => value >= 10000 ? `${Math.round(value / 1000)}k`
+    : value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value);
+  const cacheBase = input + cached;
+  const cacheRate = cacheBase ? Math.round((cached / cacheBase) * 100) : 0;
+  return `<span class="api-usage" title="输入 ${input} · 缓存读取 ${cached} · 输出 ${output}"><span>${compact(total)} token</span><span>缓存 ${cacheRate}%</span></span>`;
+}
+
 function renderMessage(message, opts = {}) {
   const isMe = message.role === 'user' || message.sender === state.settings.userName;
   const recalled = !!message.recalled;
@@ -126,23 +212,26 @@ function renderMessage(message, opts = {}) {
     recalled ? 'recalled' : '',
     message.pending ? 'pending' : '',
     message.failed ? 'failed' : '',
+    message.streaming ? 'streaming' : '',
     String(state.openMsgActions || '') === String(message.id) ? 'actions-open' : '',
   ].filter(Boolean).join(' ');
   const idAttr = esc(String(message.id));
   const btns = [];
-  if (!recalled && text) btns.push(`<button class="copy-btn" type="button" data-action="copy-message" aria-label="复制消息">复制</button>`);
+  if (!recalled && text) btns.push(`<button class="copy-btn" type="button" data-action="copy-message"><span><b>复制</b><small>复制这条消息内容</small></span><i>copy</i></button>`);
   if (!recalled && !message.pending) {
-    btns.push(`<button class="reply-btn" type="button" data-action="reply-to" data-id="${idAttr}" aria-label="回复">回复</button>`);
-    btns.push(`<button class="fav-btn${message.favorited ? ' on' : ''}" type="button" data-action="toggle-favorite" data-id="${idAttr}" aria-label="${message.favorited ? '取消收藏' : '收藏'}">${message.favorited ? '★' : '☆'}</button>`);
-    if (isMe && feat.featureRecall !== false) btns.push(`<button class="recall-btn" type="button" data-action="recall-message" data-id="${idAttr}" aria-label="撤回">撤回</button>`);
+    btns.push(`<button class="reply-btn" type="button" data-action="reply-to" data-id="${idAttr}"><span><b>回复</b><small>引用这条消息继续说</small></span><i>reply</i></button>`);
+    btns.push(`<button class="fav-btn${message.favorited ? ' on' : ''}" type="button" data-action="toggle-favorite" data-id="${idAttr}"><span><b>${message.favorited ? '取消收藏' : '收藏'}</b><small>${message.favorited ? '从收藏中移除这条消息' : '保存这条消息，方便以后查找'}</small></span><i>star</i></button>`);
+    if (isMe && feat.featureRecall !== false) btns.push(`<button class="recall-btn" type="button" data-action="recall-message" data-id="${idAttr}"><span><b>撤回</b><small>撤回这条已发送的消息</small></span><i>undo</i></button>`);
   }
-  if (feat.featureDelete !== false && feat.authEnabled && !message.pending) btns.push(`<button class="del-btn" type="button" data-action="delete-message" data-id="${idAttr}" aria-label="删除">删除</button>`);
-  if (opts.showJump) btns.push(`<button class="jump-btn" type="button" data-action="jump-to" data-id="${idAttr}" aria-label="跳到原文">跳转</button>`);
-  const footer = `<div class="msg-time">${formatTime(message.created_at)}${btns.length ? `<button class="msg-more" type="button" data-action="toggle-msg-actions" data-id="${idAttr}" aria-label="更多操作" aria-expanded="${String(state.openMsgActions || '') === String(message.id)}">⋮</button><span class="msg-actions">${btns.join(' ')}</span>` : ''}</div>`;
+  if (feat.featureDelete !== false && feat.authEnabled && !message.pending) btns.push(`<button class="del-btn" type="button" data-action="delete-message" data-id="${idAttr}"><span><b>删除</b><small>从当前聊天中删除这条消息</small></span><i>del</i></button>`);
+  if (opts.showJump) btns.push(`<button class="jump-btn" type="button" data-action="jump-to" data-id="${idAttr}"><span><b>跳到原文</b><small>回到这条消息原来的位置</small></span><i>jump</i></button>`);
+  const actionPreview = String(message.content || '').replace(/\s+/g, ' ').trim().slice(0, 82) || ((message.attachments || []).length ? '[附件]' : '');
+  const apiUsage = renderApiUsage(message);
+  const footer = opts.hideTime || message.streaming ? '' : `<div class="msg-footer"><span class="msg-time">${formatTime(message.created_at)}</span>${apiUsage}</div>`;
 
   if (recalled) {
     return `
-    <article class="${classes}" id="msg-${idAttr}">
+    <article class="${classes}" id="msg-${idAttr}" data-message-id="${idAttr}">
       ${avatarHtml(message)}
       <div class="msg-col">
         <div class="msg-sender">${esc(message.sender)}</div>
@@ -159,7 +248,9 @@ function renderMessage(message, opts = {}) {
   //   时间和操作按钮只挂最后一条(它们属于「这条消息」,不属于每一段),
   //   附件也跟在最后 —— 图片跟在正文说完之后出现,顺序才对。
   //   `id="msg-N"` 只给第一条:跳转锚点必须唯一。
-  const segments = text ? splitParagraphs(text) : [];
+  // Keep a live reply in one stable bubble. Splitting while tokens arrive
+  // makes paragraph boundaries jump; the committed message is split once.
+  const segments = message.streaming ? [text] : (text ? splitParagraphs(text) : []);
   // ★ 思考链默认**折叠**。摊开时它是整段长文,而 `.msg-col` 是 `width:max-content` ——
   //   于是"只回了三个字"的一条,气泡照样被思考链撑到最宽(真机上逮到的就是这个)。
   //   收成一个 `thinking` 小标签之后,气泡宽度重新由正文决定。
@@ -179,7 +270,9 @@ function renderMessage(message, opts = {}) {
   //   道理也站得住:思考不是"他说的话",是"他说这句话之前在想什么" ——
   //   塞进同一个气泡等于把两种东西说成一种。
   //   引用(quoted parent)仍留在气泡里:那是这句话的一部分语境,不是另一层。
-  const preBubble = `${message.thinking
+  const preBubble = `${message.streaming
+    ? `<details class="cot stream-cot"${message.thinking ? ' open' : ''}><summary>thinking</summary><div class="cot-body stream-thinking">${esc(message.thinking || '正在思考…')}</div></details>`
+    : message.thinking
     ? `<details class="cot"><summary>thinking</summary><div class="cot-body">${esc(message.thinking)}</div></details>`
     : ''}${toolBlock}`;
   const head = renderQuotedParent(message);
@@ -194,12 +287,12 @@ function renderMessage(message, opts = {}) {
     ? `<div class="attachments">${attachments.map(renderAttachment).join('')}</div>` : '';
   // 没正文也没思考链/引用时不留空气泡 —— 纯图片消息就该只有图。
   // 只有正文或引用才需要气泡 —— 思考链已经自己在外面了
-  const hasBubble = Boolean(text) || Boolean(head);
+  const hasBubble = Boolean(text) || Boolean(head) || message.streaming;
 
   if (segments.length <= 1) {
-    const inner = `${head}${text ? `<div class="body-text md">${renderMarkdown(text)}</div>` : ''}`;
+    const inner = `${head}${text || message.streaming ? `<div class="body-text md${message.streaming ? ' stream-content' : ''}">${text ? renderMarkdown(text) : ''}</div>` : ''}`;
     return `
-    <article class="${classes}${isWideMessage(text, attachments) ? ' wide' : ''}" id="msg-${idAttr}">
+    <article class="${classes}${isWideMessage(text, attachments) ? ' wide' : ''}" id="msg-${idAttr}" data-message-id="${idAttr}"${message.streaming ? ` data-stream-id="${escAttr(String(message.stream_id || ''))}"` : ''}>
       ${avatarHtml(message)}
       <div class="msg-col">
         <div class="msg-sender">${esc(message.sender)}</div>
@@ -221,7 +314,7 @@ function renderMessage(message, opts = {}) {
     const rowClass = `${classes}${first ? '' : ' cont'}${isWideMessage(seg, []) ? ' wide' : ''}`;
     const inner = `${first ? head : ''}<div class="body-text md">${renderMarkdown(seg)}</div>`;
     return `
-    <article class="${rowClass}"${first ? ` id="msg-${idAttr}"` : ''}>
+    <article class="${rowClass}" data-message-id="${idAttr}"${first ? ` id="msg-${idAttr}"` : ''}>
       ${avatarHtml(message)}
       <div class="msg-col">
         ${first ? `<div class="msg-sender">${esc(message.sender)}</div>` : ''}
@@ -341,14 +434,15 @@ function renderComposer(scope) {
           <button class="composer-btn sticker-toggle${state.stickerOpen && state.stickerOpen[scope] ? ' on' : ''}" type="button" data-action="toggle-stickers" data-scope="${escAttr(scope)}" aria-label="表情" title="表情">${ICONS.sticker}</button>
           <textarea name="content" rows="1" placeholder="${escAttr(placeholder)}" ${state.offline ? 'disabled' : ''}>${esc(draft)}</textarea>
         </div>
-        <label class="composer-btn composer-attach" aria-label="添加附件" title="添加附件">
-          <input data-file-scope="${escAttr(scope)}" type="file" accept="image/*,.pdf,.txt" multiple ${state.offline ? 'disabled' : ''}>
-          ${ICONS.plus}
-        </label>
+        <button class="composer-btn composer-attach${state.attachMenuOpen && state.attachMenuOpen[scope] ? ' on' : ''}" type="button" data-action="toggle-attach-menu" data-scope="${escAttr(scope)}" aria-label="添加附件" title="添加附件" ${state.offline ? 'disabled' : ''}>${ICONS.plus}</button>
         <button class="composer-btn composer-send" type="submit" aria-label="${state.offline ? '离线' : '发送'}" title="${state.offline ? '离线' : '发送'}" ${sendDisabled ? 'disabled' : ''}>
           ${ICONS.send}
         </button>
       </div>
+      ${state.attachMenuOpen && state.attachMenuOpen[scope] ? `<div class="attach-menu">
+        <button class="attach-choice" type="button" data-action="pick-attachment" data-kind="image" data-scope="${escAttr(scope)}"><span class="attach-choice-icon attach-image-icon" aria-hidden="true"></span><span><b>图片</b><small>从相册选择图片</small></span></button>
+        <button class="attach-choice" type="button" data-action="pick-attachment" data-kind="file" data-scope="${escAttr(scope)}"><span class="attach-choice-icon attach-file-icon" aria-hidden="true"></span><span><b>文件</b><small>从文件管理器选择</small></span></button>
+      </div>` : ''}
       ${renderStickerPanel(scope)}
     </form>`;
 }
@@ -440,20 +534,7 @@ function renderPendingAttachment(scope, file) {
 
 function renderChatToolsMenu(scope) {
   // 反馈#1:顶栏「复制全部/清空」文字长、把标题挤到截断 → 收进 ⋯,点开才出
-  const s = state.settings || {};
-  const items = [];
-  if (s.featureCopyAll !== false) {
-    items.push(`<button type="button" data-action="copy-all" data-scope="${escAttr(scope)}">复制全部对话</button>`);
-  }
-  if (s.featureDelete !== false && s.authEnabled) {
-    items.push(`<button type="button" class="danger-item" data-action="clear-chat" data-scope="${escAttr(scope)}">清空聊天记录</button>`);
-  }
-  if (!items.length) return '';
-  const open = !!state.topbarMenuOpen;
-  return `<div class="topbar-menu-wrap">
-      <button class="fav-filter topbar-more${open ? ' on' : ''}" type="button" data-action="toggle-topbar-menu" aria-label="更多" aria-expanded="${open}">⋯</button>
-      ${open ? `<div class="topbar-menu">${items.join('')}</div>` : ''}
-    </div>`;
+  return '';
 }
 
 function renderChatSearchBtn(scope) {
@@ -463,18 +544,37 @@ function renderChatSearchBtn(scope) {
   //   镜片 = 圆环(border+border-radius),把手 = 一根旋转 45° 的短线。
   //   打开时那圈描边慢慢转一下(cc-lens-spin),表示"在搜"——比换颜色更好认,
   //   而且 prefers-reduced-motion 下自动停,不会变成一个一直在动的干扰源。
-  return `<button class="fav-filter lens-btn${open ? ' on' : ''}" type="button" data-action="toggle-chat-search" data-scope="${escAttr(scope)}" aria-label="搜索聊天"><span class="lens" aria-hidden="true"></span></button>`;
+  return `<button class="fav-filter lens-btn${open ? ' on' : ''}" type="button" data-action="toggle-chat-search" data-scope="${escAttr(scope)}" aria-label="搜索聊天"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.4 15.4 4.1 4.1"></path></svg></button>`;
+}
+
+function renderFavoriteCard(message) {
+  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+  const isImage = (file) => String(file.type || '').startsWith('image/')
+    || /\.(png|jpe?g|gif|webp)$/i.test(file.url || file.name || '');
+  const image = attachments.find(isImage);
+  const text = String(message.content || '').replace(/\s+/g, ' ').trim();
+  const file = attachments.find((item) => !isImage(item));
+  const preview = text || (file ? file.name || '文件' : image ? '图片' : '收藏消息');
+  const thumb = image
+    ? `<img class="favorite-thumb" src="${escAttr(shell.protectedAssetUrl(image.url || ''))}" alt="" loading="lazy" decoding="async">`
+    : '';
+  return `<button class="favorite-card${thumb ? ' has-thumb' : ''}" type="button" data-action="jump-to" data-id="${escAttr(String(message.id))}">
+    <span class="favorite-content">${esc(preview)}</span>
+    ${thumb}
+    <span class="favorite-meta"><span>${esc(message.sender || '')}</span><time>${esc(formatDateTime(message.created_at))}</time></span>
+  </button>`;
 }
 
 function renderFavFilterBtn(scope) {
   const rows = scope === 'group' ? state.group : state.chat;
   const showFav = !!(state.showFavorites && state.showFavorites[scope]);
   const favCount = (rows || []).filter((m) => m && m.favorited).length;
-  return `<button class="fav-filter${showFav ? ' on' : ''}" type="button" data-action="toggle-fav-filter" data-scope="${escAttr(scope)}">${showFav ? '返回全部' : `★ 收藏${favCount ? ` ${favCount}` : ''}`}</button>`;
+  const label = showFav ? '返回全部消息' : `查看收藏消息${favCount ? `，共 ${favCount} 条` : ''}`;
+  return `<button class="topbar-fav-btn${showFav ? ' on' : ''}" type="button" data-action="toggle-fav-filter" data-scope="${escAttr(scope)}" aria-label="${escAttr(label)}" title="${escAttr(label)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.75 5.57 6.15.9-4.45 4.33 1.05 6.12L12 17.03l-5.5 2.89 1.05-6.12L3.1 9.47l6.15-.9L12 3Z"></path></svg></button>`;
 }
 
 export {
   renderChat, renderChatToolsMenu, renderChatSearchBtn, renderFavFilterBtn,
-  renderComposerDrafts, renderMessageList, searchMessages, renderMessage, renderAttachmentDraft,
+  renderComposerDrafts, renderMessageList, renderSearchResults, searchMessages, renderMessage, renderAttachmentDraft,
   setChatShellDeps,
 };

@@ -58,3 +58,13 @@ test('bridge_user_input:输入原话渲染成 > 行', () => {
 test('bridge_user_input 空白文本:不占一行', () => {
   assert.equal(formatLine(JSON.stringify({ type: 'bridge_user_input', text: '   ' })), null);
 });
+
+test('DSH lowercase tool call uses Codex CLI Called layout and keeps its main argument', () => {
+  const r = formatLine(JSON.stringify({
+    source: 'dsh', type: 'tool/call',
+    data: { name: 'bash', arguments: JSON.stringify({ command: 'npm test', description: 'run tests' }) },
+  }));
+  assert.equal(r.mark, '●');
+  assert.match(r.text, /Called\s+└ Bash/);
+  assert.match(r.text, /npm test/);
+});

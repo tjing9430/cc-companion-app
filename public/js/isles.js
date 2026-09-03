@@ -48,11 +48,11 @@ const STAR_TEXT_GAP = 0.012;
 //   离她屏边还有约 1% ≈ 3.6px;右列最远的岛缘 86.2%,离缘 3.8%。
 //   再往外 layoutIsles 的 clamp 会开始悄悄往回拽,推了等于没推。
 const SPOTS = [
-  { x: 73, y: 33,   side: 'left'  },
-  { x: 28, y: 44.5, side: 'right' },
-  { x: 74, y: 56,   side: 'left'  },
-  { x: 28, y: 67.5, side: 'right' },
-  { x: 74, y: 79,   side: 'left'  },
+  { x: 70, y: 31.5, side: 'left'  },
+  { x: 23, y: 45,   side: 'right' },
+  { x: 69, y: 56.5, side: 'left'  },
+  { x: 29, y: 69.5, side: 'right' },
+  { x: 77, y: 81,   side: 'left'  },
 ];
 
 // 「更多」:最底一格,标签**在旁边**不再在正下方。
@@ -65,7 +65,7 @@ const SPOTS = [
 //   若走到两行(overflow 时多一行「还有 N 个」)会和「设置」标签叠 6.9px ——
 //   86.5 那版是用拍出来的行高 1.3 验绿的,尺子松了 7.7px。沉到 88.5 后
 //   两行最坏与「设置」标签仍隔 4.5px,岛底 533.9 < 568,四档重验全绿。
-const MORE_SPOT = { x: 28, y: 88.5, size: 11, side: 'right' };
+const MORE_SPOT = { x: 39, y: 90, size: 12, side: 'right' };
 
 // 入口数和构图表对不上时怎么办 —— **绝不静默截断**。
 // 少于 5 个:取前 n 个格位(构图仍然成立,只是稀一点)。

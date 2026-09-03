@@ -38,7 +38,7 @@ import { renderSettings, renderQuotaPanel, agentProviderLabel } from './js/setti
 import { renderMemory, renderMemoryReader, memoryTabHeading } from './js/memory-view.js';
 import {
   renderChat, renderChatToolsMenu, renderChatSearchBtn, renderFavFilterBtn,
-  renderComposerDrafts, renderMessageList, searchMessages, renderMessage, renderAttachmentDraft,
+  renderComposerDrafts, renderMessageList, renderSearchResults, searchMessages, renderMessage, renderAttachmentDraft,
   setChatShellDeps,
 } from './js/chat-view.js';
 const root = document.getElementById('app');
@@ -72,16 +72,67 @@ async function boot() {
 }
 
 function bindEvents() {
+  let pressTimer = null;
+  let pressPoint = null;
+  const cancelLongPress = () => { if (pressTimer) clearTimeout(pressTimer); pressTimer = null; pressPoint = null; };
+  document.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const row = event.target.closest('.message-row[data-message-id]');
+    if (!row || !event.target.closest('.bubble,.attachments')) return;
+    pressPoint = { x: event.clientX, y: event.clientY };
+    pressTimer = setTimeout(() => {
+      state.openMsgActions = row.dataset.messageId;
+      if (navigator.vibrate) navigator.vibrate(18);
+      render();
+      pressTimer = null;
+    }, 480);
+  }, { passive: true });
+  document.addEventListener('pointermove', (event) => {
+    if (pressPoint && Math.hypot(event.clientX - pressPoint.x, event.clientY - pressPoint.y) > 10) cancelLongPress();
+  }, { passive: true });
+  document.addEventListener('pointerup', cancelLongPress, { passive: true });
+  document.addEventListener('pointercancel', cancelLongPress, { passive: true });
+  document.addEventListener('contextmenu', (event) => {
+    const row = event.target.closest('.message-row[data-message-id]');
+    if (!row || !event.target.closest('.bubble,.attachments')) return;
+    event.preventDefault();
+    state.openMsgActions = row.dataset.messageId;
+    render();
+  });
   document.addEventListener('click', async (event) => {
     const action = event.target.closest('[data-action]');
     if (!action) return;
     const name = action.dataset.action;
+    if (action.closest('.msg-actions') && name !== 'copy-message') state.openMsgActions = null;
     if (name === 'tab') {
       state.tab = action.dataset.tab || 'chat';
       // 只有**进**「更多」那一下才放入场动画;页内任何重绘都不再重放
       state.moreAnim = state.tab === 'more';
       render();
       await refreshCurrent().catch(handleBackgroundError);
+    }
+    if (name === 'cycle-theme') {
+      const order = ['light', 'island', 'starry', 'dark'];
+      const current = order.includes(state.settings.theme) ? state.settings.theme : 'dark';
+      const theme = order[(order.indexOf(current) + 1) % order.length];
+      try {
+        state.settings = await api('/api/settings', {
+          method: 'POST',
+          body: { ...state.settings, theme },
+        });
+        cacheBootstrap();
+        applyTheme();
+        render();
+        requestAnimationFrame(() => {
+          const glyph = document.querySelector('.theme-cycle-glyph');
+          if (!glyph) return;
+          glyph.classList.add('theme-switching');
+          glyph.addEventListener('animationend', () => glyph.classList.remove('theme-switching'), { once: true });
+        });
+      } catch (err) {
+        handleBackgroundError(err);
+      }
+      return;
     }
     if (name === 'console-view') {
       state.consoleView = action.dataset.view === 'term' ? 'term' : 'flow';
@@ -133,7 +184,10 @@ function bindEvents() {
         // 走和贴纸/附件同一条上传链:先落成 /uploads/ 资源,再把**引用**写进设置。
         // 不把图片本身塞进 settings —— 那会让 store 里躺着 base64,也和自改窄口
         // 「只收已上传引用」的口径对不上(见 server.js 的 /api/agent/avatar)。
-        const file = await pickOneImage();
+        // Reuse the attachment picker path that is already proven on Android
+        // and vendor WebViews. The older avatar-only picker could stay pending
+        // after returning from Gallery on some phones.
+        const file = (await pickAttachments('image', false))[0] || null;
         if (!file) return;
         try {
           const uploaded = await api('/api/uploads', { method: 'POST', body: await prepareUpload(file) });
@@ -148,8 +202,15 @@ function bindEvents() {
     if (name === 'copy-message') {
       const row = action.closest('.message-row');
       const body = row && row.querySelector('.body-text');
-      const ok = await copyText(body ? body.textContent : '');
+      const message = action.dataset.id ? findMessageById(action.dataset.id) : null;
+      const ok = await copyText(body ? body.textContent : String(message && message.content || ''));
       flashCopied(action, ok);
+      setTimeout(() => {
+        if (state.openMsgActions) {
+          state.openMsgActions = null;
+          render();
+        }
+      }, 280);
     }
     if (name === 'copy-all') {
       const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
@@ -260,6 +321,11 @@ function bindEvents() {
       state.openMsgActions = String(state.openMsgActions || '') === String(id) ? null : id;
       render();
     }
+    if (name === 'close-msg-actions') {
+      state.openMsgActions = null;
+      render();
+      return;
+    }
     if (name === 'toggle-fav-filter') {
       const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
       if (!state.showFavorites) state.showFavorites = { chat: false, group: false };
@@ -278,9 +344,18 @@ function bindEvents() {
       }
       render();
       if (state.chatSearchOpen[scope]) {
-        const input = document.querySelector(`.chat-search-row input[data-scope="${CSS.escape(scope)}"]`);
+        const input = document.querySelector(`.chat-search-sheet input[data-scope="${CSS.escape(scope)}"]`);
         if (input) input.focus();
       }
+    }
+    if (name === 'chat-search-mode') {
+      const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
+      if (!state.chatSearchMode) state.chatSearchMode = { chat: 'all', group: 'all' };
+      state.chatSearchMode[scope] = ['all', 'image', 'file', 'link'].includes(action.dataset.mode) ? action.dataset.mode : 'all';
+      render();
+      const input = document.querySelector(`.chat-search-sheet input[data-scope="${CSS.escape(scope)}"]`);
+      if (input) input.focus({ preventScroll: true });
+      return;
     }
     if (name === 'jump-to') {
       const list = action.closest('.message-list');
@@ -300,6 +375,23 @@ function bindEvents() {
       state.stickerOpen[scope] = !state.stickerOpen[scope];
       render();
       if (state.stickerOpen[scope]) loadStickers();
+    }
+    if (name === 'toggle-attach-menu') {
+      const scope = action.dataset.scope || (state.tab === 'group' ? 'group' : 'chat');
+      if (!state.attachMenuOpen) state.attachMenuOpen = { chat: false, group: false };
+      state.attachMenuOpen[scope] = !state.attachMenuOpen[scope];
+      if (state.attachMenuOpen[scope] && state.stickerOpen) state.stickerOpen[scope] = false;
+      render();
+      return;
+    }
+    if (name === 'pick-attachment') {
+      const scope = action.dataset.scope === 'group' ? 'group' : 'chat';
+      const kind = action.dataset.kind === 'image' ? 'image' : 'file';
+      if (state.attachMenuOpen) state.attachMenuOpen[scope] = false;
+      render();
+      const files = await pickAttachments(kind);
+      if (files.length) await uploadFiles(scope, files);
+      return;
     }
     if (name === 'send-sticker' && !state.stickerEdit) {
       const form = action.closest('form');
@@ -359,7 +451,7 @@ function bindEvents() {
     }
     if (name === 'memory-tab') {
       const tab = action.dataset.tab;
-      state.memoryTab = ['home', 'docs', 'all'].includes(tab) ? tab : 'diary';
+      state.memoryTab = ['home', 'docs', 'all', 'config'].includes(tab) ? tab : 'diary';
       state.memoryToolsOpen = false;
       // 换一叠就把筛选松开:「全部条目」里筛着 auto 再切回日记,日记会空成 0 条(日记本就不含 auto)
       const hadQuery = Boolean(state.memoryQuery);
@@ -367,7 +459,32 @@ function bindEvents() {
       state.memoryQuery = '';
       render();
       if (state.memoryTab === 'docs') loadDocuments();
+      else if (state.memoryTab === 'config') loadConfigFiles();
       else if (hadQuery) loadMemories();
+    }
+    if (name === 'open-config-file') {
+      state.configFileStatus = '';
+      state.configFileEditMode = false;
+      try {
+        state.configFileEditing = await api(`/api/config-files/${action.dataset.id}`);
+      } catch (err) {
+        state.configFileStatus = `加载失败：${err.message}`;
+      }
+      render();
+      return;
+    }
+    if (name === 'close-config-editor') {
+      state.configFileEditing = null;
+      state.configFileEditMode = false;
+      render();
+      return;
+    }
+    if (name === 'enable-config-edit') {
+      state.configFileEditMode = true;
+      render();
+      const textarea = document.querySelector('.config-file-editor textarea[name="content"]');
+      if (textarea) textarea.focus({ preventScroll: true });
+      return;
     }
     if (name === 'memory-view') {
       state.memoryView = action.dataset.view === 'timeline' ? 'timeline' : 'cards';
@@ -568,6 +685,7 @@ function bindEvents() {
     if (form.dataset.consoleCommand) await submitConsoleCommand(form);
     if (form.dataset.memoryForm) await submitMemory(form);
     if (form.dataset.docForm) await submitDocument(form);
+    if (form.dataset.configFileForm) await submitConfigFile(form);
     if (form.dataset.settingsForm) await submitSettings(form);
     if (form.dataset.authForm) await submitAuth(form);
   });
@@ -597,7 +715,11 @@ function bindEvents() {
       render();
       return;
     }
-    if (input.dataset.fileScope) await uploadFiles(input.dataset.fileScope, Array.from(input.files || []));
+    if (input.dataset.fileScope) {
+      const scope = input.dataset.fileScope;
+      if (state.attachMenuOpen) state.attachMenuOpen[scope] = false;
+      await uploadFiles(scope, Array.from(input.files || []));
+    }
     if (input.dataset.stickerScope) {
       const scope = input.dataset.stickerScope;
       const file = (input.files || [])[0];
@@ -622,6 +744,10 @@ function bindEvents() {
 
   document.addEventListener('input', (event) => {
     const node = event.target;
+    if (node && node.matches && node.matches('input[name="session_max_tokens_k"]')) {
+      const value = node.closest('.session-limit-row')?.querySelector('[data-session-limit-value]');
+      if (value) value.textContent = `${node.value}K`;
+    }
     if (node && node.tagName === 'TEXTAREA' && node.closest && node.closest('.composer-bar')) {
       autosizeTextarea(node);
       const form = node.closest('form');
@@ -687,6 +813,12 @@ async function loadBootstrap() {
     applyBootstrap(data, { offline: false });
     cacheBootstrap();
   } catch (err) {
+    if (err && err.status === 401) {
+      state.settings = null;
+      state.error = err.message;
+      renderAuth();
+      return;
+    }
     const cached = readCachedBootstrap();
     if (cached && cached.settings) {
       applyBootstrap(cached, { offline: true, error: `离线快照：${err.message}` });
@@ -710,7 +842,11 @@ async function refreshCurrent() {
       await loadBridgeConfig();
       if (state.consoleView === 'term') { await loadQuota(); await loadRawTail(); }
     }
-    else if (state.tab === 'memory') await loadMemories();
+    else if (state.tab === 'memory') {
+      if (state.memoryTab === 'config') await loadConfigFiles();
+      else if (state.memoryTab === 'docs') await loadDocuments();
+      else await loadMemories();
+    }
     else if (state.tab === 'settings') await loadQuota();
   } catch (err) {
     handleBackgroundError(err);
@@ -810,7 +946,8 @@ async function submitMessage(scope, form) {
         attachments: index === messages.length - 1 ? attachments : [],
       }))
     : [{ content: '', attachments }];
-  const tempMessages = outgoing.map((item) => optimisticMessage(scope, item.content, item.attachments, replyToId));
+  const batchCreatedAt = new Date().toISOString();
+  const tempMessages = outgoing.map((item) => optimisticMessage(scope, item.content, item.attachments, replyToId, batchCreatedAt));
   state[scope].push(...tempMessages);
   state.pending[scope] = [];
   state.composerParts[scope] = [];
@@ -945,6 +1082,33 @@ async function uploadFiles(scope, files) {
     state.busy = false;
     updateComposerDrafts(scope);
   }
+}
+
+function pickAttachments(kind, multiple = true) {
+  return new Promise((resolve) => {
+    // Keep the native picker outside #app. SSE/bootstrap renders replace #app's
+    // innerHTML; an input living there can disappear while Android's picker is
+    // open, so its eventual change event never reaches our delegated listener.
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = multiple;
+    input.accept = kind === 'image'
+      ? 'image/*'
+      : '.pdf,.txt,.md,.json,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,application/*,text/*';
+    input.hidden = true;
+    document.body.appendChild(input);
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      const files = Array.from(input.files || []);
+      input.remove();
+      resolve(files);
+    };
+    input.addEventListener('change', finish, { once: true });
+    input.addEventListener('cancel', finish, { once: true });
+    input.click();
+  });
 }
 
 function render() {
@@ -1151,23 +1315,29 @@ function renderTopbar() {
     settings: '调整名字、群聊触发和主题。',
     more: '北斗上的功能位，空着的留给你自己加。',
   }[state.tab];
-  const status = state.offline ? '离线快照' : (state.settings.agent.configured ? 'API 已配置' : '演示模式');
-  const live = state.offline ? status : `${streamStatusLabel()} - ${status}`;
+  const chatProfile = state.tab === 'chat' ? `
+    <div class="topbar-profile">
+      <span class="topbar-polaroid"><img src="${escAttr(protectedAssetUrl(state.settings.assistant_avatar || '/assets/stars/star-private-core.webp'))}" alt=""></span>
+      <span class="topbar-profile-copy">
+        <strong>${esc(state.settings.assistantName)}</strong>
+        <small>${esc(state.settings.assistant_signature || '今天也在这里')}</small>
+      </span>
+    </div>` : '';
   return `
     <header class="topbar${mem ? ' topbar-paper' : ''}${state.tab === 'home' ? ' topbar-home' : ''}">
       <div class="topbar-title">
-        ${state.tab === 'home' ? '' : '<button type="button" class="topbar-home-btn" data-action="tab" data-tab="home" aria-label="回首页" title="回首页">✦</button>'}
+        ${state.tab === 'home' ? '' : `<button type="button" class="topbar-home-btn" data-action="tab" data-tab="home" aria-label="回首页" title="回首页"><span class="home-glyph-star" aria-hidden="true">✦</span><svg class="home-glyph-vane" viewBox="0 0 24 24" aria-hidden="true"><path d="m11.2 10.8-6.8-2 .9-2.9 6.2 4.3M13.2 11.2l2-6.8 2.9.9-4.3 6.2M12.8 13.2l6.8 2-.9 2.9-6.2-4.3M10.8 12.8l-2 6.8-2.9-.9 4.3-6.2"></path><circle cx="12" cy="12" r="1.45"></circle><path d="M10.4 13.3 9 21h6l-1.4-7.7"></path></svg></button>`}
         ${mem && mem.back ? '<button type="button" class="topbar-back" data-action="memory-tab" data-tab="home" aria-label="回记忆">‹</button>' : ''}
         <!-- ★ 顶栏那颗装饰球(orbMarkup)撤掉:它 aria-hidden、不可点、每一页都挂一个,
              占掉标题左边一大块却不回答任何问题。留下的 ✦ 是**回首页键**(有 aria-label),
              跟它长得像但不是一回事 —— 底栏是全局拆掉的,✦ 是每页唯一的回家路。 -->
-        <div class="topbar-title-text"><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>
+        ${chatProfile || `<div class="topbar-title-text"><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div>`}
       </div>
       <div class="topbar-actions">
         ${(state.tab === 'chat' || state.tab === 'group') ? renderChatSearchBtn(state.tab) : ''}
-        ${(state.tab === 'chat' || state.tab === 'group') ? `<span class="only-wide">${renderFavFilterBtn(state.tab)}</span>` : ''}
+        ${state.tab === 'chat' ? renderFavFilterBtn('chat') : ''}
         ${(state.tab === 'chat' || state.tab === 'group') ? renderChatToolsMenu(state.tab) : ''}
-        <div class="status-pill" data-stream="${escAttr(state.streamStatus || 'idle')}" title="${escAttr(live)}"><span class="pill-long">${esc(live)}</span><span class="pill-short">${esc(streamStatusLabel())}</span></div>
+        <button type="button" class="theme-cycle-btn" data-action="cycle-theme" aria-label="更换主题" title="更换主题：奶油白 → 浮岛 → 星空 → 暖深色"><span class="theme-cycle-glyph" aria-hidden="true"></span></button>
       </div>
     </header>`;
 }
@@ -1185,10 +1355,10 @@ async function loadSearchPool(scope) {
 
 function refreshSearchList(scope) {
   if (!(state.chatSearchOpen && state.chatSearchOpen[scope])) return;
-  const list = document.querySelector(`.message-list[data-scroll-scope="${CSS.escape(scope)}"]`);
-  if (!list) return;
-  list.innerHTML = renderMessageList(scope, scope === 'group' ? state.group : state.chat);
-  const hits = searchMessages(scope, scope === 'group' ? state.group : state.chat);
+  const rows = scope === 'group' ? state.group : state.chat;
+  const results = document.querySelector('.chat-search-results');
+  if (results) results.innerHTML = renderSearchResults(scope, rows);
+  const hits = searchMessages(scope, rows);
   const count = document.querySelector(`[data-search-count="${CSS.escape(scope)}"]`);
   if (count) count.textContent = hits ? `${hits.length} 条` : '';
 }
@@ -1448,6 +1618,37 @@ async function loadDocuments() {
   }
 }
 
+async function loadConfigFiles() {
+  try {
+    const rows = await api('/api/config-files');
+    state.configFiles = Array.isArray(rows) ? rows : [];
+    state.configFileStatus = '';
+    render();
+  } catch (err) {
+    state.configFileStatus = `加载失败：${err.message}`;
+    render();
+  }
+}
+
+async function submitConfigFile(form) {
+  const id = String(form.dataset.id || '');
+  const content = String(form.elements.content.value || '');
+  if (!id) return;
+  state.configFileStatus = '正在保存…';
+  try {
+    const saved = await api(`/api/config-files/${id}`, { method: 'PUT', body: { content } });
+    state.configFileEditing = saved;
+    await loadConfigFiles();
+    state.configFileEditing = saved;
+    state.configFileEditMode = false;
+    state.configFileStatus = `已保存 ${saved.name}`;
+    render();
+  } catch (err) {
+    state.configFileStatus = `保存失败：${err.message}`;
+    render();
+  }
+}
+
 function readFileAsText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1532,8 +1733,12 @@ async function api(path, options = {}) {
   const response = await fetch(path, init);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    if (response.status === 401) state.settings = null;
-    throw new Error(data.message || data.error || `HTTP ${response.status}`);
+    // A secondary page request must not throw the whole App back to the login
+    // screen. Bootstrap owns the actual login decision; console/quota/search
+    // requests can fail independently and should surface as ordinary errors.
+    const err = new Error(data.message || data.error || `HTTP ${response.status}`);
+    err.status = response.status;
+    throw err;
   }
   return data;
 }
@@ -1588,11 +1793,46 @@ function connectStream() {
   eventStream.addEventListener('message', (event) => {
     const data = parseStreamData(event);
     if (!data || !data.scope || !data.message) return;
+    if (data.message.role === 'assistant' && state.streaming[data.scope]) state.streaming[data.scope] = null;
     upsertMessage(data.scope, data.message);
     state.offline = false;
     cacheBootstrap();
     renderMessages(data.scope);
     maybeNotify(data.message);
+  });
+  eventStream.addEventListener('message-stream', (event) => {
+    const data = parseStreamData(event);
+    const scope = data && data.scope;
+    if ((scope !== 'chat' && scope !== 'group') || !data.stream_id) return;
+    if (data.phase === 'start') {
+      state.streaming[scope] = {
+        id: `stream-${data.stream_id}`,
+        stream_id: data.stream_id,
+        scope,
+        sender: data.sender || state.settings.assistantName || 'AI',
+        role: 'assistant',
+        content: '',
+        thinking: '',
+        attachments: [],
+        parent_msg_id: data.parent_msg_id || null,
+        created_at: data.created_at || new Date().toISOString(),
+        pending: true,
+        streaming: true,
+      };
+      renderMessages(scope);
+      return;
+    }
+    const current = state.streaming[scope];
+    if (!current || String(current.stream_id) !== String(data.stream_id)) return;
+    if (data.phase === 'end') {
+      state.streaming[scope] = null;
+      renderMessages(scope);
+      return;
+    }
+    if (data.phase !== 'delta') return;
+    current.content += String(data.content || '');
+    current.thinking += String(data.thinking || '');
+    patchStreamingMessage(scope, current);
   });
   eventStream.addEventListener('deleted', (event) => {
     const data = parseStreamData(event);
@@ -1696,6 +1936,18 @@ function upsertMessage(scope, message) {
   upsertById(state[scope], message);
 }
 
+function patchStreamingMessage(scope, stream) {
+  const row = document.querySelector(`[data-stream-id="${CSS.escape(String(stream.stream_id))}"]`);
+  if (!row) { renderMessages(scope); return; }
+  const content = row.querySelector('.stream-content');
+  if (content) content.innerHTML = stream.content ? renderMarkdown(stream.content) : '';
+  const thinking = row.querySelector('.stream-thinking');
+  if (thinking) thinking.textContent = stream.thinking || '正在思考…';
+  const details = row.querySelector('.stream-cot');
+  if (details && stream.thinking) details.open = true;
+  if (state.stickToBottom[scope]) scrollLists();
+}
+
 function removeMessagesById(scope, ids) {
   if (scope !== 'chat' && scope !== 'group') return;
   const remove = new Set((ids || []).map(String));
@@ -1770,7 +2022,7 @@ function composerMessages(scope, textarea) {
   return [...(state.composerParts[scope] || []), current].map((part) => part.trim()).filter(Boolean);
 }
 
-function optimisticMessage(scope, content, attachments = [], parentId = null) {
+function optimisticMessage(scope, content, attachments = [], parentId = null, createdAt = '') {
   return {
     id: TEMP_ID_PREFIX + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7),
     scope,
@@ -1780,7 +2032,7 @@ function optimisticMessage(scope, content, attachments = [], parentId = null) {
     attachments,
     parent_msg_id: parentId || null,
     msg_type: 'chat',
-    created_at: new Date().toISOString(),
+    created_at: createdAt || new Date().toISOString(),
     pending: true,
   };
 }

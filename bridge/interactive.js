@@ -162,7 +162,7 @@ export function createInteractiveRunner(opts) {
 
   // Inject one turn (bracketed-paste the message + Enter) and read its reply + thinking
   // from the jsonl, confirming the injection actually landed (cold-start pastes can be lost).
-  async function runTurn(prompt) {
+  async function runTurn(prompt, onDelta = () => {}) {
     await ensureAlive();
     readNewEntries(); // drain any trailing entries from the previous turn so we start clean
 
@@ -200,11 +200,12 @@ export function createInteractiveRunner(opts) {
     const consume = (entries) => {
       if (entries.length) lastGrowth = Date.now();
       const fold = foldTurnEntries(entries);
-      if (fold.thinking) { thinking += fold.thinking; postConsole('thinking', assistantName, fold.thinking); }
+      if (fold.thinking) { thinking += fold.thinking; onDelta('thinking', fold.thinking); postConsole('thinking', assistantName, fold.thinking); }
       for (const t of fold.tools) {
         turnTools.push(t);
         postConsole('tool', assistantName, t.arg ? `→ ${t.name}  ${t.arg}` : `→ ${t.name}`);
       }
+      if (fold.text) onDelta('content', fold.text);
       finalText = appendText(finalText, fold.text); // ALL assistant text (keeps pre-tool transition text)
       if (fold.done) done = true;
     };

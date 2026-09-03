@@ -36,12 +36,12 @@ import { layoutIsles, MORE_SPOT } from './isles.js';
 // ★ size = 占容器高的百分比。竖岛给小一点、横岛给大一点,
 //   这样六座**看起来**差不多大 —— 统一 size 的话竖岛会比横岛高一倍。
 const ISLES = {
-  chat:     { file: 'private',  ratio: 226 / 340, size: 22 },
-  group:    { file: 'group',    ratio: 340 / 231, size: 13 },
+  chat:     { file: 'private',  ratio: 226 / 340, size: 29 },
+  group:    { file: 'group',    ratio: 340 / 231, size: 16 },
   memory:   { file: 'memory',   ratio: 233 / 340, size: 20 },
-  console:  { file: 'console',  ratio: 340 / 236, size: 13 },
-  settings: { file: 'settings', ratio: 229 / 340, size: 18 },
-  more:     { file: 'more',     ratio: 333 / 340, size: 11 },
+  console:  { file: 'console',  ratio: 1254 / 1254, size: 20 },
+  settings: { file: 'settings', ratio: 229 / 340, size: 17 },
+  more:     { file: 'more',     ratio: 333 / 340, size: 14 },
 };
 
 // 首屏的两套几何:
@@ -142,6 +142,11 @@ function dipperSrc(s) {
   if (s.theme === 'island') return '/assets/island/more.webp';
   return '/assets/badges/bigdipper.webp';
 }
+function gateArt(s, g, isDipper = false) {
+  if (s.theme === 'light' || s.theme === 'dark') return '';
+  const src = isDipper ? dipperSrc(s) : starSrc(s, g);
+  return `<img src="${src}" alt="" decoding="async" ${LIT}>`;
+}
 // 图没到时占位盒子的宽高比。徽章是正方形、北斗是 1389/480、浮岛每座各不相同 ——
 // ★ 这个值必须跟真图一致,否则图一到盒子就跳一下(占位的意义正是"不跳")。
 function ratioOf(s, g, isDipper) {
@@ -174,6 +179,8 @@ const FAR_ISLES = [
   { file: 'console',  x: 80, y: 14, size: 4.2 },
   { file: 'group',    x: 15, y: 33, size: 4.8 },
   { file: 'settings', x: 85, y: 44, size: 3.6 },
+  { file: 'private',  x: 10, y: 64, size: 3.3 },
+  { file: 'memory',   x: 89, y: 75, size: 4.1 },
 ];
 
 // 云间小径:一条虚线沿六座岛蛇形串下来 —— 目标图里岛和岛之间那条发光的路。
@@ -242,8 +249,12 @@ function renderHome() {
   // 改落点表小径自动跟着走 —— 不存在第二份要人肉同步的路径坐标。
   const isleDeco = s.theme === 'island' ? `
           <svg class="sky-trail" viewBox="0 0 90 160" aria-hidden="true">
-            <path d="${trailPath([...laid, more])}" pathLength="100"/>
+            <path class="trail-cloud" d="${trailPath([...laid, more])}" pathLength="100"/>
+            <path class="trail-light" d="${trailPath([...laid, more])}" pathLength="100"/>
           </svg>
+          <span class="sky-flight flight-plane">✦</span>
+          <span class="sky-flight flight-petal">◇</span>
+          <span class="sky-flight flight-whale" aria-hidden="true"></span>
           ${FAR_ISLES.map((f) => `<img class="sky-far" src="/assets/island/${f.file}.webp" alt="" decoding="async"
             style="--x:${f.x}%;--y:${f.y}%;--h:${f.size}%">`).join('')}` : '';
 
@@ -261,7 +272,7 @@ function renderHome() {
              「背景/星河/星星像三个图层」的根治办法不是把三层调得像一层,
              而是让它**真的只有一层**。所以星尘层、渐变底、预烘光晕全部删掉。 -->
         <div class="sky-inner">
-          ${isle ? isleDeco : '<img class="sky-galaxy" src="/assets/galaxy-river.webp" alt="" decoding="async">'}
+          ${isle ? isleDeco : '<img class="sky-galaxy" src="/assets/galaxy-river.webp" alt="" decoding="async" fetchpriority="high">'}
         </div>
       </div>
 
@@ -291,7 +302,7 @@ function renderHome() {
         ${laid.map((g) => `
           <li class="sky-gate sg-${g.side}" style="--x:${g.x}%;--y:${g.y}%;--size:${(g.size * spriteScale).toFixed(2)}%;--ratio:${ratioOf(s, g, false)}">
             <button type="button" data-action="tab" data-tab="${g.tab}">
-              <span class="sg-star"><img src="${starSrc(s, g)}" alt="" ${LIT}></span>
+              <span class="sg-star">${gateArt(s, g)}</span>
               <span class="sg-text">
                 <span class="sg-title">${esc(g.title)}</span>
                 <span class="sg-hint">${esc(g.hintText)}</span>
@@ -300,7 +311,7 @@ function renderHome() {
           </li>`).join('')}
         <li class="sky-gate sky-dipper sg-${more.side}" style="--x:${more.x}%;--y:${more.y}%;--size:${more.size}%;--ratio:${ratioOf(s, more, true)}">
           <button type="button" data-action="tab" data-tab="${more.tab}">
-            <span class="sg-star"><img src="${dipperSrc(s)}" alt="" ${LIT}></span>
+            <span class="sg-star">${gateArt(s, more, true)}</span>
             <span class="sg-text">
               <span class="sg-title">${esc(DIPPER.title)}</span>
               ${overflow.length ? `<span class="sg-hint">还有 ${overflow.length} 个</span>` : ''}

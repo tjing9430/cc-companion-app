@@ -20,6 +20,7 @@
 //   DATA_DIR=/tmp/x node scripts/migrate-to-sqlite.mjs      # 换数据目录
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // 免 flag 能拿到 node:sqlite 的最低版本。这两个数是下官方二进制实测出来的,不是查文档抄的:
 //   v22.12.0 → ERR_UNKNOWN_BUILTIN_MODULE   v22.13.0 → ✅
@@ -411,7 +412,7 @@ export async function migrate({ storePath, dbPath, write = false, allowRepairs =
 }
 
 // 直接跑才执行,被 import 时不执行。
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const argv = process.argv.slice(2);
   const dataDir = process.env.DATA_DIR || path.join(process.cwd(), 'data');
   const storePath = path.join(dataDir, 'app-data.json');
