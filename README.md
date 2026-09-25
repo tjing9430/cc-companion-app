@@ -171,36 +171,6 @@ docs/                     部署、协议、安全和扩展文档
 data/                     本地运行数据，不进入 Git
 ```
 
-## 开发与验证
-
-长期运行的部署目录与开发目录建议分开：
-
-```bash
-git worktree add ../cc-companion-work -b work
-```
-
-`public/` 会在请求时读取，`lib/` 和 `server.js` 在进程启动时加载。后端代码变化后需要重启服务。
-
-提交前运行：
-
-```bash
-npm run check
-npm test
-```
-
-`npm run check` 会递归检查运行时代码目录中的 JavaScript 语法；`npm test` 使用数据守卫，避免测试写入真实运行数据。
-
-前端结构基线：
-
-```bash
-node scripts/ui-baseline.mjs before.json
-# 修改前端
-node scripts/ui-baseline.mjs after.json
-node scripts/ui-baseline.mjs --diff before.json after.json
-```
-
-该工具使用固定种子和临时数据目录，不读取真实聊天记录。需要 `puppeteer-core` 和本地 Chrome。
-
 ## 文档
 
 | 文档 | 内容 |

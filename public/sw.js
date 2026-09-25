@@ -11,7 +11,7 @@ const CACHE_VERSION = self.__CC_CACHE_VERSION__ || 'cc-companion-static-dev';
 // ★ 8/14 补进 isles/river/more-view:版本哈希会walk整个 js/ 目录,所以只改它们仨**换桶**
 //   没问题(server 重启后);但不在这张单里 = 同一版本内的改动只能等下一次换桶才见效,
 //   和其它 js 不同步 —— 「改了 A 生效、改了 B 像没改」这种半新半旧最难查。拉齐。
-const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/js/state.js', '/js/console-view.js', '/js/settings-view.js', '/js/memory-view.js', '/js/chat-view.js', '/js/starry.js', '/js/home-view.js', '/js/isles.js', '/js/river.js', '/js/more-view.js', '/js/stream-format.js', '/styles.css', '/index.html'];
+const ALWAYS_FRESH = ['/app.js', '/js/util.js', '/js/markdown.js', '/js/state.js', '/js/console-view.js', '/js/settings-view.js', '/js/memory-view.js', '/js/chat-view.js', '/js/starry.js', '/js/home-view.js', '/js/isles.js', '/js/river.js', '/js/more-view.js', '/js/stream-format.js', '/js/workflow-view.js', '/js/actions/theme.js', '/styles.css', '/index.html'];
 // ★ 首屏那几张图必须 install 时就预下,不能等页面自己去要。
 //   实测(慢网 400kbps + 禁缓存,连打 8 次):**2 次画面里入口图标是缺的** ——
 //   一次只剩 1 颗、一次一颗都没渲出来。而且**每次缺的不是同一颗**,

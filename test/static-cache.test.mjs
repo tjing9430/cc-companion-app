@@ -8,6 +8,26 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+function walkJavaScript(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    return entry.isDirectory() ? walkJavaScript(full) : (entry.name.endsWith('.js') ? [full] : []);
+  });
+}
+
+test('Service Worker 对全部运行时 JavaScript 使用 network-first', () => {
+  const source = fs.readFileSync(path.join(REPO, 'public', 'sw.js'), 'utf8');
+  const block = source.match(/const ALWAYS_FRESH\s*=\s*\[([\s\S]*?)\];/);
+  assert.ok(block, '找不到 ALWAYS_FRESH 清单');
+  const listed = new Set([...block[1].matchAll(/['"]([^'"]+)['"]/g)].map((match) => match[1]));
+  const runtimeFiles = [path.join(REPO, 'public', 'app.js'), ...walkJavaScript(path.join(REPO, 'public', 'js'))];
+  const missing = runtimeFiles
+    .map((file) => `/${path.relative(path.join(REPO, 'public'), file).replaceAll('\\', '/')}`)
+    .filter((url) => !listed.has(url));
+  assert.deepEqual(missing, [], `这些运行时模块会混用旧缓存: ${missing.join(', ')}`);
+});
+
 const freePort = () => new Promise((resolve) => {
   const socket = net.createServer();
   socket.listen(0, '127.0.0.1', () => {

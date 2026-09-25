@@ -23,6 +23,7 @@ import {
   QUOTA_ADAPTER_URL, QUOTA_ADAPTER_TOKEN, QUOTA_ADAPTER_TIMEOUT_MS,
   HEARTBEAT_ENABLED, HEARTBEAT_INTERVAL_MINUTES, HEARTBEAT_MIN_IDLE_MINUTES,
   HEARTBEAT_QUIET_START, HEARTBEAT_QUIET_END,
+  THEMES,
   store, saveStore, nextId, newSessionId, normalizeSession, normalizeSettings, normalizeAvatar,
   publicSettings, publicSession, applySettingsRename, agentStatus, flushStore,
 } from './lib/state.js';
@@ -164,6 +165,8 @@ async function handleRequest(req, res) {
       name: 'cc-companion-app',
       storage: STORE_FILE,
       session: publicSession(),
+      themes: THEMES,
+      theme_cycle: ['light', 'island', 'starry', 'dark'],
       agent: agentStatus(),
     });
   }
@@ -617,13 +620,8 @@ function serveStatic(req, res, route) {
   //   在这儿注入之后,首帧就是终态:没有错帧,也没有状态变化可过渡。
   //   ★ 放在服务端而不是 localStorage:第一次访问的人也吃得到。
   if (requested === '/index.html') {
-    // ⚠️ 主题白名单**一共三份**,改任何一份都要三份一起改:
-    //     lib/state.js(存的时候归一) · public/app.js(前端写 body) · 这里(首帧注入)
-    //   前两份写成 `['light','starry'] ? : 'dark'` —— dark 靠"当兜底"混进来,
-    //   它既是合法选项又是非法值的归宿。这里显式列全,行为一样但读得懂。
-    //   (合并成一处更好,但那要动存储层,排在封笔之后。)
     const theme = (store.settings && store.settings.theme) || 'dark';
-    const safe = ['dark', 'light', 'starry', 'island'].includes(theme) ? theme : 'dark';
+    const safe = THEMES.includes(theme) ? theme : 'dark';
     const html = fs.readFileSync(filePath, 'utf8').replace('<body>', `<body data-theme="${safe}">`);
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
     return res.end(html);

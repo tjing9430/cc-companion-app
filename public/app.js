@@ -1727,6 +1727,8 @@ async function api(path, options = {}) {
 
 function applyBootstrap(data, options = {}) {
   state.settings = data.settings;
+  state.themes = Array.isArray(data.themes) ? data.themes.filter(Boolean) : state.themes;
+  state.themeCycle = Array.isArray(data.theme_cycle) ? data.theme_cycle.filter(Boolean) : state.themeCycle;
   state.chat = data.chat || [];
   state.group = data.group || [];
   state.events = data.console || data.events || [];
@@ -1967,6 +1969,8 @@ function cacheBootstrap() {
       console: state.events,
       memories: state.memories,
       session: state.session,
+      themes: state.themes,
+      theme_cycle: state.themeCycle,
       quota: state.quota,
       cached_at: new Date().toISOString(),
     }));
@@ -2233,7 +2237,9 @@ function scrollLists() {
 
 function applyTheme() {
   const t = state.settings && state.settings.theme;
-  document.body.dataset.theme = ['light', 'starry', 'island'].includes(t) ? t : 'dark';
+  const allowed = Array.isArray(state.themes) ? state.themes : [];
+  const fallback = allowed.includes('dark') ? 'dark' : (allowed[0] || 'dark');
+  document.body.dataset.theme = allowed.includes(t) ? t : fallback;
   // ★ 把当前页也挂到 body 上:样式要「只在某一页生效」时,总得有个抓手。
   //   之前没有,于是想给私聊单独定规矩就只能改模板 —— 而模板是各页共用的。
   document.body.dataset.tab = state.tab || 'chat';

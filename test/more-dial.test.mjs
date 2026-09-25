@@ -53,13 +53,11 @@ test('功能位比星少 —— 余下的是留给开源用户的空位', () => 
   assert.equal(SLOTS[0].tab, 'settings', '「更多」不再直接落进设置页,设置只是盘上的一颗');
 });
 
-test('★ 删掉「换主题」那一格之后,设置页的主题下拉必须还在、还是三档', () => {
+test('★ 删掉「换主题」那一格之后,设置页仍从服务端主题名单生成下拉', () => {
   // ★ 这条是「功能没丢」的**唯一证据**。删入口把主干一起带断,今天不是没见过 ——
   //   而且那种断法很安静:更多页少一格是看得见的,设置页下拉没了得有人专门去点。
   const sv = readFileSync(path.join(root, 'public/js/settings-view.js'), 'utf8');
-  for (const v of ['dark', 'light', 'starry']) {
-    assert.match(sv, new RegExp(`<option value="${v}"`), `设置页主题下拉少了 ${v} 这一档`);
-  }
+  assert.match(sv, /state\.themes/);
   // 反向:更多页不许再有主题入口(否则等于没删)
   const mv = readFileSync(path.join(root, 'public/js/more-view.js'), 'utf8');
   assert.doesNotMatch(mv, /more-theme/, '「换主题」那一格还在(或它的 action 还留着)');

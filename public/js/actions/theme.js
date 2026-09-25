@@ -1,8 +1,9 @@
-const THEME_ORDER = ['light', 'island', 'starry', 'dark'];
-
-export function nextTheme(current) {
-  const safe = THEME_ORDER.includes(current) ? current : 'dark';
-  return THEME_ORDER[(THEME_ORDER.indexOf(safe) + 1) % THEME_ORDER.length];
+export function nextTheme(current, order = []) {
+  const sequence = Array.isArray(order) ? order.filter(Boolean) : [];
+  if (!sequence.length) return current;
+  const fallback = sequence.includes('dark') ? 'dark' : sequence[0];
+  const safe = sequence.includes(current) ? current : fallback;
+  return sequence[(sequence.indexOf(safe) + 1) % sequence.length];
 }
 
 export async function cycleTheme({
@@ -15,7 +16,8 @@ export async function cycleTheme({
   documentRef = globalThis.document,
   requestFrame = globalThis.requestAnimationFrame,
 }) {
-  const theme = nextTheme(state.settings.theme);
+  const theme = nextTheme(state.settings.theme, state.themeCycle);
+  if (theme === state.settings.theme) return;
   try {
     state.settings = await api('/api/settings', {
       method: 'POST',

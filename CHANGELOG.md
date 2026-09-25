@@ -2,6 +2,14 @@
 
 本项目的版本变化记录在这里，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.1] - 2026-09-26
+
+### 修复
+
+- 修复 Service Worker 漏列运行时模块导致更新后混用旧缓存的问题。
+- 统一主题白名单来源，首帧、设置页和主题切换使用同一份服务端名单。
+- 移除 README 中仅适用于单一维护者的内部开发流程说明。
+
 ## [0.2.0] - 2026-09-03
 
 ### 新增
@@ -27,10 +35,12 @@
 - 修复群聊自动回复设置、DSH 上下文丢失、换窗 Prompt 泄漏到聊天记录等问题。
 - 修复附件遮挡头像、流式消息重复落库、旧主题首帧闪烁和配置文件横向溢出。
 
-## 0.1.0 - 2026-07-01
+## [0.1.0] - 2026-07-01
 
 ### 新增
 
 - 首个开源基线版本，包含私聊、群聊、记忆、控制台、主题、PWA 与 Claude Code Bridge。
 
 [0.2.0]: https://github.com/tjing9430/cc-companion-app/releases/tag/v0.2.0
+[0.2.1]: https://github.com/tjing9430/cc-companion-app/releases/tag/v0.2.1
+[0.1.0]: https://github.com/tjing9430/cc-companion-app/releases/tag/v0.1.0

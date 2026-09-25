@@ -11,36 +11,22 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // ★ 这张表是**唯一的真源**:下面五条测试全部由它驱动。
 //   加第四个主题时只改这一行,漏改的那一条会自己红 —— 这正是 island 上来时发生的事。
-const ALLOWED = ['light', 'dark', 'starry', 'island'];
+const { THEMES: ALLOWED } = await import('../lib/state.js');
 
-test('后端白名单正好是这些合法主题', () => {
-  // lib/state.js 没把 normalizeSettings 导出来,所以这里读源码验那一行的形状。
-  // 结构性守卫,弱于真调一遍,但挡得住"有人把 starry 从名单里删了"这类回归。
-  const src = fs.readFileSync(path.join(REPO, 'lib', 'state.js'), 'utf8');
-  const m = src.match(/theme:\s*\[([^\]]+)\]\.includes\(settings\.theme\)\s*\?\s*settings\.theme\s*:\s*'(\w+)'/);
-  assert.ok(m, '后端的 theme 归一化不再是「白名单 + 回落」的形状了,这条测试要跟着更新');
-  const list = m[1].split(',').map((x) => x.trim().replace(/['"]/g, ''));
-  const fallback = m[2];
-  assert.deepEqual([...list, fallback].sort(), [...ALLOWED].sort(),
-    '后端白名单(含回落值)必须正好等于 ALLOWED');
+test('后端主题白名单是唯一导出的合法名单', () => {
+  assert.deepEqual([...ALLOWED].sort(), ['dark', 'island', 'light', 'starry']);
 });
 
 test('前端 applyTheme 用的是同一份名单', () => {
   const src = fs.readFileSync(path.join(REPO, 'public', 'app.js'), 'utf8');
-  const m = src.match(/dataset\.theme\s*=\s*\[([^\]]+)\]\.includes\(t\)\s*\?\s*t\s*:\s*'(\w+)'/);
-  assert.ok(m, '前端 applyTheme 不再是「白名单 + 回落」的形状了');
-  const list = m[1].split(',').map((x) => x.trim().replace(/['"]/g, ''));
-  assert.deepEqual([...list, m[2]].sort(), [...ALLOWED].sort(),
-    '前后端主题名单必须一致 —— 漂了就会出现「后端存得下、前端认不出」的裸奔主题');
+  assert.match(src, /state\.themes/);
+  assert.doesNotMatch(src, /\[['"](?:dark|light|starry|island)/,
+    '前端不应再复制一份主题白名单');
 });
 
 test('服务端首帧注入也用同一份主题名单', () => {
   const src = fs.readFileSync(path.join(REPO, 'server.js'), 'utf8');
-  const m = src.match(/const safe = \[([^\]]+)\]\.includes\(theme\) \? theme : '(\w+)'/);
-  assert.ok(m, '服务端首帧主题不再是「白名单 + 回落」的形状了');
-  const list = m[1].split(',').map((x) => x.trim().replace(/['"]/g, ''));
-  assert.deepEqual([...new Set([...list, m[2]])].sort(), [...ALLOWED].sort(),
-    '服务端首帧白名单必须和存储层/前端一致');
+  assert.match(src, /THEMES\.includes\(theme\)/);
 });
 
 test('每个主题在 CSS 里都真的有一套变量(名单里有、样式里没有 = 裸奔)', () => {
@@ -54,8 +40,9 @@ test('每个主题在 CSS 里都真的有一套变量(名单里有、样式里�
 test('设置页把每个主题都列出来了(后端支持但选不到 = 等于没有)', () => {
   const src = fs.readFileSync(path.join(REPO, 'public', 'js', 'settings-view.js'), 'utf8');
   for (const t of ALLOWED) {
-    assert.ok(src.includes(`value="${t}"`), `设置页缺 ${t} 这个选项`);
+    assert.match(src, new RegExp(`(?:^|[,{ ])${t}:`), `设置页缺 ${t} 的显示名称`);
   }
+  assert.match(src, /state\.themes/, '设置页必须按服务端名单生成主题选项');
 });
 
 test('starry 必须吃到深色家族的可读性修正(不然它会掉回浅色规则)', () => {

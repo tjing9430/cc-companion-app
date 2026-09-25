@@ -47,6 +47,10 @@ const state = {
   // 落地页。老用户下一次打开也会先看到它 —— 它是入口不是新功能,四个星直达原来的地方。
   tab: 'home',
   settings: null,
+  // Filled by /api/bootstrap. The server owns the legal theme names; keeping
+  // this empty until bootstrap avoids another browser-side whitelist.
+  themes: [],
+  themeCycle: [],
   chat: [],
   group: [],
   events: [],

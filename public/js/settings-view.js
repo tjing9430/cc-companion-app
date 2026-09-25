@@ -7,6 +7,10 @@ import { state, protectedAssetUrl } from './state.js';
 
 function renderSettings({ notifySupported, notifyEnabled }) {
   const s = state.settings;
+  const themeLabels = { dark: '暖深色', light: '奶油白', starry: '星空', island: '浮岛' };
+  const themeOptions = (state.themes || []).map((theme) =>
+    `<option value="${escAttr(theme)}" ${s.theme === theme ? 'selected' : ''}>${esc(themeLabels[theme] || theme)}</option>`
+  ).join('');
   return `
     <form class="panel stack" data-settings-form="1">
       <h2>设置</h2>
@@ -26,10 +30,7 @@ function renderSettings({ notifySupported, notifyEnabled }) {
         <div class="form-row">
           <label>主题</label>
           <select name="theme">
-            <option value="dark" ${s.theme === 'dark' ? 'selected' : ''}>暖深色</option>
-            <option value="light" ${s.theme === 'light' ? 'selected' : ''}>奶油白</option>
-            <option value="starry" ${s.theme === 'starry' ? 'selected' : ''}>星空</option>
-            <option value="island" ${s.theme === 'island' ? 'selected' : ''}>浮岛</option>
+            ${themeOptions}
           </select>
         </div>
         ${Object.prototype.hasOwnProperty.call(s, 'companion_since') ? `
