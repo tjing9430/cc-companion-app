@@ -23,7 +23,7 @@ import {
   QUOTA_ADAPTER_URL, QUOTA_ADAPTER_TOKEN, QUOTA_ADAPTER_TIMEOUT_MS,
   HEARTBEAT_ENABLED, HEARTBEAT_INTERVAL_MINUTES, HEARTBEAT_MIN_IDLE_MINUTES,
   HEARTBEAT_QUIET_START, HEARTBEAT_QUIET_END,
-  THEMES,
+  THEMES, THEME_CYCLE,
   store, saveStore, nextId, newSessionId, normalizeSession, normalizeSettings, normalizeAvatar,
   publicSettings, publicSession, applySettingsRename, agentStatus, flushStore,
 } from './lib/state.js';
@@ -166,7 +166,7 @@ async function handleRequest(req, res) {
       storage: STORE_FILE,
       session: publicSession(),
       themes: THEMES,
-      theme_cycle: ['light', 'island', 'starry', 'dark'],
+      theme_cycle: THEME_CYCLE,
       agent: agentStatus(),
     });
   }
@@ -183,6 +183,8 @@ async function handleRequest(req, res) {
       console: latestConsoleEvents(),
       memories: listMemories(url.searchParams.get('q') || ''),
       session: publicSession(),
+      themes: THEMES,
+      theme_cycle: THEME_CYCLE,
       // ★ 版本从 package.json 现读,不在前端写死一个字符串。
       //   写死的版本号不会报错,只会安静地过期 —— 「关于」上挂一个错版本比不挂更糟:
       //   用户拿它报 bug,我们照着它去查一个不存在的版本。

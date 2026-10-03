@@ -11,10 +11,20 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // ★ 这张表是**唯一的真源**:下面五条测试全部由它驱动。
 //   加第四个主题时只改这一行,漏改的那一条会自己红 —— 这正是 island 上来时发生的事。
-const { THEMES: ALLOWED } = await import('../lib/state.js');
+const { THEMES: ALLOWED, THEME_CYCLE } = await import('../lib/state.js');
 
 test('后端主题白名单是唯一导出的合法名单', () => {
   assert.deepEqual([...ALLOWED].sort(), ['dark', 'island', 'light', 'starry']);
+  assert.deepEqual([...THEME_CYCLE], ['light', 'island', 'starry', 'dark']);
+  assert.deepEqual([...THEME_CYCLE].sort(), [...ALLOWED].sort());
+});
+
+test('health 和 bootstrap 共用同一份主题协议', () => {
+  const src = fs.readFileSync(path.join(REPO, 'server.js'), 'utf8');
+  const health = src.match(/route === '\/api\/health'[\s\S]*?themes:\s*THEMES,[\s\S]*?theme_cycle:\s*THEME_CYCLE/);
+  const bootstrap = src.match(/route === '\/api\/bootstrap'[\s\S]*?themes:\s*THEMES,[\s\S]*?theme_cycle:\s*THEME_CYCLE/);
+  assert.ok(health, 'health 必须下发统一主题协议');
+  assert.ok(bootstrap, 'bootstrap 必须下发统一主题协议，浏览器启动只读这条');
 });
 
 test('前端 applyTheme 用的是同一份名单', () => {
