@@ -2,6 +2,12 @@
 
 本项目的版本变化记录在这里，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### 变更
+
+- DSH worker 不再使用维护者机器上的默认仓库路径；启动前必须显式设置 `DSH_REPO` 和 `DSH_CWD`。
+
 ## [0.2.1] - 2026-09-26
 
 ### 修复

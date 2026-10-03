@@ -19,11 +19,18 @@ def emit(value: dict) -> None:
     print(json.dumps(value, ensure_ascii=False), flush=True)
 
 
-repo = Path(os.environ.get("DSH_REPO", r"D:\cc\work\dsh-ccc-runtime")).resolve()
+def required_path(name: str) -> Path:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(f"{name} is required for the DSH worker")
+    return Path(value).expanduser().resolve()
+
+
+repo = required_path("DSH_REPO")
 sys.path.insert(0, str(repo / "python" / "sdk" / "src"))
 from deepseek_harness import DeepSeekHarness  # noqa: E402
 
-workspace = Path(os.environ.get("DSH_CWD", r"D:\cc")).resolve()
+workspace = required_path("DSH_CWD")
 session_root = Path(os.environ.get("DSH_SESSION_ROOT", str(Path.cwd() / "data" / "dsh-sessions"))).resolve()
 runtime_entry = repo / "packages" / "examples" / "jsonrpc-demo" / "src" / "bin.ts"
 default_cordis = Path(__file__).with_name("dsh-minimal.cordis.yml") if os.environ.get("DSH_MINIMAL_MODE", "1") == "1" else repo / "examples" / "jsonrpc-agent" / "cordis.yml"

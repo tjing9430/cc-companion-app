@@ -44,7 +44,7 @@ const push = (base, lines) => fetch(`${base}/api/console/stream`, {
 // 主库**内容指纹**:红线①的判据,第三版。
 // ★ 版本考古,三把尺子一把比一把接近效果本身:
 //   v1  stat app-data.json          → sqlite 下 ENOENT,检查压根没跑(#70①)
-//   v2  字节 app-data.json+db+wal   → 字节仍是**代理**:小匠实测 checkpoint 会把 -wal
+//   v2  字节 app-data.json+db+wal   → 字节仍是**代理**:实测 checkpoint 会把 -wal
 //       截断回 0,真写 300 行总字节反而净减 49KB —— 泄漏可被抵消成假绿,
 //       阳性对照也可能被同一机制搞成偶发红
 //   v3  内容指纹(现在这把)          → 效果本身:库里**存了什么**。checkpoint 搬字节
