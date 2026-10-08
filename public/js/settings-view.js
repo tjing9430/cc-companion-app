@@ -2,7 +2,7 @@
 // notifySupported/notifyEnabled 留在 app.js 壳里(它们碰浏览器通知权限,属于壳的职责),
 // 这里当参数收 —— 渲染模块不直接问浏览器要状态。
 
-import { esc, escAttr, formatDateTime } from './util.js';
+import { esc, escAttr, formatDateTime, daysTogether } from './util.js';
 import { state, protectedAssetUrl } from './state.js';
 
 function renderSettings({ notifySupported, notifyEnabled }) {
@@ -41,7 +41,7 @@ function renderSettings({ notifySupported, notifyEnabled }) {
             <button type="button" class="since-pick" data-action="pick-since">替我挑一个</button>
           </div>
           <p class="form-hint">${s.companion_since
-            ? `已经一起 ${daysSince(s.companion_since)} 天了`
+            ? `已经一起 ${daysTogether(s.companion_since)} 天了`
             : '没设的话首屏就不显示这句;「替我挑一个」会拿最早那条消息当建议,你看过再存。'}</p>
         </div>` : ''}
         ${Object.prototype.hasOwnProperty.call(s, 'user_avatar') ? `
@@ -227,14 +227,8 @@ function quotaRemainingTime(resetsAt, fetchedAt) {
   return rest ? `${hours}h${rest}m` : `${hours}h`;
 }
 
-// 「已经一起 N 天」。★ 用**日期**算不用毫秒差:跨时区/夏令时的时候,
-// 毫秒差除以 86400000 会在半夜前后抖出 ±1 天。取两个 UTC 零点再相减就稳。
-function daysSince(iso) {
-  const start = Date.parse(`${iso}T00:00:00Z`);
-  if (Number.isNaN(start)) return 0;
-  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
-  return Math.max(0, Math.round((today - start) / 86400000)) + 1;   // 当天算第 1 天
-}
+// ★「已经一起 N 天」不再在这儿自己算 —— 用 util.js 的 daysTogether(全站唯一一份)。
+//   这里原来那份和它逐行等价,但口径是 UTC,北京 00:00–08:00 会和星空主题差一天。
 
 function field(name, label, value, placeholder = '') {
   return `<div class="form-row"><label>${esc(label)}</label><input name="${escAttr(name)}" value="${escAttr(value)}"${placeholder ? ` placeholder="${escAttr(placeholder)}"` : ''}></div>`;

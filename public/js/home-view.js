@@ -18,10 +18,12 @@
 //     一是首屏顶栏是刚被明确要求整个去掉的,再往右上角摆东西是把它请回来;
 //     二是这两样都是假的 —— 没有付费档、这版也没有通知功能。
 //     **摆一个点不动的铃铛比不摆更差。**
-import { esc, escAttr } from './util.js';
+import { esc, escAttr, daysTogether } from './util.js';
 import { state, protectedAssetUrl } from './state.js';
 import { layoutGates, splitGates } from './river.js';
 import { layoutIsles, MORE_SPOT } from './isles.js';
+import { renderOrreryHome } from './orrery-home.js';
+import { renderLuopanHome } from './luopan-home.js';
 
 // 浮岛主题的精灵表。
 //
@@ -210,18 +212,18 @@ function greeting() {
   return '晚上好';
 }
 
-// 已陪伴 N 天。★ 用两个 UTC 零点相减,不用毫秒差除 86400000 ——
-// 后者在跨时区/夏令时的半夜前后会抖出 ±1 天。当天算第 1 天。
-function daysTogether(iso) {
-  if (!iso) return 0;
-  const start = Date.parse(`${iso}T00:00:00Z`);
-  if (Number.isNaN(start)) return 0;
-  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
-  return Math.max(0, Math.round((today - start) / 86400000)) + 1;
-}
+// ★「已陪伴 N 天」的实现搬到 `util.js` 了(口径改成**本地零点**,见那边的注释)。
+//   之前这里用 UTC 日期,在北京 00:00–08:00 会比星空主题少一天 —— 同一个数,
+//   全站只留一份算法。这里 re-export 只为兼容老调用方。
 
 function renderHome() {
   const s = state.settings || {};
+  if (s.theme === 'starry') return renderOrreryHome();
+  // 简约主题（奶油白 / 暖深色）的首屏是一面罗盘（luopan-home.js）。
+  // ★ 这一步之后，下面那套「沿银河 / 浮岛构图表」只剩浮岛一个主题在走 ——
+  //   light/dark 不再经过 layoutGates。river.js 的 layoutGates 因此没有调用方了，
+  //   但它在文件里还自洽（和浮岛共用 splitGates），这单不动它，只在这儿留个记号。
+  if (s.theme === 'light' || s.theme === 'dark') return renderLuopanHome();
   // 超出上限的入口不会消失,它们归到「更多」那颗北斗名下(并在控制台点名)
   const { onRiver, overflow } = splitGates(GATES);
   const days = daysTogether(s.companion_since);

@@ -139,6 +139,26 @@ function splitParagraphs(text) {
   return segs.length ? segs : [src.trim()];
 }
 
+// 「已经一起 N 天」。★ 用**本地日期**取两个零点相减,当天算第 1 天。
+//
+// 为什么不拿 `new Date().toISOString()`(UTC 日期)当「今天」:那条路在北京时间
+// **00:00–08:00** 会少算一天(UTC 还没翻页),同一时刻星空主题显示 207、这里显示 206,
+// 她半夜看首屏就少一天。用户不关心 UTC,她只知道「今天」是几号。
+// 也不用毫秒差直接除 86400000 —— 那样半夜前后会抖出 ±1 天。
+//
+// ★ 这个数是全站唯一一份算法:首屏(home-view / luopan / orrery)和设置页都走这里。
+function daysTogether(iso) {
+  if (!iso) return 0;
+  const [y, m, d] = String(iso).split('-').map(Number);
+  if (!y || !m || !d) return 0;
+  const start = new Date(y, m - 1, d);
+  // new Date(2026, 1, 31) 会滚成 3/3 而不是判无效,所以回读三个字段比对
+  if (start.getFullYear() !== y || start.getMonth() !== m - 1 || start.getDate() !== d) return 0;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.max(0, Math.round((today.getTime() - start.getTime()) / 86400000)) + 1;
+}
+
 export {
   esc,
   escAttr,
@@ -155,4 +175,5 @@ export {
   memoryMonthLabel,
   memoryMood,
   splitParagraphs,
+  daysTogether,
 };

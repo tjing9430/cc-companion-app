@@ -1472,7 +1472,7 @@ body[data-theme="starry"] .fp-error{color:#ffb4a8}
   gap:.85rem;
   max-width:900px;
 }
-.console-command{display:grid;grid-template-columns:minmax(0,1fr);gap:.45rem}
+.console-command{display:grid;grid-template-columns:minmax(0,1fr);gap:.45rem;min-width:0}
 .console-view .console-command{
   grid-row:2;position:relative;z-index:2;
   background:transparent;border:0;box-shadow:none;
@@ -2016,7 +2016,7 @@ body[data-theme="starry"] .fw-diff-add{color:#b9e6c6;background:rgba(80,174,112,
   background:
     repeating-linear-gradient(0deg, transparent 0 33px, var(--paper-line) 33px 34px),
     linear-gradient(180deg,var(--paper-bg1),var(--paper-bg2));
-  min-height:calc(100% + 1.35rem);overflow:hidden;
+  min-height:calc(100% + 1.25rem);overflow:hidden;
 }
 body[data-theme="dark"] .mem-home{
   --paper:#2a2520; --paper-line:rgba(196,120,120,.13); --paper-grid:rgba(190,175,150,.10);
@@ -2377,6 +2377,7 @@ body[data-theme="starry"] .avatar-pick-btn{box-shadow:0 0 10px rgba(231,196,122,
    控制台的主角是事件流,档位和命令是手边的工具 —— 压成一条,溢出就滑走。 */
 .cv-strip{
   display:flex;align-items:center;gap:.35rem;
+  min-width:0;max-width:100%;
   overflow-x:auto;overflow-y:hidden;
   padding:.1rem .1rem .45rem;margin-bottom:.1rem;
   scrollbar-width:none;-webkit-overflow-scrolling:touch;
@@ -3721,4 +3722,189 @@ body[data-theme="island"] .topbar-polaroid{
 .session-limit-row strong {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
+}
+
+/* 星空首页：可拨动的星盘。只作用于 starry + home，内容页和其他主题不继承。 */
+body[data-theme="starry"] .orrery-home{
+  height:100dvh;min-height:0;padding:0;overflow:hidden;background:#110b24;
+  --orrery-gold:#d9bf8a;
+  --orrery-gold-soft:rgba(217,191,138,.55);
+  --orrery-ink:#efe8ff;
+  --orrery-ink-soft:rgba(228,218,255,.6);
+  --orrery-serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong",serif;
+  --gold:var(--orrery-gold);
+  --gold-soft:var(--orrery-gold-soft);
+  --ink:var(--orrery-ink);
+  --ink-soft:var(--orrery-ink-soft);
+  --serif:var(--orrery-serif);
+}
+body[data-theme="starry"] .orrery-stage{
+  position:relative;width:100%;height:100dvh;min-height:0;overflow:hidden;
+  display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+  padding:max(6px,env(safe-area-inset-top)) 0 max(6px,env(safe-area-inset-bottom));
+  color:var(--orrery-ink);user-select:none;-webkit-user-select:none;
+  background:
+    radial-gradient(80% 50% at 50% 52%,rgba(88,62,160,.32),transparent 70%),
+    radial-gradient(120% 60% at 90% 0%,rgba(70,48,140,.30),transparent 60%),
+    linear-gradient(180deg,#120c28 0%,#18103a 50%,#110b24 100%);
+}
+body[data-theme="starry"] .orrery-defs{
+  position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;
+}
+body[data-theme="starry"] .orrery-head{
+  position:relative;z-index:2;text-align:center;font-family:var(--orrery-serif);pointer-events:none;
+}
+body[data-theme="starry"] .orrery-phases{
+  display:block;width:100%;height:clamp(64px,10.4dvh,88px);overflow:visible;
+}
+body[data-theme="starry"] .orrery-hello{
+  margin-top:clamp(0px,1dvh,8px);font-size:clamp(20px,3.08dvh,26px);line-height:1.2;
+  color:var(--orrery-ink);letter-spacing:clamp(4px,.72dvh,6px);
+}
+body[data-theme="starry"] .orrery-days{
+  margin-top:clamp(5px,1.3dvh,11px);font-size:clamp(10px,1.54dvh,13px);line-height:1.2;
+  color:var(--orrery-ink-soft);letter-spacing:clamp(2px,.36dvh,3px);
+}
+body[data-theme="starry"] .orrery-days #days{color:var(--orrery-gold)}
+body[data-theme="starry"] .orrery-viewport{
+  position:relative;min-width:0;min-height:0;overflow:hidden;touch-action:none;
+}
+body[data-theme="starry"] .orrery-svg{
+  width:100%;height:100%;display:block;overflow:visible;
+}
+body[data-theme="starry"] .orrery-svg .serif{font-family:var(--orrery-serif)}
+body[data-theme="starry"] .orrery-room,
+body[data-theme="starry"] .orrery-center{cursor:pointer;outline:none}
+body[data-theme="starry"] .orrery-room{
+  transform-box:view-box;transform-origin:0 0;will-change:transform;
+}
+body[data-theme="starry"] .orrery-room:focus-visible,
+body[data-theme="starry"] .orrery-center:focus-visible{filter:drop-shadow(0 0 6px rgba(239,232,255,.9))}
+body[data-theme="starry"] .orrery-stage [hidden]{display:none}
+body[data-theme="starry"] .orrery-footer{
+  position:relative;z-index:2;padding:0 clamp(22px,8.7vw,34px);font-family:var(--orrery-serif);text-align:center;
+}
+body[data-theme="starry"] .orrery-footer-rule{
+  position:relative;height:13px;margin:0 0 clamp(7px,1.2dvh,10px);
+}
+body[data-theme="starry"] .orrery-footer-rule::before,
+body[data-theme="starry"] .orrery-footer-rule::after{
+  content:"";position:absolute;top:50%;width:calc(50% - 26px);height:1px;background:rgba(217,191,138,.55);
+}
+body[data-theme="starry"] .orrery-footer-rule::before{left:0}
+body[data-theme="starry"] .orrery-footer-rule::after{right:0}
+body[data-theme="starry"] .orrery-footer-rule i{
+  position:absolute;left:50%;top:50%;width:11px;height:11px;border:1px solid var(--orrery-gold);
+  border-radius:50%;transform:translate(-50%,-50%);
+}
+body[data-theme="starry"] .orrery-footer-rule i::after{
+  content:"";position:absolute;inset:3px;border-radius:50%;background:var(--orrery-gold);
+}
+body[data-theme="starry"] .orrery-info-grid{
+  display:grid;grid-template-columns:repeat(var(--orrery-info-count,1),minmax(0,1fr));align-items:stretch;
+}
+body[data-theme="starry"] .orrery-info{
+  position:relative;display:grid;justify-items:center;align-content:start;min-width:0;padding:0 clamp(5px,2vw,10px);
+}
+body[data-theme="starry"] .orrery-info.with-divider::before{
+  content:"";position:absolute;left:0;top:2px;bottom:2px;width:1px;background:rgba(217,191,138,.3);
+}
+body[data-theme="starry"] .orrery-info-label{
+  font-size:clamp(8px,1.07dvh,9px);line-height:1.2;letter-spacing:3px;color:var(--orrery-gold-soft);
+}
+body[data-theme="starry"] .orrery-info-title{
+  margin-top:clamp(6px,.95dvh,8px);font-size:clamp(11px,1.54dvh,13px);line-height:1.2;font-weight:400;
+  letter-spacing:1.5px;color:var(--orrery-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+}
+body[data-theme="starry"] .orrery-info-detail{
+  margin-top:clamp(4px,.7dvh,6px);font-size:clamp(9px,1.18dvh,10px);line-height:1.2;
+  letter-spacing:1px;color:var(--orrery-ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+}
+body[data-theme="starry"] .orrery-invite{
+  margin:clamp(12px,2.4dvh,20px) 0 clamp(2px,.8dvh,7px);font-size:clamp(9px,1.3dvh,11px);line-height:1.2;
+  letter-spacing:clamp(2px,.48dvh,4px);color:rgba(228,218,255,.4);
+}
+@media(prefers-reduced-motion:reduce){
+  body[data-theme="starry"] .orrery-stage *{animation:none!important;transition:none!important}
+}
+
+/* ============ 罗盘首屏（简约主题：奶油白 / 暖深色）============
+   出处是设计小样 luopan.final-20261004.html，宝宝 10/7 的 lp3_light / lp3_dark
+   两张图就是它渲出来的。配色、布局、字号以小样为准。
+
+   ★ 只作用在两个简约主题的**首屏**上，选择器全部挂在 `.luopan-home` 底下 ——
+     星空和浮岛一个字节都没碰（跟当初给星空加 orrery 段落时同一条规矩）。
+
+   ★ 三段式（head / 罗盘 / footer）而不是整块 390×844 的 SVG：小样用 slice 铺满，
+     视口一矮就上下对半裁；390×740 切掉「日子」那行、390×640 连问候和底部三格
+     一起切。改成「顶底进文档流、中间按剩余高度 meet 缩放」之后，
+     390×844 这一档三段相加 180 + 500 + 164 = 844，罗盘圆心正好落在 430，
+     和定稿画布逐像素重合；矮屏才靠 clamp 收顶底、罗盘按剩余高度缩。
+
+   ★ 两侧不会露白：整页底色（那个池子渐变）贴在这块区域上，
+     罗盘 meet 缩进去让出的两侧露出来的就是同一层底色。 */
+body[data-theme="light"] .luopan-home{
+  --lp-bg:#f4ede1; --lp-bg2:#ebe2d2;
+  --lp-ink:#2f2721; --lp-ink-soft:rgba(47,39,33,.62); --lp-ink-faint:rgba(47,39,33,.3);
+  --lp-line:#5b4a3a; --lp-line-soft:rgba(91,74,58,.55); --lp-line-faint:rgba(91,74,58,.22);
+  --lp-red:#b3402b; --lp-needle-dark:#2f2721;
+}
+body[data-theme="dark"] .luopan-home{
+  --lp-bg:#1b1612; --lp-bg2:#231c16;
+  --lp-ink:#efe4d2; --lp-ink-soft:rgba(239,228,210,.58); --lp-ink-faint:rgba(239,228,210,.28);
+  --lp-line:#c9a46a; --lp-line-soft:rgba(201,164,106,.5); --lp-line-faint:rgba(201,164,106,.22);
+  --lp-red:#c8553d; --lp-needle-dark:#3a2f26;
+}
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-home{
+  height:100dvh;min-height:0;padding:0;overflow:hidden;
+  background:radial-gradient(90% 55% at 50% 48%,var(--lp-bg2),var(--lp-bg) 75%);
+  --lp-serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong",serif;
+  color:var(--lp-ink);user-select:none;-webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-stage{
+  position:relative;width:100%;height:100dvh;min-height:0;overflow:hidden;
+  display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+  /* 顶栏在首屏被整体拆掉了，刘海得自己让开（星空首屏同款处理）。 */
+  padding:max(6px,env(safe-area-inset-top)) 0 max(6px,env(safe-area-inset-bottom));
+}
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-svg{
+  display:block;width:100%;height:100%;
+}
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-home .serif{font-family:var(--lp-serif)}
+
+/* 纸纹：单独一层，画在三段**底下**（小样里它也是第一个元素、垫在所有东西下面）。
+   比画布大一圈，矮屏罗盘缩进去时纸纹仍然铺到边。 */
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-grain{
+  position:absolute;inset:0;z-index:0;width:100%;height:100%;
+  pointer-events:none;overflow:visible;
+}
+/* 小样：暖深色把纸纹压到一半 —— 底本来就暗，噪点原样铺上去会脏。 */
+body[data-theme="dark"] .luopan-grain{opacity:.5}
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-head,
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-viewport,
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-footer{
+  position:relative;z-index:1;
+}
+/* 高度用 dvh 跟着屏幕缩：矮屏先收顶底，把高度留给罗盘。
+   系数就是定稿的 180/844 与 164/844。 */
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-head{height:clamp(140px,21.3dvh,180px)}
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-footer{height:clamp(128px,19.4dvh,164px);pointer-events:none}
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-viewport{
+  position:relative;min-width:0;min-height:0;overflow:hidden;touch-action:none;
+}
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-home .luopan-hit{cursor:pointer;outline:none}
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-home .luopan-hit:focus-visible{
+  filter:drop-shadow(0 0 5px var(--lp-line));
+}
+/* 房间和指针都用 CSS 变换走合成层（改 SVG 的 transform 属性会让整棵大 SVG 重新栅格化）。
+   两者的旋转中心都是罗盘的圆心 —— 在这个 SVG 里，圆心就是坐标原点 (0,0)。 */
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-home .luopan-room{
+  transform-box:view-box;transform-origin:0 0;will-change:transform;
+}
+body:is([data-theme="light"],[data-theme="dark"]) .luopan-home .luopan-needle{
+  transform-box:view-box;transform-origin:0 0;
+}
+@media(prefers-reduced-motion:reduce){
+  body:is([data-theme="light"],[data-theme="dark"]) .luopan-stage *{animation:none!important;transition:none!important}
 }

@@ -16,6 +16,7 @@ import {
 } from './js/util.js';
 import { renderMarkdown, mdInline, mdSafeUrl } from './js/markdown.js';
 import { hydrateStarry } from './js/starry.js';
+import { hydrateLuopan } from './js/luopan.js';
 import { renderHome } from './js/home-view.js';
 import { renderMore, loadSwVersion } from './js/more-view.js';
 import {
@@ -1124,6 +1125,9 @@ function render() {
   // 星空主题的动态零件(背景星野 / 页头主星的环和珠子)要在 DOM 落地之后挂。
   // 非 starry 主题时它自己会把东西收干净,不用在这儿判断。
   hydrateStarry(root);
+  // 罗盘首屏(简约主题)的动态零件:刻度/八卦/节气环/外圈房间都在 DOM 落地之后画。
+  // 非简约主题时它自己把上一份收干净,不用在这儿判断。
+  hydrateLuopan(root, state.settings || {});
   // (首屏不再需要水合:新素材把银河和夜空画在同一张图里,没有要 JS 撒的星尘了)
   markLoadedIcons(root);
   // ★ 令牌用完即焚 —— 放在这儿而不是 renderMore 里面,是为了让渲染函数保持"只读 state"。

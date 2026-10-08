@@ -10,6 +10,7 @@
 //
 // 只在 starry 主题下工作;别的主题一行都不跑,不白付性能。
 import { state } from './state.js';
+import { hydrateOrrery } from './orrery.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const REDUCED = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -81,6 +82,7 @@ export function orbMarkup(tab, size = 56) {
 
 let beadRegistry = [];
 let rafId = 0;
+let cleanupOrrery = null;
 
 function buildDefs(svg, idx) {
   const defs = mk('defs', {}, svg);
@@ -174,10 +176,17 @@ function unmountField() {
 
 // 每次 render 之后调一次。主题不是 starry 就把东西收干净。
 export function hydrateStarry(root) {
+  if (cleanupOrrery) { cleanupOrrery(); cleanupOrrery = null; }
   const on = state.settings && state.settings.theme === 'starry';
   if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
   beadRegistry = [];
   if (!on) { unmountField(); return; }
+  const orrery = (root || document).querySelector('.orrery-stage');
+  if (orrery) {
+    unmountField();
+    cleanupOrrery = hydrateOrrery(orrery, state.settings || {});
+    return;
+  }
   mountField();
   const orbs = (root || document).querySelectorAll('.orb');
   orbs.forEach((node, i) => hydrateOrb(node, i));
