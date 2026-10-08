@@ -146,7 +146,9 @@ function splitParagraphs(text) {
 // 她半夜看首屏就少一天。用户不关心 UTC,她只知道「今天」是几号。
 // 也不用毫秒差直接除 86400000 —— 那样半夜前后会抖出 ±1 天。
 //
-// ★ 这个数是全站唯一一份算法:首屏(home-view / luopan / orrery)和设置页都走这里。
+// ★ 这个数的算法全站只留一份:首屏(home-view / luopan)和设置页都走这里。
+//   ★ 星空 orrery.js **没有**走这里 —— 它自己内联算一份,口径相同(同样是本地零点),
+//     所以数值对得上;别照着上面那行去找它。
 function daysTogether(iso) {
   if (!iso) return 0;
   const [y, m, d] = String(iso).split('-').map(Number);
